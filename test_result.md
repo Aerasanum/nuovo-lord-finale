@@ -348,3 +348,136 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Iteration 3: please verify the black-map bug fix (map → Città → tap a building card → back → Mappa: canvas must render terrain, not black). Also check other round-trips (research screen, march modal, queues) return to a rendered map."
+
+# ---- iteration 4 (main agent) — marches on map per Bible §13/§41.3 ----
+frontend:
+  - task: "Marches on the 3D map: tappable markers → march selection card (mission → target, units, status pill, ETA countdown, 'Marce attive', 'Richiama' if OUTBOUND own, battle button if battle_id); march label chips with live ETA (testID map-label-march:<id>); returning marches rendered paler; marches hidden at far zoom (dist > 100, Bible §41.3)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts, MapLabels.tsx, app/(tabs)/map.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Two OUTBOUND ATTACK marches exist for demo (mar_f6b9205c32334aa3 → Neutrale 5,183 arrival ~14:40 server time; mar_cee8ea83c5f54796 → Neutrale 9,181 arrival ~16:09). Verified via screenshot: labels + card + recall button visible; far zoom hides labels."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 4: verify march markers/labels/card on the map tab. Do NOT recall both marches — recall at most one (the one to Neutrale 9,181) so the other stays for the user to see. Server clock is QA-advanced (offset ~10325s); do not advance it further."
+  - agent: "main"
+    message: "Iteration 4 fix: recalled marches are now animated from the turn-around point (backend DTO exposes recalled_at; engine.marchProgress handles OUTBOUND / normal RETURN / RECALL). Picking is now screen-space (30px) so tall castles/banners are tappable at steep pitch. Live data: mar_f6b9205c32334aa3 OUTBOUND → Neutrale 5,183; mar_ec8c3fee7d3642d5 RETURNING (recalled) → home, return ~14:11 server time. QA clock offset now +3600s (backend restarted). Verified via screenshot; please retest the recall visibility."
+
+# ---- iteration 6 (main agent) — graphics overhaul + pending Intel/Minimap/Crest/Battle-from-map validation ----
+frontend:
+  - task: "3D map graphics v3: smooth terrain (no tile squares), custom terrain shader (micro detail, slope rock, snow caps), ridged mountains, dusky horizon fog, richer flora (3-tier conifers, broadleaf, bushes, boulders; sparse trees at mid LOD), territory drawn as faint fill + border ribbon (no square tiles), tactical grid only at zoom < 13"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/terrain.ts, terrainMaterial.ts, flora.ts, territory.ts, engine.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Verified visually on web (home, mountains, far zoom). Regression to check: chunk streaming, LOD switch, no WebGL/shader errors in console, tap-to-select still works (castles are taller now: pick points at 0.6/1.7/2.6 × scale)."
+  - task: "Castle v2 + skins: bigger (≈2× footprint) decorated castles (plinth, octagonal wall with merlons, keep with windows, 4/8 towers by level, gatehouse with door + torches, wall banners at L≥10, corner turrets at L≥20, crest banner on top). Skin registry src/map3d/castle.ts (classic/royal/obsidian/sandstone; neutrals = ruin). Backend passes settlement `skin` through in public DTO (null → classic)."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/castle.ts, entities.ts, backend/app/domain/settlements.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Royal skin verified by temporarily setting skin on the demo settlement (reverted). Labels anchor at CASTLE_TOP×scale."
+  - task: "Pending from iteration 5 (never validated by testing agent): hostile march intel on map (incoming[] with intel disclosure → red halo marker + chip; selection card testID map-selection-intel with intel-* fields), tactical minimap (testID minimap / minimap-touch: tap recentres camera; shows footprint, march lines, player dots), house crests (house.tsx: crest editor + motto; crest on castles/marches/march-card; deterministic default crest from house name), battle report from map (map-selection-march-battle on a march with battle_id; map-selection-last-battle / map-selection-open-report on a settlement card)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/map.tsx, frontend/app/house.tsx, frontend/src/map3d/MiniMap.tsx, frontend/src/components/Crest.tsx, backend/app/domain/intel.py, house.py, marches.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Code complete since iteration 5, only screenshot-checked. Needs full E2E."
+backend:
+  - task: "GET /worlds/{w}/marches returns own marches + incoming[] hostile marches with intel disclosure (Bible §34.10) only after detection time; GET/PUT /worlds/{w}/house crest+motto; public settlement DTO includes owner_house_crest + skin"
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/marches.py, intel.py, house.py, settlements.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "pytest tests/test_public_e2e.py: 22/22 pass after the skin passthrough change."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 6: (1) regression-test the 3D map after the graphics overhaul (web preview): terrain renders (not black), no shader compile errors in console, zoom in/out/rotate, labels, tap on a castle opens map-selection-card, tap on the march marker opens the march card; (2) validate the iteration-5 features end-to-end: house crest editing (/house), crest visible in map selection card and march cards, minimap tap recentres, battle report reachable from the map (both demo marches are RETURNING with battle_id), hostile intel: create TWO fresh accounts (attacker + defender) so the demo account is untouched — join world_1, QA grant army to attacker + end_pvp_shield for both, launch ATTACK from attacker to defender's settlement, advance QA clock past detection, then GET /marches as defender must list it in incoming[] with intel; log in as defender on the frontend and check the red hostile marker/chip + map-selection-intel card. Demo creds in /app/memory/test_credentials.md; admin key there too."
+
+# ---- iteration 7 (main agent) — castle skins picker, level-gated unlocks, battle history on map card, animated flags/torches/smoke ----
+backend:
+  - task: "Castle skins: GET /worlds/{w}/settlements/{s}/skins (catalog: current, level, skins[{id,min_level,unlocked}]) and PUT /worlds/{w}/settlements/{s}/skin {skin} — owner only; INVALID_SKIN 400 for unknown id; SKIN_LOCKED 409 when settlement level < min_level (classic 1, sandstone 5, royal 10, obsidian 20). Persists settlements.skin (exposed in public DTO / chunks)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/skins.py, backend/app/api/routes_game.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manually verified with demo (L3): royal → 409 SKIN_LOCKED, nope → 400, classic → 200."
+  - task: "GET /worlds/{w}/settlements/{s}/battles?limit=5 → battles the viewer took part in where the settlement is target or origin (new battles store origin_settlement_id)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/api/routes_game.py, backend/app/domain/marches.py"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Demo vs neutral 5,183 returns 5 battles."
+  - task: "QA clock offset persisted in Mongo (qa_state.clock) and reloaded at startup so backend restarts no longer reset the world clock."
+    implemented: true
+    working: "NA"
+    file: "backend/app/core/clock.py, server.py, routes_qa.py"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Restored offset to 2026-09-21T07:15Z (~+10.6d); verified it survives a restart."
+frontend:
+  - task: "Skins screen /skins (Città header palette button, testID settlement-skins-button): live 3D CastlePreview (GLView) with the selected skin, skin cards skin-card-<id> (locked show lock + 'Si sblocca al livello N', current shows 'In uso'), skins-apply-button (disabled unless unlocked & different), toast on success; map castles re-render with the new skin after chunk refresh."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/skins.tsx, frontend/src/map3d/CastlePreview.tsx, frontend/app/(tabs)/settlement.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Visually verified; apply not yet exercised on an unlocked non-classic skin (demo is L3 → only classic unlocked; QA can raise level via /qa/grant? no — use a settlement upgrade or accept the lock test)."
+  - task: "Map selection card: BattleHistory (testID map-selection-battles) replaces last-battle line — up to 5 rows battle-row-<id> (trophy/skull, outcome · mission · date, losses, loot, conquered), tap → /battle/<id>; empty state map-selection-no-battles."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/MarchCard.tsx, frontend/app/(tabs)/map.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Verified on Neutrale 5,183 (5 rows)."
+  - task: "Living map: waving flags (vertex shader via onBeforeCompile, instanced + march banners), flickering torch/brazier glow (additive), stylised smoke from castle chimneys, gate torches and guarded sentinel braziers (SmokeSystem, close zoom only < ×48)."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/entities.ts, smoke.ts, castle.ts, engine.ts"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Visually verified (smoke plume + glow); no console shader errors."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 7: test skins endpoints (owner-only 403/404 for a foreign settlement, lock/unlock rules), settlement battles endpoint, skins screen flow (demo L3: classic current; royal shows locked button text), battle history rows + navigation to report, map regression (no black map, no console errors, march card still works). Demo has one OUTBOUND ATTACK march (mar_6015cbcf298047f1, 1 Fanteria, ETA ~20h) left by the previous testing run — do not recall it. Do NOT restart the backend unnecessarily; QA clock offset now persists anyway."

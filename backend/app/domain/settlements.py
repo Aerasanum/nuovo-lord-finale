@@ -389,6 +389,8 @@ def public_dto(doc: dict, viewer_player_id: str | None) -> dict:
         "level": int(doc.get("level", 0)),
         "owner_player_id": owner,
         "owner_house_name": doc.get("owner_house_name"),
+        "owner_house_crest": doc.get("owner_house_crest"),
+        "skin": doc.get("skin"),
         "faction": faction,
         "wall_level": int((doc.get("wall") or {}).get("level", 0)),
         "garrison_total": int(sum((doc.get("army") or {}).values())) if doc["kind"] == "NEUTRAL" else None,

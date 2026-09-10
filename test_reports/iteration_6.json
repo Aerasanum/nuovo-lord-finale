@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 6 backend + frontend testing complete. Backend: 28/28 pytest passing (22/22 test_public_e2e.py + 6/6 new test_iteration_6.py covering house catalog GET, PUT with valid crest, chunk owner_house_crest+skin denormalisation, invalid colour → 400 INVALID_CREST, invalid symbol → 400 INVALID_CREST, hostile intel end-to-end scenario). Two fresh accounts registered/joined; ATTACK march launched; defender's GET /marches → incoming[] correctly returns hostile-flagged march with units={} redacted, origin_settlement_id=null, path truncated from entry_index, intel disclosure containing tier/heading/eta_range/mission_class. Frontend (390×844, demo login → Entra → /map): 3D terrain renders with green plains, forests, water — ZERO 'THREE.WebGLProgram: Shader Error' or console errors. Casa Demo castle renders large and detailed with red roofs, towers, corner turrets, yellow banner with crest, gold territory ring. Zoom in ×3 (×11 zoom level) shows huge polished castle; only one map-label chip is present because the demo account has no neighbours in the visible chunk. Zoom out to ×161 shows overview terrain + water. map-rotate-button works. Minimap: renders coloured world thumbnail with white camera footprint and red settlement pins; tapping recentres camera (7,189 → 80,81). Castle tap (chip center +140px down): map-selection-card opens with map-selection-name 'Casa Demo', map-selection-crest visible, map-selection-open-city button, and because there is a prior battle map-selection-last-battle + map-selection-open-report also render. Città→settlement-house-button→/house: house-screen loads with house-crest-preview (SVG), house-motto-input pre-filled with 'Per aspera ad astra' (persisted from PUT test), all 5 catalog groups (shield_bases, symbols, marks, borders, palette), house-save-button OK, house-back-button OK. Regression: Città→back→Map still renders (not black); Esercito & Inbox tabs load. Deprecated packages check: none of expo-av / expo-barcode-scanner / expo-background-fetch present. Frontend hostile intel visualisation (defender-side red marker + intel-* cells on selection card) was NOT re-verified via UI because the QA clock was already advanced 512079s (~5.93 days) leaving no active OUTBOUND detected hostile march for the demo account — the backend disclose DTO is however fully verified by the pytest suite. Also, the iteration_4/5 demo RETURNING marches have naturally completed under the new clock offset, so no march chips are present on the demo map (correct behaviour, not a bug).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_6.py",
+    "/app/backend/tests/test_public_e2e.py",
+    "/app/test_reports/pytest/iteration_6.xml",
+    "/app/test_reports/screens/iter6_01_map_default.jpg",
+    "/app/test_reports/screens/iter6_02_zoomed_in.jpg",
+    "/app/test_reports/screens/iter6_03_overview.jpg",
+    "/app/test_reports/screens/iter6_06_casa_demo_card.jpg",
+    "/app/test_reports/screens/iter6_07_house_screen.jpg",
+    "/app/test_reports/screens/iter6_08_back_to_map.jpg"
+  ],
+  "action_items": [
+    "Optional: hostile intel FRONTEND visualisation (red marker + pulsing halo + map-selection-intel + minimap red line) was NOT visually verified — the demo world has no active hostile march to display. If the main agent wants a UI-level confirmation, launch a fresh PvP pair (backend fixture already proves the DTO), then log the defender in immediately after detection frac and screenshot the map. Consider adding a QA endpoint or fixture route that keeps a march in the detected-but-not-arrived window for repeatable UI checks."
+  ],
+  "critical_code_review_comments": [
+    "backend/app/domain/house.py:69-84 update() correctly denormalises house_crest onto owner settlements AND in-flight marches (OUTBOUND/RESOLVING/RETURNING) in one $set — matches the chunk contract; invalid crest raises structured INVALID_CREST with catalog details in details{}.",
+    "backend/app/domain/intel.py:79-136 disclose() output shape matches the frontend intel cells (tier.reveal, heading, eta_range, troops_total_range, unit_categories, category_bands, composition, flags); private fields (origin_settlement_id, units) are cleared by _hostile_public_dto (marches.py:87-100). Verified by the new pytest.",
+    "backend/app/domain/marches.py:54-69 _defender_context uses inner-ring radius 3 as the baseline surveilled zone; detection frac for a 138-tile path is ≈0.978, giving a very short OUTBOUND detection window before arrival — the pytest fixture explicitly targets that window via clock.advance to eta-30s and eta-5s.",
+    "frontend/app/(tabs)/map.tsx & MarchCard.tsx wire all required testIDs (map-selection-card, map-selection-crest, map-selection-open-city, map-selection-last-battle, map-selection-open-report, map-selection-intel, intel-heading, intel-mission, intel-eta-lo/hi, intel-eta-unknown, intel-troops, intel-entry, minimap, minimap-touch, map-camera-coords, map-zoom-in-button, map-zoom-out-button, map-rotate-button)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_6.py (new)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100% of items exercised (map render, minimap, castle card, house CRUD, tab regression)"},
+  "seed_data_creation": "Two fresh PvP accounts were registered/joined via /api/auth/register + /api/worlds/world_1/join with random house names. Their mother settlements got 500k of every resource, 500 & 200 Fanteria and end_pvp_shield=true. One ATTACK march was launched to trigger the hostile intel path. QA clock was advanced during the test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "QA clock offset LEFT BEHIND: 512079.588 seconds (~5.93 days) — server 'now' is 2026-09-16T13:41:05Z after this run. All demo RETURNING marches from iteration_4/5 have long since completed under this offset. The demo motto is now 'Per aspera ad astra' and its crest is (heater / circle / mark[1] / border[1] / palette[0,2,3,5]). Two fresh e2e accounts (iter6_atk_… / iter6_dfd_…) with houses 'Casa……' remain in world_1. To repeat the hostile-intel UI check, launch a fresh march and login as the defender within a ~2% eta window (or bump _defender_context radius). Backend tests are green; no code fixes were needed this iteration.",
+  "rca_of_issue": "N/A — no bug found. Only initial pytest flake: hostile intel was not being detected in the first run because the coarse advance schedule (0.5/0.75/0.9/0.95 * eta) undershot the true entry fraction (0.978 for a 138-tile path with defender radius 3). Fixed the test by computing entry_index client-side (first path tile within max(|Δx|,|Δy|)≤3 of defender mother) and advancing to eta*(detect_frac+0.005) and then eta-30 / eta-5. Also added a retry loop when register+join places the two accounts across water (NO_LAND_PATH)."
+}

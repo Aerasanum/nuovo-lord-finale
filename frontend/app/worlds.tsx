@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { post } from "@/src/api/client";
 import { qk, useWorlds } from "@/src/api/hooks";
+import { Crest } from "@/src/components/Crest";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
@@ -84,9 +85,12 @@ export default function WorldsScreen() {
                   <T v="heading">{w.name}</T>
                 </Row>
                 {w.joined ? (
-                  <View style={s.badge}>
-                    <T style={s.badgeText}>{w.house_name}</T>
-                  </View>
+                  <Row style={{ gap: 6 }}>
+                    {w.house_crest ? <Crest crest={w.house_crest} size={22} testID={`world-crest-${w.world_id}`} /> : null}
+                    <View style={s.badge}>
+                      <T style={s.badgeText}>{w.house_name}</T>
+                    </View>
+                  </Row>
                 ) : null}
               </Row>
               <View style={s.stat}>

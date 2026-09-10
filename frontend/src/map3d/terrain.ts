@@ -1,16 +1,25 @@
 /**
- * Terrain geometry builders (vertex-coloured low-poly, no textures → safe on expo-gl).
+ * Terrain geometry builders — smooth, textureless, safe on expo-gl.
+ *
+ * The world is a tile grid, but the mesh must not look like one: vertices sit on tile corners and are SHARED between
+ * quads (indexed geometry), heights follow a continuous multi-octave noise field, colours are blended per vertex from
+ * the surrounding tiles, and normals are analytic (central differences on the height field) so lighting is identical on
+ * both sides of a chunk seam. Water tiles are holes (the shared world water plane shows through); every corner touching
+ * water is kept below WATER_LEVEL so shorelines are drawn by the water surface cutting the land slope, never by a tile edge.
+ *
  * A sampler returns the terrain code of a tile: 0 plain, 1 forest, 2 mountain, 3 water, -1 unknown/not loaded.
  */
 import * as THREE from "three";
 
-export const TILE_HEIGHT = [0.0, 0.14, 1.7, -0.32]; // plain, forest, mountain, water
 export const WATER_LEVEL = -0.12;
+const WATER_DEPTH = -0.6; // contribution of a water tile to a shared corner
+const BASE_HEIGHT = [0.0, 0.12, 1.7]; // plain, forest, mountain
 
 export type Sampler = (gx: number, gz: number) => number;
 
 export type TerrainPalette = {
   plain: THREE.Color;
+  dry: THREE.Color; // sun-bleached grass patches on plains
   forest: THREE.Color;
   mountain: THREE.Color;
   water: THREE.Color;
@@ -26,35 +35,72 @@ export function hash2(x: number, y: number): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 
-/** Height of a tile corner = average of the 4 tiles sharing it (smooth low-poly relief with deterministic noise). */
-export function cornerHeight(sampler: Sampler, x: number, y: number): number {
+/** Smooth value noise on the integer lattice (0..1), continuous everywhere → no seams between chunks. */
+export function smoothNoise(x: number, y: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const fx = x - xi;
+  const fy = y - yi;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(xi, yi);
+  const b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1);
+  const d = hash2(xi + 1, yi + 1);
+  return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+}
+
+/** Three-octave fbm in tile units (0..1). */
+export function fbm(x: number, y: number): number {
+  return 0.5 * smoothNoise(x * 0.31, y * 0.31) + 0.3 * smoothNoise(x * 0.9 + 7.3, y * 0.9 + 2.1) + 0.2 * smoothNoise(x * 2.3 + 11.0, y * 2.3 + 5.0);
+}
+
+/** Continuous mountain relief: ridged noise (sharp crests ~6 tiles apart) + a finer octave. Range ≈ 1.0 … 4.6. */
+function mountainField(x: number, y: number): number {
+  const n = smoothNoise(x * 0.16 + 5.0, y * 0.16 + 2.0);
+  const ridge = Math.pow(1 - Math.abs(2 * n - 1), 1.8);
+  return 1.0 + 2.8 * ridge + 0.9 * smoothNoise(x * 0.5 + 9.0, y * 0.5 + 3.0) + 0.7 * smoothNoise(x * 1.3 + 17.0, y * 1.3 + 8.0);
+}
+
+/**
+ * Height of a tile corner: average of the 4 tiles sharing it, plus continuous relief. Corners touching water are always
+ * submerged; land corners never dip below 0 so no inland puddles appear. `noiseScale` maps sampler coordinates to world
+ * tiles (4 for the overview grid) so near and far LODs share the same relief.
+ */
+export function cornerHeight(sampler: Sampler, x: number, y: number, noiseScale = 1): number {
   let sum = 0;
   let n = 0;
+  let water = 0;
+  const wx = x * noiseScale;
+  const wy = y * noiseScale;
   for (let dy = -1; dy <= 0; dy++) {
     for (let dx = -1; dx <= 0; dx++) {
-      const t = sampler(x + dx, y + dy);
+      const tx = x + dx;
+      const ty = y + dy;
+      const t = sampler(tx, ty);
       if (t < 0) continue;
-      let h = TILE_HEIGHT[t];
-      if (t === 2) h += 0.9 * hash2(x + dx, y + dy) + 0.5 * hash2(x + dx + 7, y + dy + 3);
-      else if (t === 1) h += 0.08 * hash2(x + dx, y + dy);
-      else if (t === 0) h += 0.05 * hash2(x + dx, y + dy);
-      sum += h;
       n++;
+      if (t === 3) {
+        water++;
+        sum += WATER_DEPTH;
+        continue;
+      }
+      sum += t === 2 ? mountainField(wx, wy) + 0.5 * hash2(tx, ty) : BASE_HEIGHT[t]; // per-tile term keeps crests jagged
     }
   }
-  return n ? sum / n : 0;
+  if (!n) return 0;
+  const h = sum / n;
+  const f = fbm(wx, wy);
+  if (water > 0) return -0.2 - 0.12 * (water - 1) + (f - 0.5) * 0.08;
+  if (h > 0.9) return h + (f - 0.5) * 0.5;
+  return h + f * 0.42;
 }
 
-export function tileHeight(sampler: Sampler, x: number, y: number): number {
+export function tileHeight(sampler: Sampler, x: number, y: number, noiseScale = 1): number {
   const t = sampler(x, y);
-  if (t === 3) return TILE_HEIGHT[3];
+  if (t === 3) return WATER_LEVEL;
   if (t < 0) return 0;
-  return (cornerHeight(sampler, x, y) + cornerHeight(sampler, x + 1, y) + cornerHeight(sampler, x, y + 1) + cornerHeight(sampler, x + 1, y + 1)) / 4;
-}
-
-function nearWater(sampler: Sampler, x: number, y: number): boolean {
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && sampler(x + dx, y + dy) === 3) return true;
-  return false;
+  return (cornerHeight(sampler, x, y, noiseScale) + cornerHeight(sampler, x + 1, y, noiseScale) + cornerHeight(sampler, x, y + 1, noiseScale) + cornerHeight(sampler, x + 1, y + 1, noiseScale)) / 4;
 }
 
 /** Dominant land code of a step×step block (water only if the block is entirely water / unknown). */
@@ -78,6 +124,39 @@ function blockCode(sampler: Sampler, x0: number, z0: number, step: number): numb
   return best;
 }
 
+const TYPE_WEIGHT = [1.0, 1.25, 1.45, 1.2]; // plain, forest, mountain, water(sand)
+
+/** Blended colour of a corner from its 4 tiles + large-scale meadow / undergrowth variation. */
+function cornerColor(sampler: Sampler, x: number, y: number, pal: TerrainPalette, out: THREE.Color, tmp: THREE.Color, ns = 1): THREE.Color {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let w = 0;
+  const wx = x * ns;
+  const wy = y * ns;
+  const dryMix = 0.75 * smoothNoise(wx * 0.13 + 3.1, wy * 0.13 + 9.7);
+  const floorMix = smoothNoise(wx * 0.05 + 1.0, wy * 0.05 + 4.0);
+  for (let dy = -1; dy <= 0; dy++) {
+    for (let dx = -1; dx <= 0; dx++) {
+      const t = sampler(x + dx, y + dy);
+      if (t < 0) continue;
+      if (t === 0) tmp.copy(pal.plain).lerp(pal.dry, dryMix);
+      else if (t === 1) tmp.copy(pal.forest).multiplyScalar(0.88 + 0.24 * floorMix);
+      else if (t === 2) tmp.copy(pal.mountain).lerp(pal.rock, 0.4);
+      else tmp.copy(pal.sand);
+      const k = TYPE_WEIGHT[t];
+      r += tmp.r * k;
+      g += tmp.g * k;
+      b += tmp.b * k;
+      w += k;
+    }
+  }
+  if (!w) return out.copy(pal.plain);
+  out.setRGB(r / w, g / w, b / w);
+  out.multiplyScalar(0.93 + 0.14 * smoothNoise(wx * 0.7 + 21.0, wy * 0.7 + 17.0));
+  return out;
+}
+
 export type TerrainBuildOpts = {
   ox: number;
   oz: number;
@@ -88,94 +167,82 @@ export type TerrainBuildOpts = {
   palette: TerrainPalette;
   scaleXZ?: number;
   scaleY?: number;
+  noiseScale?: number; // sampler units → world tiles (overview grid = 4)
 };
 
-/**
- * Builds a flat-shaded terrain geometry. Water tiles are left as holes (the shared world water plane shows through),
- * land corners adjacent to water dip below WATER_LEVEL so coastlines read naturally.
- */
+/** Builds a smooth indexed terrain geometry with per-vertex blended colours and analytic normals. */
 export function buildTerrainGeometry(o: TerrainBuildOpts): THREE.BufferGeometry | null {
   const { ox, oz, w, h, step, sampler, palette } = o;
   const sxz = o.scaleXZ ?? 1;
   const sy = o.scaleY ?? 1;
+  const ns = o.noiseScale ?? 1;
   const qw = Math.ceil(w / step);
   const qh = Math.ceil(h / step);
-  const positions = new Float32Array(qw * qh * 18);
-  const colors = new Float32Array(qw * qh * 18);
-  let p = 0;
+  const vw = qw + 1;
+  const vh = qh + 1;
+  const positions = new Float32Array(vw * vh * 3);
+  const normals = new Float32Array(vw * vh * 3);
+  const colors = new Float32Array(vw * vh * 3);
+  const heights = new Float32Array(vw * vh);
+  const col = new THREE.Color();
   const tmp = new THREE.Color();
-  const tri = new THREE.Color();
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  const n = new THREE.Vector3();
-
-  const pushTri = (v0: number[], v1: number[], v2: number[], base: THREE.Color, t: number, avgH: number) => {
-    a.set(v0[0], v0[1], v0[2]);
-    b.set(v1[0], v1[1], v1[2]);
-    c.set(v2[0], v2[1], v2[2]);
-    n.subVectors(c, b).cross(a.clone().sub(b)).normalize();
-    const slope = Math.max(0, 1 - n.y); // 0 flat … 1 vertical
-    tri.copy(base);
-    if (t === 2) {
-      tri.lerp(palette.rock, Math.min(1, slope * 1.6));
-      if (avgH > 2.35) tri.lerp(palette.snow, Math.min(1, (avgH - 2.35) * 1.4));
-    } else if (slope > 0.12) tri.multiplyScalar(1 - Math.min(0.35, slope * 0.6));
-    for (const v of [v0, v1, v2]) {
-      positions[p] = v[0] * sxz;
-      positions[p + 1] = v[1] * sy;
-      positions[p + 2] = v[2] * sxz;
-      colors[p] = tri.r;
-      colors[p + 1] = tri.g;
-      colors[p + 2] = tri.b;
-      p += 3;
+  for (let j = 0; j < vh; j++) {
+    for (let i = 0; i < vw; i++) {
+      const gx = ox + i * step;
+      const gz = oz + j * step;
+      const k = j * vw + i;
+      const hh = cornerHeight(sampler, gx, gz, ns);
+      heights[k] = hh;
+      positions[k * 3] = gx * sxz;
+      positions[k * 3 + 1] = hh * sy;
+      positions[k * 3 + 2] = gz * sxz;
+      cornerColor(sampler, gx, gz, palette, col, tmp, ns);
+      colors[k * 3] = col.r;
+      colors[k * 3 + 1] = col.g;
+      colors[k * 3 + 2] = col.b;
+      // analytic normal from central differences (neighbours outside this chunk are sampled too → seamless lighting)
+      const hl = i > 0 ? heights[k - 1] : cornerHeight(sampler, gx - step, gz, ns);
+      const hr = cornerHeight(sampler, gx + step, gz, ns);
+      const hu = j > 0 ? heights[k - vw] : cornerHeight(sampler, gx, gz - step, ns);
+      const hd = cornerHeight(sampler, gx, gz + step, ns);
+      const nx = (hl - hr) * sy;
+      const nz = (hu - hd) * sy;
+      const ny = 2 * step * sxz;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      normals[k * 3] = nx / len;
+      normals[k * 3 + 1] = ny / len;
+      normals[k * 3 + 2] = nz / len;
     }
-  };
-
+  }
+  const index: number[] = [];
   for (let qz = 0; qz < qh; qz++) {
     for (let qx = 0; qx < qw; qx++) {
       const gx = ox + qx * step;
       const gz = oz + qz * step;
       const t = blockCode(sampler, gx, gz, step);
       if (t < 0 || t === 3) continue;
-      const x1 = gx + step;
-      const z1 = gz + step;
-      const h00 = cornerHeight(sampler, gx, gz);
-      const h10 = cornerHeight(sampler, x1, gz);
-      const h01 = cornerHeight(sampler, gx, z1);
-      const h11 = cornerHeight(sampler, x1, z1);
-      const avgH = (h00 + h10 + h01 + h11) / 4;
-      const base = t === 2 ? palette.mountain : t === 1 ? palette.forest : palette.plain;
-      // per-tile grain + larger patches so plains read as meadows instead of a flat checkerboard
-      const patch = hash2(Math.floor(gx / 6) * 17, Math.floor(gz / 6) * 29) - 0.5;
-      const shade = 0.9 + 0.18 * hash2(gx * 3, gz * 5) + 0.12 * patch;
-      tmp.copy(base).multiplyScalar(shade);
-      if (t === 0) tmp.offsetHSL(0.02 * patch, 0.1 * patch, 0);
-      if (t === 0 && step <= 2 && nearWater(sampler, gx, gz)) tmp.lerp(palette.sand, 0.55);
-      if (t === 1 && step > 1) tmp.multiplyScalar(0.92);
-      // two triangles, alternate diagonal for a hand-made low-poly feel
-      if (hash2(gx, gz) > 0.5) {
-        pushTri([gx, h00, gz], [gx, h01, z1], [x1, h10, gz], tmp, t, avgH);
-        pushTri([x1, h10, gz], [gx, h01, z1], [x1, h11, z1], tmp.clone().multiplyScalar(0.97), t, avgH);
-      } else {
-        pushTri([gx, h00, gz], [gx, h01, z1], [x1, h11, z1], tmp, t, avgH);
-        pushTri([gx, h00, gz], [x1, h11, z1], [x1, h10, gz], tmp.clone().multiplyScalar(0.97), t, avgH);
-      }
+      const a = qz * vw + qx;
+      const b = a + 1;
+      const c = a + vw;
+      const d = c + 1;
+      if (hash2(gx, gz) > 0.5) index.push(a, c, b, b, c, d);
+      else index.push(a, c, d, a, d, b);
     }
   }
-  if (p === 0) return null;
+  if (!index.length) return null;
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions.subarray(0, p), 3));
-  geo.setAttribute("color", new THREE.BufferAttribute(colors.subarray(0, p), 3));
-  geo.computeVertexNormals();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geo.setIndex(index);
   geo.computeBoundingSphere();
   return geo;
 }
 
-/** Tile outline grid following the relief (tactical reading at close zoom). Water tiles are skipped. */
+/** Faint tile outline following the relief (tactical reading at very close zoom only). Water tiles are skipped. */
 export function buildGridGeometry(ox: number, oz: number, w: number, h: number, sampler: Sampler): THREE.BufferGeometry | null {
   const pts: number[] = [];
-  const lift = 0.025;
+  const lift = 0.03;
   for (let z = 0; z < h; z++) {
     for (let x = 0; x < w; x++) {
       const gx = ox + x;

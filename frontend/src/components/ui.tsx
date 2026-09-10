@@ -117,6 +117,7 @@ export function StatePill({ state, testID }: { state: string; testID?: string })
     BUILDING: { bg: colors.info, fg: colors.onInfo, label: "BUILDING" },
     OUTBOUND: { bg: colors.info, fg: colors.onInfo, label: t("outbound") },
     RETURNING: { bg: colors.brandTertiary, fg: colors.onBrandTertiary, label: t("returning") },
+    HOSTILE: { bg: colors.error, fg: colors.onError, label: t("incomingHostile") },
   };
   const m = map[state] || { bg: colors.surfaceTertiary, fg: colors.onSurfaceTertiary, label: state };
   return (
@@ -140,7 +141,7 @@ export function useCountdown(endsAt?: string | null) {
 export function Countdown({ endsAt, style, testID }: { endsAt?: string | null; style?: StyleProp<TextStyle>; testID?: string }) {
   const left = useCountdown(endsAt);
   return (
-    <T v="mono" style={style} testID={testID}>
+    <T v="mono" style={style} testID={testID} numberOfLines={1}>
       {formatDuration(left)}
     </T>
   );

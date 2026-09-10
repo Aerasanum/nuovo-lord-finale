@@ -1,0 +1,40 @@
+{
+  "summary": "Frontend-only test of the new march-on-map feature (390x844). Login → world_1 → map: initially both OUTBOUND march chips render at the home tile with 'Attacco' + live ETA ('4h 10m' & '2h 42m'). Tapping just below the chip (chip.x+60, chip.y+height+40) opens map-selection-card with 'Attacco → Neutrale 5,183', StatePill 'In marcia', 'Fanteria 120', ETA countdown, and buttons 'Marce attive' + 'Richiama'. 'Marce attive' navigates to marches-screen showing 2 march-card entries with countdowns; marches-back-button returns to the map. Recall of ONLY mar_cee8ea83c5f54796 (Neutrale 9,181) succeeded: marches-screen now shows it as 'In ritorno'/RECALLED with the recall button gone; the other march (5,183) remains OUTBOUND with 'Richiama' still available. Zoom out 8× → ×170 and 0 march chips (correct). Labels toggle hides/shows all chips. NO THREE/WebGL errors or unhandled rejections in console. HOWEVER, a P1 bug was found: after recall, the RETURNING march has NO chip and NO marker rendered near home on the map — DOM confirms only the outbound chip + Casa Demo chip exist even after zoom-in, contradicting the spec ('renders RETURNING marches paler' with an 'In ritorno' chip). Root cause below.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MapView3D / engine.animateMarches + emitLabels",
+        "issue": "A RECALLED march (status=RETURNING) is not visible on the 3D map: no dashed path line near home, no marker, no map-label-march:* chip. The marches-screen shows it correctly as 'In ritorno' + 'RECALLED', so the API is fine — the map/engine does not render it. Reference: /app/frontend/src/map3d/engine.ts:897-923 (animateMarches) and :872-891 (emitLabels).",
+        "testID": "map-label-march:mar_cee8ea83c5f54796",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Recall → map re-render",
+        "issue": "Backend GET /worlds/{w}/marches for the recalled march returns status=RETURNING with arrival_at kept in the FUTURE (~4h from now) and return_at ~11s in the future. animateMarches (engine.ts:903-912) then computes t = (now - arrival_at) / max(1, return_at - arrival_at). Because return_at < arrival_at the denominator is clamped to 1 and t becomes a huge negative → clamped to 0 → the marker is pinned at pts[0] of the reversed path = the TARGET tile (9,181). That tile is off the visible frustum at map zooms ×12/×30, so emitLabels culls the chip (engine.ts:875) and it never appears. Two fixes are possible — pick one: (a) Backend: on recall set arrival_at to the recall timestamp so the returning trip has [recall_at → return_at] as its timeline (matches Bible §13 semantics); (b) Frontend: in animateMarches, when status==='RETURNING' compute start as `return_at - (path.length-1) * 3600000 / speed_tph` (or expose recalled_at) so the marker starts from the recall position and slides home. The chip will then also render 'paler' with an 'In ritorno' label per MapLabels.tsx:24-33.",
+        "affected_testIDs": ["map-label-march:mar_cee8ea83c5f54796", "map-selection-card"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "P1: Fix RETURNING-march rendering on the 3D map (see integration_issues above). After recall, the recalled march must render as a paler 3D marker + dashed line + chip labelled 'In ritorno' with a countdown to return_at. Preferred fix is backend: set arrival_at to the recall timestamp on POST /marches/{id}/recall so animateMarches produces a valid t in [0,1] moving the marker from the recall position back to home.",
+    "Nice-to-have: engine.emitLabels could clamp the label to the screen edge (instead of culling) when a march is temporarily off-frustum, so recalls done far from home stay indicated with an edge chip.",
+    "Optional: Countdown shown on the map-selection-card only refreshes at the minute boundary while ETA > 1h ('2h 41m' unchanged after 2s). This matches Countdown's format but the review requested a visible tick every 2s — either switch to h:mm:ss below 3h or accept as-is."
+  ],
+  "critical_code_review_comments": [
+    "engine.ts:906 — using `march.arrival_at || march.departed_at` as the start of a RETURNING trip is fragile; the returning trip should start at the recall timestamp (or `return_at - duration`).",
+    "engine.ts:875 — culling march chips whose 3D marker projects outside the clip is correct for OUTBOUND marches, but silently hides recalled marches that got pinned to the target tile. Add a fallback (clamp to edge or emit at home) so recalled marches are always discoverable."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "85%" },
+  "seed_data_creation": "None; used the two live OUTBOUND marches launched by the main agent. Recalled only mar_cee8ea83c5f54796 (Neutrale 9,181) as instructed. The 5,183 march is still OUTBOUND.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Data snapshot at 12:05:20Z: mar_cee8ea83c5f54796 (RETURNING, RECALLED, arrival_at=16:09:04Z, return_at=12:05:31Z, path 6,188→9,181) and mar_f6b9205c32334aa3 (OUTBOUND, arrival_at=14:40:41Z, path 6,188→5,183). To reproduce the bug quickly: login demo, open map, click map-center-home-button, wait ~4s, then check `document.querySelectorAll('[data-testid^=\"map-label-march:\"]').length` — you should see only 1 chip (the outbound). Backend and marches-screen show both correctly.",
+  "rca_of_issue": "Recalled march is invisible on the map because engine.animateMarches (engine.ts:903-912) uses `arrival_at` (still the ORIGINAL future destination-arrival time returned by the backend) as the start of the returning trip. Since `return_at` is earlier than `arrival_at`, `end - start` is negative → `Math.max(1, ...)` clamps it to 1 → t = (now - arrival_at) / 1 is a huge negative → clamped to 0 → marker.position is set to pts[0] of the reversed path = the target tile (9,181). At map zooms typical for this screen (×12–×30), the target tile projects outside the clip, so emitLabels (engine.ts:875) culls the chip. The fix is to set `arrival_at` to the recall timestamp on the recall endpoint OR treat RETURNING trips as `[return_at - duration → return_at]` in the engine."
+}

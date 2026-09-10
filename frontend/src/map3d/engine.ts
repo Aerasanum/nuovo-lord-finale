@@ -15,8 +15,12 @@ import * as THREE from "three";
 import type { ChunkDto, MarchDto, OverviewDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
 import type { ThemeColors } from "@/src/theme";
 
-import { disposeGroup, EntityFactory, type EntityPalette, settlementScale } from "./entities";
-import { buildGridGeometry, buildTerrainGeometry, hash2, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
+import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlementScale } from "./entities";
+import { FloraFactory } from "./flora";
+import { type SmokeEmitter, SmokeSystem } from "./smoke";
+import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
+import { createTerrainMaterial } from "./terrainMaterial";
+import { buildTerritory, createTerritoryMaterials, type TerritoryMaterials } from "./territory";
 import { createWater } from "./water";
 
 export const CHUNK = 32;
@@ -27,8 +31,8 @@ const OV_PER_CHUNK = CHUNK / OV_FACTOR;
 const OV_SIZE = WORLD / OV_FACTOR;
 const OV_SCALE_Y = 1.2;
 
-export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto };
-export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string };
+export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto };
+export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string };
 
 type EngineOpts = {
   gl: ExpoWebGLRenderingContext;
@@ -49,11 +53,11 @@ type ChunkNode = {
   cy: number;
   group: THREE.Group;
   terrain: (THREE.Mesh | null)[]; // by LOD index (step 1, step 2)
-  trees?: THREE.InstancedMesh;
-  props: THREE.InstancedMesh[];
-  territory: THREE.InstancedMesh[];
+  flora: (THREE.Group | null)[]; // by LOD index (full, sparse)
+  territory: THREE.Object3D[];
   grid?: THREE.LineSegments | null;
   entities: THREE.Group;
+  emitters: SmokeEmitter[];
   data: ChunkDto;
   lastUsed: number;
   lod: number;
@@ -63,8 +67,11 @@ const MAX_CHUNKS = 60;
 const STREAM_RADIUS_CAP = 100;
 const LOD_STEPS = [1, 2];
 const LOD0_DIST = 34;
-const GRID_ZOOM = 22;
+const GRID_ZOOM = 13;
 const PIN_ZOOM = 70;
+const MARCH_LOD_DIST = 100; // Bible §41.3: marches are a mid-zoom detail; far zoom shows settlements/territory only
+const MARCH_LABEL_DIST = 60;
+const SMOKE_DIST = 48; // chimney / torch smoke is a close-up detail
 
 function hexToColor(hex: string): THREE.Color {
   return new THREE.Color(hex);
@@ -88,7 +95,7 @@ function blockedTiles(data: ChunkDto): Set<number> {
       }
     }
   };
-  for (const s of data.settlements) mark(s.x, s.y, s.kind === "PLAYER_SLOT" ? 0 : 1);
+  for (const s of data.settlements) mark(s.x, s.y, s.kind === "PLAYER_SLOT" ? 0 : s.level >= 10 ? 2 : 1);
   for (const s of data.sentinels) mark(s.x, s.y, 0);
   return out;
 }
@@ -113,23 +120,27 @@ export class MapEngine {
   private startedAt = Date.now();
   private marchGroup = new THREE.Group();
   private marchMarkers: { march: MarchDto; marker: THREE.Object3D; line: THREE.Line }[] = [];
+  private selected: Selection | null = null;
   private selectionRing: THREE.Mesh;
   private homeBeacon: THREE.Mesh;
-  private palette: TerrainPalette & EntityPalette & { bg: THREE.Color };
+  private palette: TerrainPalette & EntityPalette & { bg: THREE.Color; horizon: THREE.Color };
   private width: number;
   private height: number;
   private bufW = 0;
   private bufH = 0;
   private terrainGrid = new Map<string, Uint8Array>();
   private factory: EntityFactory;
+  private flora: FloraFactory;
+  private smoke: SmokeSystem;
+  private smokeDirty = true;
   private water: ReturnType<typeof createWater>;
   private overview: { data: OverviewDto; grid: Uint8Array; tiles: Map<string, THREE.Mesh>; pins: THREE.InstancedMesh | null } | null = null;
   private overviewLoading = false;
   private pinsDist = 1;
   private panVel = { x: 0, y: 0 };
+  private minimap: { rect: { x: number; y: number; w: number; h: number } | null; scene: THREE.Scene; cam: THREE.OrthographicCamera; footprint: THREE.LineLoop; center: THREE.Mesh; marches: THREE.Group; statics: THREE.Group };
   private camAnim: { from: { tx: number; tz: number; dist: number }; to: { tx: number; tz: number; dist: number }; start: number; ms: number } | null = null;
-  private mats: { terrain: THREE.MeshLambertMaterial; overview: THREE.MeshLambertMaterial; tree: THREE.MeshLambertMaterial; trunk: THREE.MeshLambertMaterial; grid: THREE.LineBasicMaterial; territory: THREE.MeshBasicMaterial; territoryFaint: THREE.MeshBasicMaterial; bush: THREE.MeshLambertMaterial; rock: THREE.MeshLambertMaterial };
-  private geos: { tree: THREE.BufferGeometry; tile: THREE.PlaneGeometry; bush: THREE.BufferGeometry; rock: THREE.BufferGeometry };
+  private mats: { terrain: THREE.ShaderMaterial; overview: THREE.ShaderMaterial; grid: THREE.LineBasicMaterial; territory: TerritoryMaterials };
   private sampler: Sampler = (x, y) => this.tileAt(x, y);
   private ovSampler: Sampler = (x, y) => this.overviewTileAt(x, y);
 
@@ -147,19 +158,19 @@ export class MapEngine {
     const mountain = hexToColor(c.terrainMountain);
     this.palette = {
       plain,
+      dry: plain.clone().offsetHSL(-0.045, -0.12, 0.1),
       forest: hexToColor(c.terrainForest),
       mountain,
       water: hexToColor(c.terrainWater),
-      sand: plain.clone().offsetHSL(0.04, -0.2, 0.22),
-      rock: mountain.clone().multiplyScalar(0.68),
+      sand: plain.clone().offsetHSL(0.04, -0.25, 0.24),
+      rock: mountain.clone().multiplyScalar(0.7),
       own: hexToColor(c.factionOwn),
       enemy: hexToColor(c.factionEnemy),
       neutral: hexToColor(c.factionNeutral),
       ally: hexToColor(c.factionAlly),
-      stone: mountain.clone().offsetHSL(0, -0.08, 0.2),
-      roof: hexToColor(c.brandSecondary),
       snow: hexToColor(c.onSurface),
       bg: hexToColor(c.surface),
+      horizon: hexToColor(c.skyHorizon),
     };
     const canvas: any = { width: opts.gl.drawingBufferWidth, height: opts.gl.drawingBufferHeight, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: opts.gl.drawingBufferHeight, getContext: () => opts.gl };
     this.renderer = new THREE.WebGLRenderer({ canvas, context: opts.gl as any, antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -167,39 +178,37 @@ export class MapEngine {
     this.bufW = opts.gl.drawingBufferWidth;
     this.bufH = opts.gl.drawingBufferHeight;
     this.renderer.setSize(this.bufW, this.bufH, false);
-    this.renderer.setClearColor(this.palette.bg, 1);
-    this.scene.fog = new THREE.Fog(this.palette.bg, 60, 260);
+    // distant land dissolves into a dusky haze (fog + clear colour share the horizon tint)
+    this.renderer.setClearColor(this.palette.horizon, 1);
+    this.scene.fog = new THREE.Fog(this.palette.horizon, 60, 260);
 
     this.camera = new THREE.PerspectiveCamera(46, this.bufW / Math.max(1, this.bufH), 0.5, 900);
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x2b2620, 0.7);
+    const skyColor = new THREE.Color(0xcfd8ea);
+    const groundColor = new THREE.Color(0x4a3f33);
+    const sunColor = new THREE.Color(0xfff0d2);
+    const sunDir = new THREE.Vector3(0.68, 0.78, 0.3).normalize();
+    const hemi = new THREE.HemisphereLight(skyColor, groundColor, 0.75);
     this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff1d6, 1.4);
-    sun.position.set(80, 140, 60);
+    const sun = new THREE.DirectionalLight(sunColor, 1.55);
+    sun.position.copy(sunDir).multiplyScalar(150);
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x9fb4ff, 0.25);
+    const fill = new THREE.DirectionalLight(0x9fb4ff, 0.22);
     fill.position.set(-60, 80, -90);
     this.scene.add(fill);
 
+    const light = { sunDir, sunColor: sunColor.clone().multiplyScalar(1.15), skyColor: skyColor.clone().multiplyScalar(0.55), groundColor: groundColor.clone().multiplyScalar(0.5) };
     this.mats = {
-      terrain: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
-      overview: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }),
-      tree: new THREE.MeshLambertMaterial({ color: this.palette.forest.clone().offsetHSL(0, 0.05, -0.02), flatShading: true }),
-      trunk: new THREE.MeshLambertMaterial({ color: hexToColor(c.resourceWood) }),
-      grid: new THREE.LineBasicMaterial({ color: this.palette.snow, transparent: true, opacity: 0.16, depthWrite: false }),
-      territory: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3, depthWrite: false }),
-      territoryFaint: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.1, depthWrite: false }),
-      bush: new THREE.MeshLambertMaterial({ color: this.palette.forest.clone().offsetHSL(0.02, 0.1, 0.06), flatShading: true }),
-      rock: new THREE.MeshLambertMaterial({ color: this.palette.rock.clone().offsetHSL(0, 0, 0.08), flatShading: true }),
+      terrain: createTerrainMaterial(this.palette, light, { detail: 1 }),
+      overview: createTerrainMaterial(this.palette, light, { detail: 0, polygonOffset: true, snowHeight: 3.9 * OV_SCALE_Y }),
+      grid: new THREE.LineBasicMaterial({ color: this.palette.snow, transparent: true, opacity: 0.1, depthWrite: false }),
+      territory: createTerritoryMaterials(),
     };
-    const tile = new THREE.PlaneGeometry(1, 1);
-    tile.rotateX(-Math.PI / 2);
-    const bush = new THREE.SphereGeometry(0.17, 6, 4);
-    bush.scale(1, 0.65, 1);
-    this.geos = { tree: mergeTreeGeometry(new THREE.ConeGeometry(0.28, 0.9, 5), new THREE.CylinderGeometry(0.06, 0.08, 0.3, 5)), tile, bush, rock: new THREE.DodecahedronGeometry(0.15, 0) };
-    for (const g of Object.values(this.geos)) g.userData.shared = true;
-    for (const m of Object.values(this.mats)) m.userData.shared = true;
+    for (const m of [this.mats.terrain, this.mats.overview, this.mats.grid]) m.userData.shared = true;
     this.factory = new EntityFactory(this.palette);
+    this.smoke = new SmokeSystem(this.palette.snow.clone());
+    this.scene.add(this.smoke.mesh);
+    this.flora = new FloraFactory({ forest: this.palette.forest, plain: this.palette.plain, rock: this.palette.rock.clone().offsetHSL(0, 0, 0.08), wood: hexToColor(c.resourceWood) });
 
     this.water = createWater(WORLD, this.palette.water, this.palette.water.clone().offsetHSL(0.01, 0.05, 0.12));
     this.scene.add(this.water.mesh);
@@ -215,6 +224,7 @@ export class MapEngine {
     this.scene.add(this.homeBeacon);
 
     this.scene.add(this.marchGroup);
+    this.minimap = this.createMinimap();
     this.updateCamera();
     this.loadOverview();
     this.loop = this.loop.bind(this);
@@ -252,6 +262,7 @@ export class MapEngine {
   }
 
   centerOn(x: number, y: number, dist?: number, animate = true) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const to = { tx: x + 0.5, tz: y + 0.5, dist: dist ? Math.max(this.minDist, Math.min(this.maxDist, dist)) : this.cam.dist };
     this.panVel = { x: 0, y: 0 };
     if (!animate) {
@@ -333,13 +344,29 @@ export class MapEngine {
       this.select(null);
       return;
     }
-    // generous touch radius scaled with zoom: ~22px on screen
-    const radius = Math.max(0.9, (this.cam.dist / this.height) * 40);
-    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto } | null = null;
+    // Pick in SCREEN space (entities have height; a ground-plane hit misses tall castles/banners at steep pitch).
+    const TOUCH_PX = 30;
+    const v = new THREE.Vector3();
+    const screenDist = (x: number, y: number, z: number) => {
+      v.set(x, y, z).project(this.camera);
+      if (v.z > 1) return Infinity;
+      return Math.hypot(((v.x + 1) / 2) * this.width - px, ((1 - v.y) / 2) * this.height - py);
+    };
+    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number } | null = null;
+    // marches first: they move over the terrain and are the most time-critical thing to inspect
+    if (this.marchGroup.visible) {
+      for (const mm of this.marchMarkers) {
+        const p = mm.marker.position;
+        const d = Math.min(screenDist(p.x, p.y + 0.6, p.z), screenDist(p.x, p.y + 1.3, p.z));
+        if (d < TOUCH_PX && (!best || d < best.d)) best = { d, m: mm.march, mx: p.x, mz: p.z };
+      }
+    }
     const consider = (list: SettlementPublic[]) => {
       for (const s of list) {
-        const d = Math.hypot(s.x + 0.5 - hit.x, s.y + 0.5 - hit.z);
-        if (d < radius * (s.kind === "PLAYER_SLOT" ? 0.7 : 1) && (!best || d < best.d)) best = { d, s };
+        const h = this.heightAt(s.x, s.y);
+        const sc = settlementScale(s.level);
+        const d = s.kind === "PLAYER_SLOT" ? screenDist(s.x + 0.5, h + 0.25, s.y + 0.5) : Math.min(screenDist(s.x + 0.5, h + 0.6 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 1.7 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 2.6 * sc, s.y + 0.5));
+        if (d < TOUCH_PX && (!best || d < best.d)) best = { d, s };
       }
     };
     for (const ch of this.chunks.values()) {
@@ -347,18 +374,20 @@ export class MapEngine {
       if (Math.abs(ch.cx * CHUNK + 16 - tx) > 48 || Math.abs(ch.cy * CHUNK + 16 - tz) > 48) continue;
       consider(ch.data.settlements);
       for (const sen of ch.data.sentinels) {
-        const d = Math.hypot(sen.x + 0.5 - hit.x, sen.y + 0.5 - hit.z);
-        if (d < radius * 0.8 && (!best || d < best.d)) best = { d, sen };
+        const d = screenDist(sen.x + 0.5, this.heightAt(sen.x, sen.y) + 0.5, sen.y + 0.5);
+        if (d < TOUCH_PX * 0.8 && (!best || d < best.d)) best = { d, sen };
       }
     }
     if (!best && this.overview) consider(this.overview.data.settlements);
-    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto } | null;
-    if (b?.s) this.select({ x: b.s.x, y: b.s.y, settlement: b.s });
+    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number } | null;
+    if (b?.m) this.select({ x: Math.floor(b.mx!), y: Math.floor(b.mz!), march: b.m });
+    else if (b?.s) this.select({ x: b.s.x, y: b.s.y, settlement: b.s });
     else if (b?.sen) this.select({ x: b.sen.x, y: b.sen.y, sentinel: b.sen });
     else this.select({ x: tx, y: tz });
   }
 
   select(sel: Selection | null) {
+    this.selected = sel;
     if (sel) {
       this.selectionRing.position.set(sel.x + 0.5, this.heightAt(sel.x, sel.y) + 0.06, sel.y + 0.5);
       this.selectionRing.visible = true;
@@ -378,23 +407,36 @@ export class MapEngine {
     this.marchMarkers = [];
     for (const march of marches) {
       if (!march.path || march.path.length < 2) continue;
-      const own = march.units && Object.keys(march.units).length > 0;
+      const own = !march.hostile;
       const color = own ? this.palette.own : this.palette.enemy;
+      const returning = march.status === "RETURNING";
       const pts = march.path.map(([x, y]) => new THREE.Vector3(x + 0.5, this.heightAt(x, y) + 0.12, y + 0.5));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.3, transparent: true, opacity: 0.85 }));
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.3, transparent: true, opacity: returning ? 0.45 : 0.85 }));
       line.computeLineDistances();
       const marker = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 6), new THREE.MeshLambertMaterial({ color }));
-      body.position.y = 0.6;
-      const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.35), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
-      banner.position.set(0.25, 1.25, 0);
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 4), new THREE.MeshBasicMaterial({ color: this.palette.snow }));
-      pole.position.y = 0.7;
-      marker.add(body, banner, pole);
+      marker.add(this.factory.buildArmy(color, returning));
+      // Casata crest on the banner (own marches carry the full crest; a detected hostile shows its house crest too —
+      // the crest is public identity, never intel)
+      marker.add(this.factory.buildBanner(march.house_crest ?? null, color, returning));
+      if (march.hostile) {
+        const halo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 24), new THREE.MeshBasicMaterial({ color: this.palette.enemy, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false }));
+        halo.rotation.x = -Math.PI / 2;
+        halo.position.y = 0.03;
+        halo.name = "halo";
+        marker.add(halo);
+      }
       this.marchGroup.add(line, marker);
       this.marchMarkers.push({ march, marker, line });
     }
+    // keep a selected march bound to its refreshed DTO (or drop the selection if it finished)
+    if (this.selected?.march) {
+      const fresh = marches.find((m) => m.march_id === this.selected!.march!.march_id);
+      if (fresh) this.select({ ...this.selected, march: fresh });
+      else this.select(null);
+    }
+    this.updateMinimapMarches(marches);
     this.dirty = true;
+    this.labelsDirty = true;
   }
 
   /** Refresh chunk entities after a data change (e.g. conquest) without re-fetching terrain. */
@@ -419,7 +461,135 @@ export class MapEngine {
         this.overview.pins.dispose();
       }
     }
+    disposeGroup(this.minimap.scene);
+    this.smoke.dispose();
     this.renderer.dispose();
+  }
+
+  // ------------------------------------------------------------------------------------------ minimap (second pass)
+  /** Layout-pixel rectangle where the minimap is drawn (null hides it). North-up orthographic view of the whole world. */
+  setMinimapRect(rect: { x: number; y: number; w: number; h: number } | null) {
+    this.minimap.rect = rect;
+    this.dirty = true;
+  }
+
+  /** Layout px inside the minimap rect → world tile. */
+  minimapToWorld(px: number, py: number): { x: number; y: number } | null {
+    const r = this.minimap.rect;
+    if (!r) return null;
+    const u = (px - r.x) / r.w;
+    const v = (py - r.y) / r.h;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+    return { x: Math.floor(u * WORLD), y: Math.floor(v * WORLD) };
+  }
+
+  private createMinimap() {
+    const scene = new THREE.Scene();
+    const cam = new THREE.OrthographicCamera(-WORLD / 2, WORLD / 2, WORLD / 2, -WORLD / 2, 1, 500);
+    cam.position.set(WORLD / 2, 200, WORLD / 2);
+    cam.up.set(0, 0, -1);
+    cam.lookAt(WORLD / 2, 0, WORLD / 2);
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), new THREE.MeshBasicMaterial({ color: this.palette.water.clone().multiplyScalar(1.5) }));
+    sea.rotation.x = -Math.PI / 2;
+    sea.position.set(WORLD / 2, -0.5, WORLD / 2);
+    scene.add(sea);
+    const statics = new THREE.Group();
+    scene.add(statics);
+    const marches = new THREE.Group();
+    scene.add(marches);
+    const footprint = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: this.palette.snow, transparent: true, opacity: 0.95 }));
+    footprint.position.y = 2;
+    scene.add(footprint);
+    // translucent fill of the same quad so the viewed area reads at thumbnail size
+    const fillGeo = new THREE.BufferGeometry();
+    fillGeo.setAttribute("position", footprint.geometry.getAttribute("position"));
+    fillGeo.setIndex([0, 1, 2, 0, 2, 3]);
+    const footFill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: this.palette.snow, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
+    footFill.position.y = 1.8;
+    footprint.frustumCulled = false;
+    footFill.frustumCulled = false;
+    scene.add(footFill);
+    const center = new THREE.Mesh(new THREE.RingGeometry(5, 8, 20), new THREE.MeshBasicMaterial({ color: this.palette.snow, side: THREE.DoubleSide }));
+    center.rotation.x = -Math.PI / 2;
+    center.position.y = 2.5;
+    scene.add(center);
+    return { rect: null, scene, cam, footprint, center, marches, statics };
+  }
+
+  /** Called once the overview is known: flat coloured terrain + player settlement dots. */
+  private buildMinimapStatics() {
+    const mm = this.minimap;
+    disposeGroup(mm.statics);
+    mm.statics.clear();
+    // unlit pass → lift the terrain palette so land reads clearly against the sea at thumbnail size
+    const bright = Object.fromEntries(Object.entries(this.palette).map(([k, c]) => [k, c.clone().multiplyScalar(1.6)])) as unknown as TerrainPalette;
+    const geo = buildTerrainGeometry({ ox: 0, oz: 0, w: OV_SIZE, h: OV_SIZE, step: 1, sampler: this.ovSampler, palette: bright, scaleXZ: OV_FACTOR, scaleY: 0, noiseScale: OV_FACTOR });
+    if (geo) mm.statics.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true })));
+    const players = this.overview?.data.settlements ?? [];
+    if (players.length) {
+      const dotGeo = new THREE.CircleGeometry(7, 12);
+      dotGeo.rotateX(-Math.PI / 2);
+      const dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), players.length);
+      const M = new THREE.Matrix4();
+      players.forEach((s, i) => {
+        M.makeTranslation(s.x + 0.5, 1, s.y + 0.5);
+        dots.setMatrixAt(i, M);
+        dots.setColorAt(i, this.factory.factionColor(s.faction));
+      });
+      dots.instanceMatrix.needsUpdate = true;
+      if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
+      mm.statics.add(dots);
+    }
+  }
+
+  private updateMinimapMarches(marches: MarchDto[]) {
+    const mm = this.minimap;
+    disposeGroup(mm.marches);
+    mm.marches.clear();
+    for (const m of marches) {
+      if (!m.path || m.path.length < 2) continue;
+      const pts = m.path.map(([x, y]) => new THREE.Vector3(x + 0.5, 1.5, y + 0.5));
+      mm.marches.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: m.hostile ? this.palette.enemy : this.palette.own })));
+    }
+  }
+
+  private updateMinimapCursor() {
+    const mm = this.minimap;
+    const pos = mm.footprint.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const corners: [number, number][] = [
+      [0, 0],
+      [this.width, 0],
+      [this.width, this.height],
+      [0, this.height],
+    ];
+    const d = this.cam.dist;
+    corners.forEach(([px, py], i) => {
+      const hit = this.groundHit(px, py);
+      // rays above the horizon (far top corners) fall back to a point `2·dist` ahead so the footprint stays bounded
+      const x = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.x : this.cam.tx + (px < this.width / 2 ? -1 : 1) * d * 1.2;
+      const z = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.z : this.cam.tz - d * 1.2;
+      pos.setXYZ(i, Math.max(-5, Math.min(WORLD + 5, x)), 0, Math.max(-5, Math.min(WORLD + 5, z)));
+    });
+    pos.needsUpdate = true;
+    mm.center.position.set(this.cam.tx, 2.5, this.cam.tz);
+    const s = Math.max(1, d / 30);
+    mm.center.scale.setScalar(s);
+  }
+
+  private renderMinimap() {
+    const r = this.minimap.rect;
+    if (!r || !this.width || !this.height) return;
+    const pr = this.bufW / this.width;
+    const x = Math.round(r.x * pr);
+    const y = Math.round((this.height - r.y - r.h) * pr);
+    const w = Math.round(r.w * pr);
+    const h = Math.round(r.h * pr);
+    this.renderer.setScissorTest(true);
+    this.renderer.setViewport(x, y, w, h);
+    this.renderer.setScissor(x, y, w, h);
+    this.renderer.render(this.minimap.scene, this.minimap.cam);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, this.bufW, this.bufH);
   }
 
   // ------------------------------------------------------------------------------------------ internals
@@ -460,7 +630,7 @@ export class MapEngine {
   heightAt(x: number, y: number): number {
     if (this.tileAt(x, y) >= 0) return tileHeight(this.sampler, x, y);
     // chunk not loaded: use the overview relief so beacons / pins / labels sit on the coarse terrain
-    if (this.overview) return tileHeight(this.ovSampler, Math.floor(x / OV_FACTOR), Math.floor(y / OV_FACTOR)) * OV_SCALE_Y;
+    if (this.overview) return tileHeight(this.ovSampler, Math.floor(x / OV_FACTOR), Math.floor(y / OV_FACTOR), OV_FACTOR) * OV_SCALE_Y;
     return 0;
   }
 
@@ -479,7 +649,7 @@ export class MapEngine {
           for (let cx = 0; cx < N_CHUNKS; cx++) {
             const ox = cx * OV_PER_CHUNK;
             const oz = cy * OV_PER_CHUNK;
-            const geo = buildTerrainGeometry({ ox, oz, w: Math.min(OV_PER_CHUNK, OV_SIZE - ox), h: Math.min(OV_PER_CHUNK, OV_SIZE - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: OV_FACTOR, scaleY: OV_SCALE_Y });
+            const geo = buildTerrainGeometry({ ox, oz, w: Math.min(OV_PER_CHUNK, OV_SIZE - ox), h: Math.min(OV_PER_CHUNK, OV_SIZE - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: OV_FACTOR, scaleY: OV_SCALE_Y, noiseScale: OV_FACTOR });
             if (!geo) continue;
             const mesh = new THREE.Mesh(geo, this.mats.overview);
             mesh.position.y = -0.03;
@@ -491,6 +661,7 @@ export class MapEngine {
           }
         }
         this.rebuildPins();
+        this.buildMinimapStatics();
         if (this.homeBeacon.visible) this.setHome(Math.floor(this.homeBeacon.position.x), Math.floor(this.homeBeacon.position.z));
         this.dirty = true;
         this.labelsDirty = true;
@@ -582,6 +753,7 @@ export class MapEngine {
         this.setOverviewTile(c.key, true);
         this.dirty = true;
         this.labelsDirty = true;
+        this.smokeDirty = true;
       }
     }
     if (this.overview?.pins) {
@@ -591,6 +763,12 @@ export class MapEngine {
         this.overview.pins.visible = show;
         this.dirty = true;
       }
+    }
+    const showMarches = this.cam.dist <= MARCH_LOD_DIST;
+    if (this.marchGroup.visible !== showMarches) {
+      this.marchGroup.visible = showMarches;
+      this.dirty = true;
+      this.labelsDirty = true;
     }
   }
 
@@ -602,13 +780,14 @@ export class MapEngine {
       this.setOverviewTile(node.key, false);
       this.dirty = true;
       this.labelsDirty = true;
+      this.smokeDirty = true;
     }
     if (node.lod !== lod) {
       node.lod = lod;
+      this.smokeDirty = true;
       this.ensureTerrainLod(node, lod);
       for (let i = 0; i < LOD_STEPS.length; i++) if (node.terrain[i]) node.terrain[i]!.visible = i === lod;
-      if (node.trees) node.trees.visible = lod === 0;
-      for (const p of node.props) p.visible = lod === 0;
+      for (let i = 0; i < node.flora.length; i++) if (node.flora[i]) node.flora[i]!.visible = i === lod;
       this.dirty = true;
       this.labelsDirty = true;
     }
@@ -642,19 +821,35 @@ export class MapEngine {
     const group = new THREE.Group();
     group.visible = false;
     const blocked = blockedTiles(data);
-    const trees = this.buildTrees(data.cx, data.cy, blocked);
-    if (trees) group.add(trees);
-    const props = this.buildProps(data.cx, data.cy, blocked);
-    for (const p of props) group.add(p);
-    const territory = this.buildTerritory(data);
+    const ground = (wx: number, wz: number) => this.groundAt(wx, wz);
+    const flora = [this.flora.buildFull(data.cx, data.cy, this.sampler, blocked, ground), this.flora.buildSparse(data.cx, data.cy, this.sampler, blocked, ground)];
+    for (const f of flora) {
+      if (!f) continue;
+      f.visible = false;
+      group.add(f);
+    }
+    const ox = data.cx * CHUNK;
+    const oz = data.cy * CHUNK;
+    const territory = buildTerritory(
+      data.territory,
+      { x0: ox, y0: oz, x1: ox + CHUNK, y1: oz + CHUNK },
+      (x, y) => cornerHeight(this.sampler, x, y),
+      (f) => (f === "OWN" ? this.palette.own : f === "ENEMY" ? this.palette.enemy : this.palette.neutral),
+      this.mats.territory,
+    );
     for (const t of territory) group.add(t);
     const h = (x: number, y: number) => this.heightAt(x, y);
-    const entities = this.factory.buildSettlements(data.settlements, h);
+    const built = this.factory.buildSettlements(data.settlements, h);
+    const entities = built.group;
+    const emitters = built.emitters;
     const sents = this.factory.buildSentinels(data.sentinels, h);
-    if (sents) entities.add(sents);
+    if (sents) {
+      entities.add(sents.group);
+      emitters.push(...sents.emitters);
+    }
     group.add(entities);
     this.scene.add(group);
-    const node: ChunkNode = { key, cx: data.cx, cy: data.cy, group, terrain: [null, null], trees: trees ?? undefined, props, territory, entities, data, lastUsed: now, lod: -1 };
+    const node: ChunkNode = { key, cx: data.cx, cy: data.cy, group, terrain: [null, null], flora, territory, entities, emitters, data, lastUsed: now, lod: -1 };
     this.chunks.set(key, node);
     this.applyLod(node, this.chunkDistance(data.cx, data.cy));
     // neighbours share corner heights: rebuild their terrain so seams close
@@ -698,116 +893,35 @@ export class MapEngine {
     this.chunks.delete(key);
     this.terrainGrid.delete(key);
     this.setOverviewTile(key, true);
+    this.smokeDirty = true;
   }
 
-  private buildTrees(cx: number, cy: number, blocked: Set<number>): THREE.InstancedMesh | null {
-    const bytes = this.terrainGrid.get(`${cx}:${cy}`);
-    if (!bytes) return null;
-    const ox = cx * CHUNK;
-    const oz = cy * CHUNK;
-    const idx: number[] = [];
-    for (let i = 0; i < bytes.length; i++) if (bytes[i] === 1 && !blocked.has(i)) idx.push(i);
-    if (!idx.length) return null;
-    const mesh = new THREE.InstancedMesh(this.geos.tree, [this.mats.tree, this.mats.trunk], idx.length * 2);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
-    const pos = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
-    let k = 0;
-    for (const i of idx) {
-      const gx = ox + (i % CHUNK);
-      const gz = oz + Math.floor(i / CHUNK);
-      const base = tileHeight(this.sampler, gx, gz);
-      for (let j = 0; j < 2; j++) {
-        const r1 = hash2(gx * 2 + j, gz * 3 + j);
-        const r2 = hash2(gx * 5 + j, gz * 7 + j);
-        const scale = 0.7 + 0.5 * hash2(gx + j, gz);
-        pos.set(gx + 0.2 + r1 * 0.6, base + 0.15 * scale, gz + 0.2 + r2 * 0.6);
-        s.set(scale, scale, scale);
-        q.setFromAxisAngle(up, r1 * Math.PI);
-        m.compose(pos, q, s);
-        mesh.setMatrixAt(k++, m);
-      }
+  /** Chimney/torch smoke for the close-up chunks only; emitter list rebuilt when chunk visibility or LOD changes. */
+  private animateSmoke(t: number) {
+    const show = this.cam.dist < SMOKE_DIST;
+    if (this.smoke.mesh.visible !== show) this.smoke.mesh.visible = show;
+    if (!show) return;
+    if (this.smokeDirty) {
+      this.smokeDirty = false;
+      const all: SmokeEmitter[] = [];
+      for (const ch of this.chunks.values()) if (ch.group.visible && ch.lod === 0) all.push(...ch.emitters);
+      this.smoke.setEmitters(all);
     }
-    mesh.count = k;
-    mesh.instanceMatrix.needsUpdate = true;
-    return mesh;
+    this.smoke.update(t, this.cam.tx, this.cam.tz);
   }
 
-  /** Scattered bushes on plains and boulders on mountains (LOD0 only) — cheap richness at close zoom. */
-  private buildProps(cx: number, cy: number, blocked: Set<number>): THREE.InstancedMesh[] {
-    const bytes = this.terrainGrid.get(`${cx}:${cy}`);
-    if (!bytes) return [];
-    const ox = cx * CHUNK;
-    const oz = cy * CHUNK;
-    const bushes: number[] = [];
-    const rocks: number[] = [];
-    for (let i = 0; i < bytes.length; i++) {
-      if (blocked.has(i)) continue;
-      const gx = ox + (i % CHUNK);
-      const gz = oz + Math.floor(i / CHUNK);
-      const r = hash2(gx * 11 + 3, gz * 13 + 7);
-      if (bytes[i] === 0 && r < 0.1) bushes.push(i);
-      else if (bytes[i] === 2 && r < 0.28) rocks.push(i);
-    }
-    const out: THREE.InstancedMesh[] = [];
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
-    const pos = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
-    const fill = (idx: number[], geo: THREE.BufferGeometry, mat: THREE.Material, lift: number) => {
-      if (!idx.length) return;
-      const mesh = new THREE.InstancedMesh(geo, mat, idx.length);
-      let k = 0;
-      for (const i of idx) {
-        const gx = ox + (i % CHUNK);
-        const gz = oz + Math.floor(i / CHUNK);
-        const r1 = hash2(gx * 3 + 1, gz * 5 + 2);
-        const r2 = hash2(gx * 7 + 4, gz * 3 + 9);
-        const sc = 0.6 + 0.8 * hash2(gx + 5, gz + 11);
-        pos.set(gx + 0.15 + r1 * 0.7, tileHeight(this.sampler, gx, gz) + lift * sc, gz + 0.15 + r2 * 0.7);
-        s.set(sc, sc, sc);
-        q.setFromAxisAngle(up, r2 * Math.PI * 2);
-        m.compose(pos, q, s);
-        mesh.setMatrixAt(k++, m);
-      }
-      mesh.count = k;
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.visible = false;
-      out.push(mesh);
-    };
-    fill(bushes, this.geos.bush, this.mats.bush, 0.08);
-    fill(rocks, this.geos.rock, this.mats.rock, 0.06);
-    return out;
-  }
-
-  private buildTerritory(data: ChunkDto): THREE.InstancedMesh[] {
-    if (!data.territory.length) return [];
-    const strong = data.territory.filter((t) => t.faction !== "RESERVED");
-    const faint = data.territory.filter((t) => t.faction === "RESERVED");
-    const out: THREE.InstancedMesh[] = [];
-    const m = new THREE.Matrix4();
-    for (const [tiles, mat] of [
-      [strong, this.mats.territory],
-      [faint, this.mats.territoryFaint],
-    ] as const) {
-      if (!tiles.length) continue;
-      const mesh = new THREE.InstancedMesh(this.geos.tile, mat, tiles.length);
-      let k = 0;
-      for (const t of tiles) {
-        m.makeTranslation(t.x + 0.5, this.heightAt(t.x, t.y) + 0.05, t.y + 0.5);
-        mesh.setMatrixAt(k, m);
-        mesh.setColorAt(k, t.faction === "OWN" ? this.palette.own : t.faction === "ENEMY" ? this.palette.enemy : this.palette.neutral);
-        k++;
-      }
-      mesh.count = k;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      out.push(mesh);
-    }
-    return out;
+  /** Continuous ground height (bilinear over the tile's corner heights) for props placed off tile centres. */
+  private groundAt(wx: number, wz: number): number {
+    const x = Math.floor(wx);
+    const z = Math.floor(wz);
+    if (this.tileAt(x, z) < 0) return this.heightAt(x, z);
+    const fx = wx - x;
+    const fz = wz - z;
+    const h00 = cornerHeight(this.sampler, x, z);
+    const h10 = cornerHeight(this.sampler, x + 1, z);
+    const h01 = cornerHeight(this.sampler, x, z + 1);
+    const h11 = cornerHeight(this.sampler, x + 1, z + 1);
+    return (h00 * (1 - fx) + h10 * fx) * (1 - fz) + (h01 * (1 - fx) + h11 * fx) * fz;
   }
 
   // ------------------------------------------------------------------------------------------ labels
@@ -822,7 +936,7 @@ export class MapEngine {
     const push = (s: SettlementPublic) => {
       if (seen.has(s.settlement_id)) return;
       seen.add(s.settlement_id);
-      v.set(s.x + 0.5, this.heightAt(s.x, s.y) + 1.95 * settlementScale(s.level), s.y + 0.5).project(this.camera);
+      v.set(s.x + 0.5, this.heightAt(s.x, s.y) + CASTLE_TOP * settlementScale(s.level), s.y + 0.5).project(this.camera);
       if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) return;
       out.push({
         d: Math.hypot(s.x - this.cam.tx, s.y - this.cam.tz),
@@ -838,28 +952,62 @@ export class MapEngine {
       }
     }
     if (this.overview) for (const s of this.overview.data.settlements) push(s);
+    if (this.marchGroup.visible && this.cam.dist < MARCH_LABEL_DIST) {
+      for (const { march, marker } of this.marchMarkers) {
+        v.copy(marker.position).setY(marker.position.y + 1.7).project(this.camera);
+        if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) continue;
+        const own = !march.hostile;
+        out.push({
+          d: Math.hypot(marker.position.x - this.cam.tx, marker.position.z - this.cam.tz) - 1000, // marches always win the label budget
+          label: {
+            id: `march:${march.march_id}`,
+            x: ((v.x + 1) / 2) * this.width,
+            y: ((1 - v.y) / 2) * this.height,
+            name: march.hostile ? (march.intel?.mission_family ?? march.intel?.mission_class ?? "HOSTILE") : march.mission,
+            level: 0,
+            faction: own ? "OWN" : "ENEMY",
+            kind: "MARCH",
+            status: march.hostile ? "HOSTILE" : march.status,
+            endsAt: march.hostile ? (march.intel?.eta_range ? march.intel.eta_range[0] : null) : march.status === "RETURNING" ? march.return_at : march.arrival_at,
+          },
+        });
+      }
+    }
     out.sort((a, b) => a.d - b.d);
     this.opts.onLabels(out.slice(0, 40).map((o) => o.label));
+  }
+
+  /** Fraction along the ORIGINAL path (0 = origin, 1 = target) where the army is now — server timeline only. */
+  private marchProgress(march: MarchDto, now: number): number {
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    if (march.hostile) {
+      // detected hostile: the revealed path starts at the entry tile (departed_at = detection time). Position is the
+      // centre of the disclosed ETA band; with no ETA disclosed (tier 0) the marker holds the entry tile.
+      const r = march.intel?.eta_range;
+      if (!r) return 0;
+      const det = Date.parse(march.departed_at);
+      const mid = (Date.parse(r[0]) + Date.parse(r[1])) / 2;
+      return clamp01((now - det) / Math.max(1, mid - det));
+    }
+    const dep = Date.parse(march.departed_at);
+    const arr = march.arrival_at ? Date.parse(march.arrival_at) : dep;
+    if (march.status !== "RETURNING") return clamp01((now - dep) / Math.max(1, arr - dep));
+    const ret = march.return_at ? Date.parse(march.return_at) : now;
+    if (march.recalled_at) {
+      // recall = real turn-around from the position reached at recall time, back to the origin (Bible §13/§39: no teleport)
+      const rec = Date.parse(march.recalled_at);
+      const reached = clamp01((rec - dep) / Math.max(1, arr - dep));
+      return reached * (1 - clamp01((now - rec) / Math.max(1, ret - rec)));
+    }
+    return 1 - clamp01((now - arr) / Math.max(1, ret - arr));
   }
 
   private animateMarches(now: number) {
     if (!this.marchMarkers.length) return;
     for (const { march, marker } of this.marchMarkers) {
-      const path = march.path;
-      let t = 0;
-      let pts = path;
-      if (march.status === "RETURNING" && march.return_at) {
-        pts = [...path].reverse();
-        const start = Date.parse(march.arrival_at || march.departed_at);
-        const end = Date.parse(march.return_at);
-        t = (now - start) / Math.max(1, end - start);
-      } else {
-        const start = Date.parse(march.departed_at);
-        const end = Date.parse(march.arrival_at || march.departed_at);
-        t = (now - start) / Math.max(1, end - start);
-      }
-      t = Math.max(0, Math.min(1, t));
-      const f = t * (pts.length - 1);
+      const pts = march.path;
+      const u = this.marchProgress(march, now);
+      const f = u * (pts.length - 1);
       const i = Math.min(pts.length - 2, Math.floor(f));
       const frac = f - i;
       const [ax, ay] = pts[i];
@@ -867,8 +1015,14 @@ export class MapEngine {
       const x = ax + (bx - ax) * frac + 0.5;
       const z = ay + (by - ay) * frac + 0.5;
       marker.position.set(x, this.heightAt(Math.floor(x), Math.floor(z)) + 0.05, z);
-      marker.rotation.y = Math.atan2(bx - ax, by - ay);
+      marker.rotation.y = Math.atan2(bx - ax, by - ay) + (march.status === "RETURNING" ? Math.PI : 0);
+      if (march.hostile) {
+        const halo = marker.getObjectByName("halo");
+        if (halo) halo.scale.setScalar(1 + 0.25 * (0.5 + 0.5 * Math.sin(now / 250)));
+      }
+      if (this.selected?.march?.march_id === march.march_id) this.selectionRing.position.set(x, marker.position.y + 0.02, z);
     }
+    this.labelsDirty = true;
     this.dirty = true;
   }
 
@@ -906,11 +1060,17 @@ export class MapEngine {
     this.dirty = false;
     const t = (now - this.startedAt) / 1000;
     this.water.update(t);
+    this.factory.tick(t);
+    this.animateSmoke(t);
     this.selectionRing.scale.setScalar(1 + 0.08 * Math.sin(t * 3.2));
     this.homeBeacon.scale.setScalar(1 + 0.12 * Math.sin(t * 2.1));
     (this.homeBeacon.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 2.1));
     if (this.marchMarkers.length) this.animateMarches(now + serverOffset());
     this.renderer.render(this.scene, this.camera);
+    if (this.minimap.rect) {
+      this.updateMinimapCursor();
+      this.renderMinimap();
+    }
     this.gl.endFrameEXP();
     void ts;
   }
@@ -922,34 +1082,6 @@ export function setEngineServerOffset(ms: number) {
 }
 function serverOffset() {
   return _serverOffset;
-}
-
-function mergeTreeGeometry(cone: THREE.ConeGeometry, trunk: THREE.CylinderGeometry): THREE.BufferGeometry {
-  // two groups so the InstancedMesh can use [leafMaterial, trunkMaterial]
-  const c = cone.clone();
-  c.translate(0, 0.6, 0);
-  const t = trunk.clone();
-  t.translate(0, 0.15, 0);
-  const geo = new THREE.BufferGeometry();
-  const cPos = c.getAttribute("position") as THREE.BufferAttribute;
-  const tPos = t.getAttribute("position") as THREE.BufferAttribute;
-  const cIdx = c.getIndex()!;
-  const tIdx = t.getIndex()!;
-  const positions = new Float32Array(cPos.count * 3 + tPos.count * 3);
-  positions.set(cPos.array as Float32Array, 0);
-  positions.set(tPos.array as Float32Array, cPos.count * 3);
-  const normals = new Float32Array(positions.length);
-  normals.set((c.getAttribute("normal") as THREE.BufferAttribute).array as Float32Array, 0);
-  normals.set((t.getAttribute("normal") as THREE.BufferAttribute).array as Float32Array, cPos.count * 3);
-  const index: number[] = [];
-  for (let i = 0; i < cIdx.count; i++) index.push(cIdx.getX(i));
-  for (let i = 0; i < tIdx.count; i++) index.push(tIdx.getX(i) + cPos.count);
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
-  geo.setIndex(index);
-  geo.addGroup(0, cIdx.count, 0);
-  geo.addGroup(cIdx.count, tIdx.count, 1);
-  return geo;
 }
 
 function base64ToBytes(b64: string): Uint8Array {

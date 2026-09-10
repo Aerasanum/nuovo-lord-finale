@@ -124,6 +124,7 @@ function safeJson(text: string) {
 }
 
 export const post = <T = any>(path: string, body?: unknown, init?: RequestInit) => api<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body), ...init });
+export const put = <T = any>(path: string, body?: unknown, init?: RequestInit) => api<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body), ...init });
 export const get = <T = any>(path: string, init?: RequestInit) => api<T>(path, { method: "GET", ...init });
 
 // ---- server clock sync: remaining timers are computed against server_time ----

@@ -14,7 +14,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import conquest, notifications, territory
+from app.domain import conquest, house, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
@@ -151,6 +151,7 @@ async def list_worlds(account_id: str) -> list[dict]:
         d["joined"] = bool(p)
         d["player_id"] = p["_id"] if p else None
         d["house_name"] = p["house_name"] if p else None
+        d["house_crest"] = (p.get("house_crest") or house.default_crest(p["house_name"])) if p else None
         out.append(d)
     return out
 
@@ -182,6 +183,7 @@ def player_dto(p: dict) -> dict:
         "world_id": p["world_id"],
         "account_id": p["account_id"],
         "house_name": p["house_name"],
+        "house": house.dto(p),
         "mother_settlement_id": p.get("mother_settlement_id"),
         "settlement_count": int(p.get("settlement_count", 1)),
         "settlement_reservations": int(p.get("settlement_reservations", 0)),
@@ -209,6 +211,7 @@ async def join_world(world: dict, account_id: str, house_name: str) -> dict:
     if await db().players.find_one({"world_id": world["_id"], "house_name_lc": house_name.lower()}):
         raise ApiError("HOUSE_NAME_TAKEN", "House name already used in this world", 409)
     player_id = f"ply_{uuid.uuid4().hex[:12]}"
+    crest = house.default_crest(house_name)
     # deterministic-but-random spawn: claim ONE free slot atomically
     slot = await db().settlements.find_one_and_update(
         {"world_id": world["_id"], "kind": "PLAYER_SLOT", "slot_status": "FREE"},
@@ -225,6 +228,9 @@ async def join_world(world: dict, account_id: str, house_name: str) -> dict:
         "account_id": account_id,
         "house_name": house_name,
         "house_name_lc": house_name.lower(),
+        "house_crest": crest,
+        "house_motto": None,
+        "prestige": 0,
         "mother_settlement_id": slot["_id"],
         "settlement_count": 1,
         "settlement_reservations": 0,
@@ -240,7 +246,7 @@ async def join_world(world: dict, account_id: str, house_name: str) -> dict:
         await db().settlements.update_one({"_id": slot["_id"], "claim_token": player_id}, {"$set": {"slot_status": "FREE"}, "$unset": {"claim_token": ""}})
         raise ApiError("HOUSE_NAME_TAKEN", "House name already used in this world (or account already joined)", 409)
     state = bootstrap_player_settlement(slot, player_id, house_name)
-    await db().settlements.update_one({"_id": slot["_id"]}, {"$set": {**state, "owner_house_name": house_name}, "$unset": {"claim_token": ""}})
+    await db().settlements.update_one({"_id": slot["_id"]}, {"$set": {**state, "owner_house_name": house_name, "owner_house_crest": crest}, "$unset": {"claim_token": ""}})
     fresh = await db().settlements.find_one({"_id": slot["_id"]})
     # release slot reservation, then claim canonical base territory
     await db().territory_tiles.delete_many({"world_id": world["_id"], "settlement_id": slot["_id"], "source": "SLOT_RESERVATION"})

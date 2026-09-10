@@ -61,6 +61,7 @@ const obsidian = {
   terrainForest: "#2F4A2A",
   terrainMountain: "#7A7168",
   terrainWater: "#1F3D5C",
+  skyHorizon: "#2C3646", // distant haze the 3D map fades into
 
   // Factions
   factionOwn: "#C89B3C",

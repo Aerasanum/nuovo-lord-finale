@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 7 backend + frontend testing complete. Backend: 28/28 regression (test_public_e2e.py + test_iteration_6.py) + 11/11 new test_iteration_7.py all PASSING (39 total). Skins endpoints verified: GET /skins returns correct {current='classic', level=3, skins=[classic unlocked, sandstone(5)/royal(10)/obsidian(20) locked]}; PUT skin='royal' → 409 SKIN_LOCKED with details.required_level=10; PUT skin='zzz' → 400 INVALID_SKIN; PUT skin='classic' → 200 (persists on GET); unauthenticated → 401; foreign settlement (from a battle target_settlement_id) → 403/404. Battle-history endpoint: GET /settlements/{sid}/battles?limit=5 returns ≤5 battles newest-first with battle_id/report.winner/loot/created_at + origin_settlement_id key present; limit=21 → 422. QA clock offset persisted at 1332896.9s (~15.4 days) — advanced by iteration_6 hostile-intel fixture from the previously-reported 918000s baseline (accepted per review-request note). Frontend (390×844, demo login → Entra): SKINS FLOW — testIDs all present (skins-screen, skins-preview, skins-level, skin-card-{classic,sandstone,royal,obsidian}, skin-card-classic-current, skins-apply-button, skins-back-button); skins-level shows 'Il tuo livello 3'; tapping skin-card-royal switches 3D preview to blue onion-dome castle and button shows lock icon + 'Bloccata · Si sblocca al livello 10' with aria-disabled=true; tapping skin-card-classic returns preview to red-roof classic castle, button 'Applica' (still aria-disabled=true because it's the current one), 'In uso' badge visible on classic card; skins-back-button returns to /settlement. BATTLE HISTORY — clicked canvas at (280,272) → map-selection-card 'Neutrale 5,183' with map-selection-battles containing exactly 5 battle-row-btl_mar_* rows: 'Sconfitta · Attacco · 21/09 13:04 Perdite −200' × 3, 'Vittoria · Attacco · 10/09 …' × 2 (newest-first). Tapping the first row navigated to /battle/btl_mar_b58c1230c5064b93 and rendered the battle report ('Vincitore: Difensore · ATTACK · Neutrale 5,183 · 21/09/2026 13:04:04') with attacker/defender tables. MAP REGRESSION — no THREE.WebGLProgram / Shader / onBeforeCompile errors captured across the full test session; map renders (7,189 ·×30 initial → ×15 after zoom-in ×2 with 700ms gaps); yellow banner/flag renders on Casa Demo castle. No deprecated Expo packages detected (expo-av / expo-barcode-scanner / expo-background-fetch not in package.json).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_7.py",
+    "/app/test_reports/pytest/iteration_7.xml",
+    "/app/test_reports/pytest/iteration_7_regression.xml",
+    "/app/test_reports/screens/iter7_01_skins_screen.jpg",
+    "/app/test_reports/screens/iter7_02_skins_royal.jpg",
+    "/app/test_reports/screens/iter7_03_after_back.jpg",
+    "/app/test_reports/screens/iter7_map_zoomed_1.jpg",
+    "/app/test_reports/screens/iter7_neutral_selected.jpg",
+    "/app/test_reports/screens/iter7_battle_report.jpg"
+  ],
+  "action_items": [
+    "None blocking. Optional visual verification the main agent may want to eyeball later: (a) frame-to-frame flag/torch/smoke animation deltas were not pixel-diff'd in this run (no console errors detected, static screenshots show flag geometry correctly on Casa Demo but do not confirm animation frame updates); (b) outbound-march marker on the map was NOT exercised because the QA clock is now ~15.4 days ahead and all outstanding demo marches from earlier iterations have completed. If the main agent wants that scenario re-tested, launch a fresh long-ETA march from the demo account (this will leave a stray march in world_1, same trade-off as previous iterations)."
+  ],
+  "critical_code_review_comments": [
+    "backend/app/domain/skins.py:29-37 set_skin correctly rejects unknown ids (400 INVALID_SKIN with allowed list in details.skins) and level-gated ones (409 SKIN_LOCKED with details.required_level and current level) before persisting via $set on settlements.skin — matches spec.",
+    "backend/app/api/routes_game.py:318-327 skin routes call get_owned_settlement (ownership check, returns 404/403 for foreign settlements) and skins.set_skin, correctly returning the same catalog shape as GET so the frontend can update in place.",
+    "backend/app/api/routes_game.py:330-335 settlement_battles filters battles by participants + $or on target_settlement_id / origin_settlement_id, sorted newest-first with limit≤20 enforced by Query(le=20). Returned _battle_dto includes report/loot/created_at and preserves origin_settlement_id key (may be null for defence side).",
+    "frontend/app/skins.tsx wires all required testIDs and gates the Applica button correctly: disabled when either the skin is not unlocked OR it equals current. Button label branches to 'Bloccata · Si sblocca al livello N' when locked; live 3D preview updates on pick via CastlePreview skin prop.",
+    "frontend/src/components/MarchCard.tsx:133 BattleHistory renders map-selection-battles / map-selection-no-battles / battle-row-<id> with newest-first ordering and navigates to /battle/[id] on press — matches contract."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_7.py (new: 11 tests covering skins catalog/lock/invalid/ok/auth/foreign + battles shape/limit/own + QA clock persistence)"
+  ],
+  "success_rate": {"backend": "100% (39/39 total across regression + new tests)", "frontend": "100% of items exercised (skins flow, battle history end-to-end incl. deep-link to /battle/[id], map render + zoom, tab navigation)"},
+  "seed_data_creation": "None. Test only mutates demo settlement's `skin` field (set to 'classic' — the default — after the 200-ok test), and reads existing battles. Iteration_6's fixture accounts (iter6_atk_*, iter6_dfd_*) are still in world_1.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "QA clock offset LEFT BEHIND: 1332896.9 seconds (~15.4 days beyond real time). Demo's mother settlement stl_0484bd7cfcbd40dd currently has skin='classic' and level=3 — so only 'classic' is unlocked; testing higher tiers requires either QA-granting level ≥5/10/20 or an alt account. There is a stray outbound march on the demo account from iteration 4 that has long since resolved; no active marches remain on the demo map (all Città→Map roundtrips render normally). Test files: /app/backend/tests/test_iteration_7.py contains reusable skins/battles regression suite; /app/backend/tests/test_iteration_6.py continues to advance the clock when run.",
+  "rca_of_issue": "N/A — no bugs found. All specified test cases pass on both backend and frontend."
+}

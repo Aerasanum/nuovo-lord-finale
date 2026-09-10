@@ -1,0 +1,28 @@
+{
+  "summary": "RETEST P1 recall-visibility bug from iteration_4 — VERIFIED FIXED. Full frontend flow (390x844) + backend DTO check on live world_1. After zoom-in x2, BOTH march chips render as specified: [map-label-march:mar_f6b9205c32334aa3] shows 'Attacco' + '1h 22m' (OUTBOUND) and [map-label-march:mar_ec8c3fee7d3642d5] shows 'In ritorno' + '53:36' countdown (RECALLED/RETURNING). Screenshot iter5_01 clearly shows the paler cone with the white banner between Casa Demo (6,188) and the target tile (9,181) — the returning marker is animated on the dashed path, exactly matching the spec. Tap picking (30px screen-space) works: chip.y+76 offset opens the correct selection card on the FIRST try for BOTH the returning marker and the outbound marker (no need to try 60/90). Recalled march card shows 'Attacco → Neutrale 9,181', StatePill 'In ritorno', caption 'Fanteria 120 · RECALLED', live countdown (53:33 → 53:32 ticking), map-selection-march-list present, map-selection-march-recall correctly ABSENT. Outbound card shows 'Attacco → Neutrale 5,183', 'In marcia', map-selection-march-recall (Richiama) present (NOT pressed). Home tap (chip.x+40, chip.y+52) opens 'Casa Demo' card with map-selection-open-city. Backend DTO exposes new recalled_at field: RECALLED march has recalled_at=2026-09-10T13:11:46Z and return_at=2026-09-10T14:11:49Z (return_at > recalled_at ✓); OUTBOUND march has recalled_at=null ✓. Zero THREE/WebGL errors and zero unhandled promise rejections on the console (readpixels stall and pointerEvents warnings ignored per instructions).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter5_01_map_zoomed.jpg",
+    "/app/test_reports/screens/iter5_02_recalled_card.jpg",
+    "/app/test_reports/screens/iter5_03_outbound_card.jpg",
+    "/app/test_reports/screens/iter5_04_home_card.jpg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "engine.ts:903-916 marchProgress now correctly uses recalled_at to interpolate the RETURNING trip from the reached fraction back to 0 — matches Bible §13/§39 semantics.",
+    "engine.ts:340 TOUCH_PX=30 screen-space picking loop covers the marker at both y+0.6 and y+1.3 (body + banner) so tall castles/cones are reliably selectable. Confirmed working on first try at chip.y+76 for both marches."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "None; reused the two live marches launched by the main agent in iteration_4 (RECALLED mar_ec8c3fee7d3642d5 → Neutrale 9,181; OUTBOUND mar_f6b9205c32334aa3 → Neutrale 5,183). Did NOT recall the remaining outbound march and did NOT advance the QA clock.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P1 recall-visibility bug (iteration_4) is fully resolved. Data snapshot at 2026-09-10T13:15:27Z: RECALLED march return_at ≈ 14:11:49Z (~56 min countdown), OUTBOUND arrival_at ≈ 14:40:41Z (~1h 25m). Working tap offset for the march chips is chip.x+60, chip.y+76 (first attempt). No further action required.",
+  "rca_of_issue": "N/A — bug already fixed by main agent. Verification: recalled_at ISO exposed in DTO (backend/app/domain/marches.py:38), engine.marchProgress uses `reached * (1 - progress since recall)` for RETURNING marches (engine.ts:909-914), and screen-space picking with 30px radius (engine.ts:340-378) makes tall markers tappable."
+}

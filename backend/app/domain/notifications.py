@@ -12,6 +12,9 @@ def _catalog(event: str) -> dict:
     for e in get_spec().notification_event_catalog:
         if e["event"] == event:
             return e
+    # Land analogue of NAVAL_FLEET_DETECTED (Bible §40.5 — naval detection is DISABLED in v3.7): severity HIGH, MAP channel
+    if event == "HOSTILE_MARCH_DETECTED":
+        return {"severity": "HIGH", "deep_link": "map/march"}
     return {"severity": "INFO", "deep_link": "inbox"}
 
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { get, post, syncServerTime } from "./client";
+import { get, post, put, syncServerTime } from "./client";
 
 export type Resources = Record<"grain" | "wood" | "clay" | "iron" | "gold", number>;
 
@@ -35,6 +35,7 @@ export type SettlementDto = {
   level: number;
   owner_player_id: string | null;
   owner_house_name?: string | null;
+  owner_house_crest?: CrestDto | null;
   faction: "OWN" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
   wall_level: number;
   garrison_total?: number | null;
@@ -115,12 +116,46 @@ export type UnitEntry = {
   job?: JobDto;
 };
 
+export type CrestDto = {
+  shield_base: "heater" | "round" | "kite" | "square";
+  primary_symbol: "circle" | "diamond" | "cross" | "star" | "chevron" | "tower" | "crescent" | "triangle";
+  secondary_mark: "none" | "dot" | "stripe" | "bar";
+  border: "none" | "thin" | "thick";
+  colors: { base: string; primary: string; secondary: string; border: string };
+};
+
+export type HouseDto = { house_name: string; motto: string | null; crest: CrestDto; prestige: number; history: unknown[] };
+export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[] };
+
+/** Bible §34.10 disclosure — only the fields the intel tier reveals are non-null. */
+export type IntelDto = {
+  detected_at: string;
+  entry_tile: [number, number] | null;
+  entry_index: number;
+  intel_score: number;
+  tier: { min_score: number; max_score: number; reveal: string[] };
+  heading: string | null;
+  mission_class: "OFFENSIVE" | "SUPPORT" | null;
+  mission_family: string | null;
+  eta_error_pct: number | null;
+  eta_range: [string, string] | null;
+  troop_error_pct: number | null;
+  troops_total_range: [number, number] | null;
+  unit_categories: string[] | null;
+  category_bands: Record<string, number> | null;
+  composition: Record<string, [number, number]> | null;
+  flags: { siege_cart: boolean; legendary: boolean } | null;
+};
+
 export type MarchDto = {
   march_id: string;
-  origin_settlement_id: string;
+  house_name?: string | null;
+  house_crest?: CrestDto | null;
+  origin_settlement_id: string | null;
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
   target_name: string;
+  target_xy?: [number, number] | null;
   mission: string;
   units: Record<string, number>;
   ships: number;
@@ -129,13 +164,16 @@ export type MarchDto = {
   departed_at: string;
   arrival_at: string | null;
   return_at: string | null;
-  eta_seconds: number;
-  speed_tph: number;
+  recalled_at?: string | null;
+  eta_seconds: number | null;
+  speed_tph: number | null;
   status: string;
   battle_id: string | null;
   loot: Partial<Resources> | null;
   result: string | null;
   player_id: string;
+  hostile: boolean;
+  intel: IntelDto | null;
 };
 
 export type ChunkDto = {
@@ -171,6 +209,8 @@ export type SettlementPublic = {
   level: number;
   owner_player_id: string | null;
   owner_house_name?: string | null;
+  owner_house_crest?: CrestDto | null;
+  skin?: string | null; // castle skin id (see src/map3d/castle.ts CASTLE_SKINS); null → default
   faction: "OWN" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
   wall_level: number;
   garrison_total?: number | null;
@@ -214,6 +254,7 @@ export type BattleDto = {
   defender_player_id: string | null;
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
+  origin_settlement_id?: string | null;
   target_name: string;
   target_xy: [number, number];
   mission: string;
@@ -239,6 +280,7 @@ export const qk = {
   army: (w: string, s: string) => ["army", w, s] as const,
   sentinels: (w: string, s: string) => ["sentinels", w, s] as const,
   marches: (w: string) => ["marches", w] as const,
+  house: (w: string) => ["house", w] as const,
   battles: (w: string) => ["battles", w] as const,
   battle: (w: string, id: string) => ["battle", w, id] as const,
   inbox: (w: string) => ["inbox", w] as const,
@@ -295,7 +337,23 @@ export function useSentinels(worldId?: string | null, sid?: string | null) {
 }
 
 export function useMarches(worldId?: string | null) {
-  return useQuery<{ marches: MarchDto[]; server_time: string }>({ queryKey: qk.marches(worldId || ""), queryFn: () => get(`/worlds/${worldId}/marches`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
+  return useQuery<{ marches: MarchDto[]; incoming: MarchDto[]; server_time: string }>({ queryKey: qk.marches(worldId || ""), queryFn: () => get(`/worlds/${worldId}/marches`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
+}
+
+export function useHouse(worldId?: string | null) {
+  return useQuery<{ house: HouseDto; catalog: CrestCatalog }>({ queryKey: qk.house(worldId || ""), queryFn: () => get(`/worlds/${worldId}/house`), enabled: !!worldId });
+}
+
+export function useHouseMutations(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { motto?: string | null; crest?: CrestDto }) => put<{ house: HouseDto }>(`/worlds/${worldId}/house`, body),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.house(worldId) });
+      qc.invalidateQueries({ queryKey: qk.me(worldId) });
+      qc.invalidateQueries({ queryKey: qk.marches(worldId) });
+    },
+  });
 }
 
 export function useBattles(worldId?: string | null) {
@@ -312,6 +370,25 @@ export function useInbox(worldId?: string | null) {
 
 export function usePublicSettlement(worldId?: string | null, id?: string | null) {
   return useQuery<SettlementPublic>({ queryKey: qk.publicSettlement(worldId || "", id || ""), queryFn: () => get(`/worlds/${worldId}/settlements/${id}/public`), enabled: !!worldId && !!id });
+}
+
+export type SkinCatalog = { current: string; level: number; skins: { id: string; min_level: number; unlocked: boolean }[] };
+
+export function useSettlementSkins(worldId?: string | null, sid?: string | null) {
+  return useQuery<SkinCatalog>({ queryKey: ["skins", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/skins`), enabled: !!worldId && !!sid });
+}
+
+export function useSetSkin(worldId: string, sid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (skin: string) => put<SkinCatalog>(`/worlds/${worldId}/settlements/${sid}/skin`, { skin }),
+    onSuccess: (data) => qc.setQueryData(["skins", worldId, sid], data),
+  });
+}
+
+/** Last battles involving a settlement (as target or as origin of the viewer's marches). */
+export function useSettlementBattles(worldId?: string | null, sid?: string | null, limit = 5) {
+  return useQuery<{ battles: BattleDto[] }>({ queryKey: ["settlement-battles", worldId || "", sid || "", limit], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/battles?limit=${limit}`), enabled: !!worldId && !!sid, staleTime: 15000 });
 }
 
 export function useCatalog() {

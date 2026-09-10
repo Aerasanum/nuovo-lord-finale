@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import routes_auth, routes_game, routes_qa
-from app.core import config
+from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     validate_dag()
     log.info("spec %s loaded, hash %s", spec.version, spec.computed_hash)
     await ensure_indexes()
+    await clock.load_offset()
     stop = asyncio.Event()
     worker = None
     if config.WORLD_AUTO_CREATE:

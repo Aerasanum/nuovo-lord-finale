@@ -9,7 +9,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import combat, conquest, economy, navy, notifications, scheduler, sentinels, territory
+from app.domain import combat, conquest, economy, intel, navy, notifications, scheduler, sentinels, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import astar, load_terrain
 from app.domain.settlements import catch_up_neutral, new_id
@@ -23,10 +23,13 @@ def dto(m: dict) -> dict:
         "march_id": m["_id"],
         "world_id": m["world_id"],
         "player_id": m["player_id"],
+        "house_name": m.get("house_name"),
+        "house_crest": m.get("house_crest"),
         "origin_settlement_id": m["origin_settlement_id"],
         "target_settlement_id": m.get("target_settlement_id"),
         "target_sentinel_id": m.get("target_sentinel_id"),
         "target_name": m.get("target_name"),
+        "target_xy": m.get("target_xy"),
         "mission": m["mission"],
         "units": {k: int(v) for k, v in m.get("units", {}).items() if int(v) > 0},
         "ships": int(m.get("ships", 0)),
@@ -35,14 +38,67 @@ def dto(m: dict) -> dict:
         "departed_at": clock.iso(m["departed_at"]),
         "arrival_at": clock.iso(m.get("arrival_at")),
         "return_at": clock.iso(m.get("return_at")),
+        "recalled_at": clock.iso(m.get("recalled_at")) if m.get("recalled_at") else None,
         "eta_seconds": m.get("eta_seconds"),
         "speed_tph": m.get("speed_tph"),
         "status": m["status"],
         "battle_id": m.get("battle_id"),
         "loot": m.get("loot"),
         "result": m.get("result"),
+        "hostile": False,
+        "intel": None,
         "server_time": clock.iso(clock.now()),
     }
+
+
+async def _defender_context(world_id: str, defender_player_id: str) -> tuple[set[tuple[int, int]], dict[str, dict], set[str]]:
+    """Surveilled zone, settlements by id and sentinel ids of a defender.
+
+    Surveilled zone = territory tiles ∪ the Sentinel ring footprint around each anchor (Bible §14: inner ring radius 3
+    baseline, outer ring radius 5 once outer Sentinels exist). Without a ring the base territory alone (anchor + 4
+    cardinals) would only detect an attacker on arrival, so the inner-ring baseline is the minimum surveillance."""
+    tiles = await territory.player_tiles(world_id, defender_player_id)
+    settlements = {s["_id"]: s async for s in db().settlements.find({"world_id": world_id, "owner_player_id": defender_player_id})}
+    sentinel_docs = [s async for s in db().sentinels.find({"world_id": world_id, "owner_player_id": defender_player_id, "state": {"$ne": "REMOVED"}}, {"_id": 1, "settlement_id": 1, "ring": 1})]
+    outer_by_settlement = {s["settlement_id"] for s in sentinel_docs if s.get("ring") == "OUTER"}
+    for sid, s in settlements.items():
+        r = 5 if sid in outer_by_settlement else 3
+        for dx in range(-r, r + 1):
+            for dy in range(-r, r + 1):
+                tiles.add((int(s["x"]) + dx, int(s["y"]) + dy))
+    return tiles, settlements, {s["_id"] for s in sentinel_docs}
+
+
+async def _hostile_public_dto(m: dict, defender_player_id: str, tiles: set[tuple[int, int]], settlements: dict[str, dict]) -> dict | None:
+    """Defender's view of an OUTBOUND hostile march: only after detection, only what the intel tier reveals."""
+    path = m.get("path") or []
+    idx = intel.entry_index(path, tiles)
+    if clock.now() < intel.detection_time(m["departed_at"], m.get("eta_seconds", 0), len(path), idx):
+        return None  # not yet across the surveilled border
+    target = settlements.get(m.get("target_settlement_id") or "")
+    if target is None and m.get("target_sentinel_id"):
+        sen = await db().sentinels.find_one({"_id": m["target_sentinel_id"]})
+        target = settlements.get((sen or {}).get("settlement_id") or "")
+    observer_research = (target or {}).get("research", {}) or {}
+    guarded = target is not None and await db().sentinels.count_documents({"settlement_id": target["_id"], "state": "GUARDED"}) > 0
+    disclosure = intel.disclose(m, observer_research, observer_research if guarded else None, tiles)
+    d = dto(m)
+    idx = disclosure["entry_index"]
+    d.update(
+        {
+            "hostile": True,
+            "units": {},
+            "ships": 0,
+            "origin_settlement_id": None,
+            "departed_at": disclosure["detected_at"],
+            "arrival_at": None,
+            "eta_seconds": None,
+            "speed_tph": None,
+            "path": m.get("path", [])[idx:],
+            "intel": disclosure,
+        }
+    )
+    return d
 
 
 def _weighted_count(units: dict[str, int], research: dict[str, int]) -> int:
@@ -209,6 +265,8 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "_id": new_id("mar"),
         "world_id": world["_id"],
         "player_id": player["_id"],
+        "house_name": player.get("house_name"),
+        "house_crest": player.get("house_crest"),
         "origin_settlement_id": origin["_id"],
         "origin_xy": [origin["x"], origin["y"]],
         "target_settlement_id": target_doc["_id"] if target_doc else None,
@@ -235,6 +293,13 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     }
     await db().marches.insert_one(march)
     await scheduler.schedule(world["_id"], "BATTLE_OR_FLEET_ARRIVAL", arrival, march["_id"], f"march_arrival:{march['_id']}", {"march_id": march["_id"]})
+    # PvP: the defender's surveillance detects the march when it crosses its territory border (Bible §34.10 entry tile)
+    defender_id = (target_doc or {}).get("owner_player_id") if target_doc else (sentinel_doc or {}).get("owner_player_id")
+    if mission in OFFENSIVE and defender_id and defender_id != player["_id"]:
+        tiles, _, _ = await _defender_context(world["_id"], defender_id)
+        idx = intel.entry_index(march["path"], tiles)
+        detect_at = intel.detection_time(now, eta, len(march["path"]), idx)
+        await scheduler.schedule(world["_id"], "NOTIFICATION_ONLY", detect_at, march["_id"], f"hostile_detected:{march['_id']}", {"kind": "HOSTILE_MARCH_DETECTED", "march_id": march["_id"], "defender_player_id": defender_id})
     await notifications.notify(world["_id"], player["_id"], "MARCH_DEPARTED", {"march_id": march["_id"], "mission_type": mission, "target_id": target_doc["_id"] if target_doc else sentinel_doc["_id"], "target_name": target_name, "eta": clock.iso(arrival), "own_composition": units}, dedupe_key=f"march_departed:{march['_id']}", deep_link="map/march")
     return march
 
@@ -458,6 +523,7 @@ async def _persist_battle(march: dict, report: dict, target: dict | None, sentin
         "participants": participants,
         "target_settlement_id": (target or {}).get("_id"),
         "target_sentinel_id": (sentinel or {}).get("_id"),
+        "origin_settlement_id": march.get("origin_settlement_id"),
         "target_name": march.get("target_name"),
         "target_xy": march.get("target_xy"),
         "mission": march["mission"],
@@ -514,16 +580,60 @@ async def active_for_player(world_id: str, player_id: str) -> list[dict]:
     return [dto(m) async for m in cur]
 
 
-async def visible_in_chunks(world_id: str, viewer_player_id: str, chunks: list[tuple[int, int]]) -> list[dict]:
-    """Marches whose path crosses any of the requested chunks (own marches + incoming to own settlements)."""
-    own_ids = [s["_id"] async for s in db().settlements.find({"world_id": world_id, "owner_player_id": viewer_player_id}, {"_id": 1})]
-    cur = db().marches.find({"world_id": world_id, "status": {"$in": list(ACTIVE)}, "$or": [{"player_id": viewer_player_id}, {"target_settlement_id": {"$in": own_ids}}]})
-    chunk_set = set(chunks)
+async def incoming_for_player(world_id: str, player_id: str) -> list[dict]:
+    """Detected hostile OUTBOUND marches heading for this player's settlements/sentinels, with intel disclosure."""
+    tiles, settlements, sentinel_ids = await _defender_context(world_id, player_id)
+    if not settlements:
+        return []
+    cur = db().marches.find(
+        {
+            "world_id": world_id,
+            "status": "OUTBOUND",
+            "player_id": {"$ne": player_id},
+            "mission": {"$in": list(OFFENSIVE)},
+            "$or": [{"target_settlement_id": {"$in": list(settlements.keys())}}, {"target_sentinel_id": {"$in": list(sentinel_ids)}}],
+        }
+    ).sort("arrival_at", 1)
     out = []
     async for m in cur:
+        d = await _hostile_public_dto(m, player_id, tiles, settlements)
+        if d:
+            out.append(d)
+    return out
+
+
+@scheduler.handler("NOTIFICATION_ONLY")
+async def on_notification_only(evt: dict) -> None:
+    p = evt.get("payload", {})
+    if p.get("kind") != "HOSTILE_MARCH_DETECTED":
+        return
+    m = await db().marches.find_one({"_id": p["march_id"]})
+    if not m or m["status"] != "OUTBOUND":
+        return
+    defender = p["defender_player_id"]
+    tiles, settlements, _ = await _defender_context(m["world_id"], defender)
+    d = await _hostile_public_dto(m, defender, tiles, settlements)
+    if not d:
+        return
+    it = d["intel"]
+    await notifications.notify(
+        m["world_id"],
+        defender,
+        "HOSTILE_MARCH_DETECTED",
+        {"march_id": m["_id"], "target_id": m.get("target_settlement_id") or m.get("target_sentinel_id"), "target_name": m.get("target_name"), "entry_tile": it["entry_tile"], "heading": it["heading"], "intel_disclosure": it},
+        dedupe_key=f"hostile_detected:{m['_id']}",
+        deep_link="map/march",
+    )
+
+
+async def visible_in_chunks(world_id: str, viewer_player_id: str, chunks: list[tuple[int, int]]) -> list[dict]:
+    """Marches whose path crosses any of the requested chunks: own marches + detected hostiles (intel-disclosed)."""
+    chunk_set = set(chunks)
+    out = []
+    async for m in db().marches.find({"world_id": world_id, "status": {"$in": list(ACTIVE)}, "player_id": viewer_player_id}):
         if any((x // 32, y // 32) in chunk_set for x, y in m.get("path", [])):
-            d = dto(m)
-            if m["player_id"] != viewer_player_id:
-                d["units"] = {}  # public DTO: composition hidden without intelligence
+            out.append(dto(m))
+    for d in await incoming_for_player(world_id, viewer_player_id):
+        if any((x // 32, y // 32) in chunk_set for x, y in d["path"]):
             out.append(d)
     return out

@@ -4,11 +4,15 @@ import { Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useMarches } from "@/src/api/hooks";
+import { useMarches, useMarchMutations, useSettlementBattles } from "@/src/api/hooks";
+import { Crest } from "@/src/components/Crest";
+import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
+import { useToast } from "@/src/components/overlay";
 import { Button, CostRow, Icon, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
 import { MapView3D } from "@/src/map3d/MapView";
+import { MiniMapFrame } from "@/src/map3d/MiniMap";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -41,6 +45,8 @@ export default function MapScreen() {
   const { selectSettlement } = useAuth();
   const { worldId, settlementId, settlement, settlements, player } = useGame();
   const marches = useMarches(worldId);
+  const marchMut = useMarchMutations(worldId ?? "");
+  const { showError } = useToast();
   const engineRef = useRef<MapEngine | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [legend, setLegend] = useState(false);
@@ -50,16 +56,20 @@ export default function MapScreen() {
   const home = useMemo(() => (active ? { x: active.x, y: active.y } : null), [active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelect = useCallback((v: Selection | null) => setSel(v), []);
   const onCam = useCallback((c: { tx: number; tz: number; dist: number }) => setCam(c), []);
+  // own marches + detected hostile marches (intel-disclosed by the server) share one marker layer
+  const allMarches = useMemo(() => [...(marches.data?.marches ?? []), ...(marches.data?.incoming ?? [])], [marches.data]);
+  const selS = sel?.settlement;
+  const selM = sel?.march;
+  const history = useSettlementBattles(worldId, selS && selS.kind !== "PLAYER_SLOT" ? selS.settlement_id : null);
 
   if (!worldId) return null;
-  const selS = sel?.settlement;
   const distance = selS && active ? Math.max(Math.abs(selS.x - active.x), Math.abs(selS.y - active.y)) : null;
   const factionLabel = (f?: string) => (f === "OWN" ? t("own") : f === "ENEMY" ? t("enemy") : f === "RESERVED_SLOT" ? t("reservedSlot") : t("neutral"));
   const terrainLabel = (tr?: string) => (tr === "forest" ? t("forest") : tr === "mountain" ? t("mountain") : tr === "water" ? t("water") : t("plain"));
 
   return (
     <View style={s.root} testID="map-screen">
-      <MapView3D worldId={worldId} home={home} marches={marches.data?.marches ?? []} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} />
+      <MapView3D worldId={worldId} home={home} marches={allMarches} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} />
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -136,12 +146,19 @@ export default function MapScreen() {
         </Animated.View>
       ) : null}
 
+      {/* minimap (hidden while a selection card or the legend occupies the bottom) */}
+      {!sel && !legend ? <MiniMapFrame engine={engineRef} style={{ right: spacing.sm, bottom: spacing.md + 26 }} /> : null}
+
       {/* selection card */}
-      {sel ? (
+      {sel && selM ? (
+        <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
+          <MarchCard march={selM} onClose={() => engineRef.current?.select(null)} onRecall={(id) => marchMut.recall.mutateAsync(id).catch(showError)} />
+        </Animated.View>
+      ) : sel ? (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
           <Panel glass testID="map-selection-card">
             <Row>
-              <Icon name={selS ? (selS.faction === "NEUTRAL" ? "home-group" : "castle") : sel.sentinel ? "tower-fire" : "map-marker"} size={22} color={selS?.faction === "OWN" ? colors.factionOwn : selS?.faction === "ENEMY" ? colors.factionEnemy : colors.factionNeutral} />
+              {selS?.owner_house_crest ? <Crest crest={selS.owner_house_crest} size={28} testID="map-selection-crest" /> : <Icon name={selS ? (selS.faction === "NEUTRAL" ? "home-group" : "castle") : sel.sentinel ? "tower-fire" : "map-marker"} size={22} color={selS?.faction === "OWN" ? colors.factionOwn : selS?.faction === "ENEMY" ? colors.factionEnemy : colors.factionNeutral} />}
               <View style={s.selName}>
                 <T v="heading" numberOfLines={1} testID="map-selection-name">
                   {selS ? selS.name : sel.sentinel ? `${t("sentinels")} ${sel.sentinel.direction}` : `${terrainLabel(undefined)} ${sel.x},${sel.y}`}
@@ -177,6 +194,7 @@ export default function MapScreen() {
                 {t("garrison")}: {formatNumber(selS.garrison_total)} · {t("wall")} L{selS.wall_level}
               </T>
             ) : null}
+            {selS && selS.kind !== "PLAYER_SLOT" ? <BattleHistory battles={history.data?.battles ?? []} viewerPlayerId={player?.player_id ?? null} loading={history.isLoading} /> : null}
           </Panel>
         </Animated.View>
       ) : (

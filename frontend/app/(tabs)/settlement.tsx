@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { BuildingEntry, JobDto } from "@/src/api/hooks";
 import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
+import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
@@ -73,6 +74,9 @@ export default function SettlementScreen() {
       }
       right={
         <Row>
+          <Pressable style={s.hdrBtn} onPress={() => router.push("/house")} testID="settlement-house-button" accessibilityLabel={t("house")}>
+            {player?.house?.crest ? <Crest crest={player.house.crest} size={24} /> : <Icon name="shield-half-full" size={22} color={colors.onSurfaceSecondary} />}
+          </Pressable>
           <Pressable style={s.hdrBtn} onPress={() => router.push("/queues")} testID="settlement-queues-button">
             <Icon name="timer-sand" size={22} color={colors.onSurfaceSecondary} />
           </Pressable>
@@ -102,7 +106,12 @@ export default function SettlementScreen() {
                   </T>
                 </View>
               </Row>
-              {player?.shield_active ? <Icon name="shield-check" size={22} color={colors.success} /> : null}
+              <Row>
+                {player?.shield_active ? <Icon name="shield-check" size={22} color={colors.success} /> : null}
+                <Pressable style={s.hdrBtn} onPress={() => router.push("/skins")} testID="settlement-skins-button" accessibilityLabel={t("castleSkin")}>
+                  <Icon name="palette" size={22} color={colors.brandPrimary} />
+                </Pressable>
+              </Row>
             </Row>
             <View style={{ marginTop: spacing.sm }}>
               <StatePill state={up?.state ?? ""} testID="settlement-upgrade-state" />

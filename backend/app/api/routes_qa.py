@@ -33,6 +33,7 @@ async def get_clock():
 async def advance(body: AdvanceIn):
     _gate()
     clock.advance(body.seconds)
+    await clock.persist_offset()
     processed = await scheduler.run_due_once(limit=5000)
     return {"now": clock.iso(clock.now()), "offset_seconds": clock.get_offset_seconds(), "events_processed": processed}
 
@@ -50,6 +51,7 @@ class GrantIn(BaseModel):
     buildings: dict[str, int] | None = None
     research: dict[str, int] | None = None
     level: int | None = None
+    end_pvp_shield: bool = False
 
 
 @router.post("/grant")
@@ -68,9 +70,17 @@ async def grant(body: GrantIn):
     if body.level is not None:
         sets["level"] = int(body.level)
         sets["buildings.Castello / Fortezza"] = int(body.level)
+    if body.end_pvp_shield:
+        s = await db().settlements.find_one({"_id": body.settlement_id}, {"owner_player_id": 1})
+        if not s or not s.get("owner_player_id"):
+            raise ApiError("SETTLEMENT_NOT_FOUND", "Settlement not found or unowned", 404)
+        await db().players.update_one({"_id": s["owner_player_id"], "shield_ended_at": None}, {"$set": {"shield_ended_at": clock.now(), "shield_end_reason": "QA"}})
+        sets["_shield_ended"] = True
     if not sets:
         raise ApiError("NOTHING_TO_GRANT", "Empty grant", 400)
-    res = await db().settlements.update_one({"_id": body.settlement_id}, {"$set": sets})
-    if res.matched_count == 0:
-        raise ApiError("SETTLEMENT_NOT_FOUND", "Settlement not found", 404)
-    return {"ok": True, "set": sets}
+    sets.pop("_shield_ended", None)
+    if sets:
+        res = await db().settlements.update_one({"_id": body.settlement_id}, {"$set": sets})
+        if res.matched_count == 0:
+            raise ApiError("SETTLEMENT_NOT_FOUND", "Settlement not found", 404)
+    return {"ok": True, "set": sets, "pvp_shield_ended": body.end_pvp_shield}

@@ -30,6 +30,7 @@ const EVENT_ICON: Record<string, IconName> = {
   OWNERSHIP_CHANGED: "crown",
   SENTINEL_LOST: "tower-fire",
   LOYALTY_CHANGED: "heart-broken",
+  HOSTILE_MARCH_DETECTED: "alert-octagon",
 };
 
 export default function InboxScreen() {
@@ -69,6 +70,10 @@ export default function InboxScreen() {
         return p.lost ? `${t("enemy")} · ${p.x},${p.y}` : `${t("conquered")} · ${p.x},${p.y} · L${p.new_level}`;
       case "SENTINEL_LOST":
         return `${p.sector} · ${p.state ?? "GRACE"}${p.grace_deadline ? ` · ${new Date(p.grace_deadline).toLocaleString(lang)}` : ""}`;
+      case "HOSTILE_MARCH_DETECTED": {
+        const it = p.intel_disclosure || {};
+        return `${t("hostileMarchDetected")} → ${p.target_name ?? ""} · ${t("heading")} ${p.heading ?? t("unknown")} · ${t("entryTile")} ${p.entry_tile ? `${p.entry_tile[0]},${p.entry_tile[1]}` : t("unknown")} · ${t("intelScore")} ${it.intel_score ?? 0}`;
+      }
       default:
         return JSON.stringify(p).slice(0, 80);
     }
@@ -108,7 +113,7 @@ export default function InboxScreen() {
               <Pressable style={[s.item, !n.read_at && s.unread]} onPress={() => open(n)} testID={`inbox-item-${n.notification_id}`}>
                 <Row style={{ justifyContent: "space-between" }}>
                   <Row>
-                    <Icon name={EVENT_ICON[n.event] ?? "bell"} size={18} color={n.severity === "CRITICAL" ? colors.error : n.severity === "WARNING" ? colors.warning : colors.brandPrimary} />
+                    <Icon name={EVENT_ICON[n.event] ?? "bell"} size={18} color={n.severity === "CRITICAL" || n.severity === "HIGH" ? colors.error : n.severity === "WARNING" ? colors.warning : colors.brandPrimary} />
                     <T v="label">{n.event.replace(/_/g, " ")}</T>
                   </Row>
                   <Row>

@@ -12,7 +12,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import construction, economy, marches, navy, notifications, recruitment, research, scheduler, sentinels, worlds
+from app.domain import construction, economy, house, marches, navy, notifications, recruitment, research, scheduler, sentinels, skins, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -107,6 +107,21 @@ async def me(c: Ctx = Depends(ctx)):
         settlements.append({**public_dto(s, c.player["_id"]), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
     unread = await db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None})
     return {"player": player_dto(c.player), "world": world_dto(c.world), "settlements": settlements, "unread_inbox": unread, "server_time": clock.iso(clock.now())}
+
+
+class HouseIn(BaseModel):
+    motto: str | None = None
+    crest: dict | None = None
+
+
+@router.get("/worlds/{world_id}/house")
+async def house_get(c: Ctx = Depends(ctx)):
+    return {"house": house.dto(c.player), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
+
+
+@router.put("/worlds/{world_id}/house")
+async def house_update(body: HouseIn, c: Ctx = Depends(ctx)):
+    return {"house": await house.update(c.player, body.motto, body.crest), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
 
 
 # --------------------------------------------------------------------------- settlements
@@ -296,6 +311,30 @@ async def map_marches(world_id: str, chunks: str = Query(default=""), c: Ctx = D
     return {"marches": await marches.visible_in_chunks(world_id, c.player["_id"], parsed), "server_time": clock.iso(clock.now())}
 
 
+class SkinIn(BaseModel):
+    skin: str = Field(min_length=1, max_length=32)
+
+
+@router.get("/worlds/{world_id}/settlements/{settlement_id}/skins")
+async def settlement_skins(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
+    doc = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
+    return skins.catalog(doc)
+
+
+@router.put("/worlds/{world_id}/settlements/{settlement_id}/skin")
+async def settlement_skin_set(world_id: str, settlement_id: str, body: SkinIn, c: Ctx = Depends(ctx)):
+    doc = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
+    return await skins.set_skin(doc, body.skin)
+
+
+@router.get("/worlds/{world_id}/settlements/{settlement_id}/battles")
+async def settlement_battles(world_id: str, settlement_id: str, limit: int = Query(default=5, le=20), c: Ctx = Depends(ctx)):
+    """Battle history of a settlement as seen by the viewer (only battles they took part in): attacks on it + marches launched from it."""
+    q = {"world_id": world_id, "participants": c.player["_id"], "$or": [{"target_settlement_id": settlement_id}, {"origin_settlement_id": settlement_id}]}
+    cur = db().battles.find(q).sort("created_at", -1).limit(limit)
+    return {"battles": [_battle_dto(b) async for b in cur]}
+
+
 @router.get("/worlds/{world_id}/settlements/{settlement_id}/public")
 async def settlement_public(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
     doc = await db().settlements.find_one({"_id": settlement_id, "world_id": world_id})
@@ -350,7 +389,11 @@ async def march_launch(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
 
 @router.get("/worlds/{world_id}/marches")
 async def march_list(world_id: str, c: Ctx = Depends(ctx)):
-    return {"marches": await marches.active_for_player(world_id, c.player["_id"]), "server_time": clock.iso(clock.now())}
+    return {
+        "marches": await marches.active_for_player(world_id, c.player["_id"]),
+        "incoming": await marches.incoming_for_player(world_id, c.player["_id"]),
+        "server_time": clock.iso(clock.now()),
+    }
 
 
 @router.get("/worlds/{world_id}/marches/{march_id}")
@@ -379,6 +422,7 @@ def _battle_dto(b: dict) -> dict:
         "defender_player_id": b.get("defender_player_id"),
         "target_settlement_id": b.get("target_settlement_id"),
         "target_sentinel_id": b.get("target_sentinel_id"),
+        "origin_settlement_id": b.get("origin_settlement_id"),
         "target_name": b.get("target_name"),
         "target_xy": b.get("target_xy"),
         "mission": b["mission"],
