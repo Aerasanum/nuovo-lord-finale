@@ -1,0 +1,41 @@
+{
+  "summary": "First full E2E run after fork. Backend: 20/20 pytest tests PASS against public deployment (auth register/login/me/refresh/logout, worlds+join, buildings/upgrade+idempotency+cancel, settlement upgrade error shape, research catalog 114/12 + prereq error, army catalog 13 + recruit fast-forward, map chunk + out-of-range, march preview/launch + battle + inbox + no duplicate on rerun, /api/health, /api/spec/catalog counts). Frontend: All critical mobile flows work — login IT-by-default with EN/IT toggle, register 'Crea account', worlds list + join sheet + confirm, 3D map canvas renders with HUD/resources/zoom(×30→×11)/rotate/center-home/legend, canvas tap opens map-selection-card, tabs (map/settlement/army/inbox) navigate, settlement shows level 3 details + upgrade + resource bars + queues list, army shows 13 units with Fanteria 300 + recruit UI, inbox lists BATTLE_REPORT_READY/MARCH_DEPARTED/RECRUITMENT/BUILD entries with unread badge, marches page opens, queues page opens, logout returns to /login.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "map", "issues": ["map-camera-coords display shows only 'x,y · ×zoom'; rotate button does not visibly change coord text (visual rotation itself was not verified from a still screenshot). Not blocking."]}
+    ],
+    "react_native_issues": [
+      {"component": "props.pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Emitted by react-native-web. Should migrate pointerEvents prop to style.pointerEvents on affected components. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_public_e2e.py",
+    "/app/test_reports/pytest/public_e2e.xml"
+  ],
+  "action_items": [
+    "(Low) Replace `pointerEvents` prop usages with `style={{ pointerEvents: '...' }}` to silence deprecation warning on RN Web.",
+    "(Optional) Consider surfacing zoom level change on rotate for clearer feedback in map-camera-coords (or add a distinct testid for zoom/rotation state)."
+  ],
+  "critical_code_review_comments": [
+    "Backend error envelope is consistent: {code,message,details,retryable,trace_id} verified on 401 and on 4xx business errors (BUILDING_CAP_SETTLEMENT_LEVEL, RESEARCH_PREREQUISITE_MISSING, REJECT_QUEUE_FULL, CHUNK_OUT_OF_RANGE).",
+    "Idempotency confirmed: repeated upgrade POST with same idempotency_key returns same job_id (no double spend); repeated march POST with same idempotency_key returns same march_id; scheduler re-run does not create duplicate battles.",
+    "Spec catalog exposes research at top-level keys `research_nodes` (114) and `research_branches` (12), not nested under `research` — fine, but consistency with other clients should be documented.",
+    "POST /api/auth/logout requires a body { refresh_token } (Pydantic model LogoutIn); calling with empty body returns 422. Front-end must include refresh_token. Verified logout UI works.",
+    "QA endpoints (grant/clock/advance/scheduler/run) work as documented and are gated by X-Admin-Key."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_public_e2e.py (new — E2E public-URL suite)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% for tested critical flows"},
+  "seed_data_creation": "During army recruit test, used /api/qa/grant to add Fanteria/resources; during march test, granted 500 Fanteria + resources; scheduler was fast-forwarded to complete jobs. Demo settlement was granted level=3 to unlock building upgrades in idempotency test. Demo account inbox now contains battle reports from these tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public E2E suite lives at /app/backend/tests/test_public_e2e.py — run with `python -m pytest tests/test_public_e2e.py -v -o addopts=''` (the -o override is required because pytest.ini enables xdist which breaks session-scoped fixture sharing between workers). All tests target the public URL from EXPO_PUBLIC_BACKEND_URL (frontend/.env). Note the env key is EXPO_PUBLIC_BACKEND_URL, not EXPO_BACKEND_URL. Demo account (demo@empirelords.com / Demo12345!) is joined to world_1, settlement stl_0484bd7cfcbd40dd; after these tests its settlement is at level 3 with 500k+ resources and multiple inbox entries.",
+  "rca_of_issue": "N/A — no bugs found. Only cosmetic: pointerEvents deprecation warning is a react-native-web notice, not a functional issue."
+}

@@ -1,0 +1,203 @@
+{
+  "app_name": "Empire Lords Dragon",
+  "personality": "7 Dark-First Utility with 6 Glass / Luxe cinematic surfaces",
+  "personality_one_liner": "A persistent, cinematic medieval command center where dark slate, glass HUDs, and antique gold accents make deep resource management and tactical deployment feel premium and deeply immersive.",
+  "color": {
+    "surface": "#0f1115",
+    "onSurface": "#e5e5e0",
+    "surfaceSecondary": "#1a1c23",
+    "onSurfaceSecondary": "#c9c9c4",
+    "surfaceTertiary": "#252830",
+    "onSurfaceTertiary": "#a3a39e",
+    "surfaceInverse": "#e5e5e0",
+    "onSurfaceInverse": "#0f1115",
+    "muted": "#80807b",
+    "brand": "#d4af37",
+    "onBrand": "#0f1115",
+    "brandPrimary": "#d4af37",
+    "onBrandPrimary": "#1a1500",
+    "brandSecondary": "#8a252c",
+    "onBrandSecondary": "#ffffff",
+    "brandTertiary": "#3a2f19",
+    "onBrandTertiary": "#d4af37",
+    "success": "#2b593f",
+    "onSuccess": "#a1e3b9",
+    "warning": "#b36b00",
+    "onWarning": "#ffe0b2",
+    "error": "#8a252c",
+    "onError": "#ffb3b8",
+    "info": "#4a4d55",
+    "onInfo": "#e5e5e0",
+    "border": "#2a2d35",
+    "borderStrong": "#4a4d55",
+    "divider": "#1f2229",
+    "res_grain": "#f2d388",
+    "res_wood": "#8b5a2b",
+    "res_clay": "#cc7722",
+    "res_iron": "#808080",
+    "res_gold": "#d4af37",
+    "terrain_plain": "#3a4f2b",
+    "terrain_forest": "#1e331c",
+    "terrain_mountain": "#40434a",
+    "terrain_water": "#1a364a",
+    "faction_own": "#d4af37",
+    "faction_ally": "#2b593f",
+    "faction_enemy": "#8a252c",
+    "faction_neutral": "#808080"
+  },
+  "typography": {
+    "displayFontFamily": "EB Garamond",
+    "textFontFamily": "Manrope",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous spacing around map overlays to prevent accidental touches; tight data-heavy spacing in dashboards for resource counters.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "MaterialCommunityIcons",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use heavy tinted glass for HUD overlays on top of the 3D map (safe-area aware)",
+      "Bottom sheets for target selection and quick actions",
+      "Sticky resource top bar overlaying the map"
+    ],
+    "dont's": [
+      "Inner cards in the settlement dashboard",
+      "Heavy forms"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Login & World Selection",
+      "purpose": "Authenticate player and let them pick their persistent server (World).",
+      "states": {
+        "loading": "Centered crest spinner",
+        "empty": "N/A",
+        "error": "Standard error toast"
+      },
+      "layout": "Full-bleed dark medieval castle background with vertical linear gradient scrim (0% top -> 80% surface bottom). Login fields in a glass container at the lower third. World selection uses large cards with server status (warning color for high pop, success for stable)."
+    },
+    {
+      "name": "3D World Map (Default Tab)",
+      "purpose": "Primary gameplay view. Expo-GL full-screen canvas showing isometric chunks, overlaid with a touch-friendly HUD.",
+      "states": {
+        "loading": "Map streaming skeleton/spinner in center",
+        "empty": "N/A",
+        "error": "Retry connection button over cached terrain"
+      },
+      "layout": "Z-index 0: The 3D canvas (Three.js). Z-index 1: Top safe-area sticky resource bar (glass). Bottom right: compact floating action button for quick-locate. Bottom safe-area: Tab bar (glass). Tapping a neutral or enemy territory triggers a @gorhom/bottom-sheet with target details and 'March' primary CTA."
+    },
+    {
+      "name": "Settlement Dashboard",
+      "purpose": "Manage buildings, resources, and construction queues.",
+      "states": {
+        "loading": "Skeleton grids",
+        "empty": "N/A",
+        "error": "Error fetching settlement data"
+      },
+      "layout": "Top section: 2-column live resource grid. Middle section: 2 construction queues with progress bars. Bottom section: Wrap grid of building tiles with level badges and upgrade status indicators."
+    },
+    {
+      "name": "Building Detail Card (Bottom Sheet/Modal)",
+      "purpose": "Drill-down to see upgrade costs, requirements, and state.",
+      "states": {
+        "loading": "Skeleton text blocks",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Heavy hierarchy. Large building title (EB Garamond) + current/next level. List of requirements (resources, preceding buildings) using success/error token colors based on availability. Sticky CTA at the bottom for 'Upgrade'."
+    },
+    {
+      "name": "Army & Recruitment",
+      "purpose": "Train 13 types of units and manage producer queues.",
+      "states": {
+        "loading": "Skeleton rows",
+        "empty": "Illustration of empty barracks + 'No troops recruited' text.",
+        "error": "Error fetching troop counts"
+      },
+      "layout": "Tabbed view (Troops / Recruitment). Recruitment shows horizontal scroll of unit cards (batch slider input) + active training queues. Use tabular numbers (Manrope) for unit stats and timers."
+    },
+    {
+      "name": "Research Tree",
+      "purpose": "Navigate 12 branches and 114 nodes for empire upgrades.",
+      "states": {
+        "loading": "Skeleton nodes",
+        "empty": "N/A",
+        "error": "Error fetching research state"
+      },
+      "layout": "Pan-and-zoom 2D grid/tree using gesture handler. Nodes indicate states via border colors (brandPrimary for available, muted for locked, success for researched). Sticky footer showing 2 active research queues."
+    },
+    {
+      "name": "March Composition",
+      "purpose": "Select units for missions (Attack, Raid, Conquest) and see ETA.",
+      "states": {
+        "loading": "Calculating...",
+        "empty": "No idle troops available to march.",
+        "error": "Not enough units selected."
+      },
+      "layout": "Mission type segmented control at top. List of available unit sliders to assign troops. Bottom fixed container showing ETA (info token), march speed, and 'Send March' CTA (brandPrimary)."
+    },
+    {
+      "name": "Battle Reports & Inbox",
+      "purpose": "Review combat outcomes, scout reports, and system events.",
+      "states": {
+        "loading": "Skeleton list",
+        "empty": "Empty envelope/sword illustration + 'No reports yet'.",
+        "error": "Failed to load messages"
+      },
+      "layout": "Chronological list of cards. Battle reports use victory (success) or defeat (error) color edge-bars on the left of the card. Detail view shows side-by-side casualty comparisons."
+    }
+  ],
+  "images": {
+    "login_bg": {
+      "url": "https://images.unsplash.com/photo-1608320953642-efb93d933b9f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwyfHxkYXJrJTIwbWVkaWV2YWwlMjBjYXN0bGUlMjBzdHJhdGVneSUyMGdhbWUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4ODk4NTMyOXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Epic dark medieval stone structure with volumetric lighting"
+    },
+    "empty_battle_reports": {
+      "url": "https://images.unsplash.com/photo-1586717956688-a7681386e085?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbWVkaWV2YWwlMjBjYXN0bGUlMjBzdHJhdGVneSUyMGdhbWUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4ODk4NTMyOXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Desolate medieval outpost"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Load EB Garamond (heading) and Manrope (UI/metrics) locally using expo-font. Do not use @expo-google-fonts.",
+    "Implement the 3D map using expo-gl + three.js. The HUD must sit on top of the GLView canvas in a completely separate absolute-positioned layer to ensure touch events work (hitSlop) without blocking map interaction.",
+    "Bilingual support (IT/EN) is mandatory. Abstract all textual content into a translation dictionary (e.g., i18n-js or a custom context) from the start.",
+    "Timers are everywhere (building queues, research queues, marching ETA). Create a highly reusable, performant countdown component that avoids React re-renders on every tick (e.g., reanimated or local state).",
+    "HUD overlays must heavily rely on expo-blur with the specified 'glass' platform overrides to maintain contrast over the chaotic 3D terrain.",
+    "Strictly follow the color token palette: absolutely NO BLUES, no purples. Use the custom tokens provided for resources (grain/wood/clay/iron/gold) and terrain.",
+    "On bottom sheets, ensure safe area insets are respected so the main CTA doesn't conflict with Android's home indicator."
+  ]
+}

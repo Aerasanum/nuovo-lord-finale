@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 2 — regression + new features. Backend: 22/22 pytest tests PASS (20 previous + 2 new for GET /api/worlds/world_1/map/overview: 401 without bearer with structured error envelope; 200 with bearer returning factor=4, size=100, terrain_b64 decoding to exactly 10000 bytes with values only in {0,1,2,3}, and settlements list of kind=PLAYER entries each with settlement_id/name/x/y/level/faction). Frontend: Auth navigation via effect works — login with demo@empirelords.com/Demo12345! and register of a new .com account both land on /worlds. Google button on web navigates the top frame to https://auth.emergentagent.com/?redirect=https%3A%2F%2Fempire-lords-dragon.preview.emergentagent.com%2F (verified via request-interception + framenavigated; final URL after Emergent's 302 is /oauth/?redirect=…). Direct navigation to /auth/callback without session_id redirects to /login (no loader hang). Map (mobile 390x844, world_1 via world-enter-world_1): map-screen renders a non-blank WebGL canvas, HUD resources visible, coords show '7,189 · ×30' initially. Zoom in x3 → '×11' + '3D · LOD 0'; zoom out x8 → '×161' + '3D · LOD 2'. Rotate button works without errors; center-home returns coords to '7,189 · ×30' after a drag. map-label-stl_0484bd7cfcbd40dd shows 'Casa Demo L3'; map-labels-button hides/shows all label chips. Tapping the canvas below the home label opens map-selection-card with map-selection-name 'Casa Demo', 'Città' navigates to /settlement, map-selection-close hides the card. Mouse drag changes coords (7,189 → 38,161); double-click zooms in (×161 → ×90). Legend button opens map-legend; marches button opens /marches and go_back returns to map. No THREE warnings, no unhandled promise rejections. Excluded known-benign console noise (ReadPixels GPU stall, pointerEvents deprecation, unrelated 404s to template-section from emergentagent host).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "map-legend-button", "issue": "Second toggle click did not hide the legend in this run (first click showed it; second click still reported it visible). Not blocking. Could not reproduce reliably — may be a click-timing edge case or the button toggles only visibility of specific legend children.", "testID": "map-legend-button", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_public_e2e.py",
+    "/app/test_reports/pytest/public_e2e.xml"
+  ],
+  "action_items": [
+    "(Optional/Low) Investigate map-legend-button second-toggle behavior — verify it always hides the legend on subsequent clicks; consider distinct testID for legend-close if the toggle logic is asymmetric.",
+    "(Optional/Low) Consider showing a small inertia arrow/coord update after pan release — during the automated test the coords stopped exactly at the release position; visible inertia would improve confidence of the feature (functional behavior is fine)."
+  ],
+  "critical_code_review_comments": [
+    "Overview endpoint /api/worlds/{world_id}/map/overview correctly gated by CurrentAccount dependency (401 with structured {code,message,details} envelope when no bearer). Response contract verified: factor=4, size=100, |terrain_b64_decoded|=10000, byte values ∈ {0,1,2,3}, settlements are PLAYER-kind DTOs.",
+    "OVERVIEW_FACTOR is a module-level constant (4) and _overview_cache is a per-process in-memory dict keyed by world_id — good for read-heavy far-zoom rendering. Note: cache never invalidates; if terrain regeneration is ever added, add an eviction path.",
+    "AuthContext.loginWithGoogle on web builds the redirect as `${window.location.origin}/` then sets window.location.href — verified end-to-end. Also, the login screen now uses an effect on `account` to navigate to /worlds instead of navigating inside submit(); this correctly handles both password login and cold-start Google auth.",
+    "auth/callback.tsx short-circuits with <Redirect> once ready — no loader hang when no session_id is present in the URL."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_public_e2e.py (added TestMap::test_overview_without_bearer and TestMap::test_overview_with_bearer)"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% for tested critical flows (map upgrade + auth navigation)"},
+  "seed_data_creation": "Reused previous seeding: demo settlement stl_0484bd7cfcbd40dd at world_1 (6,188), level ≥3, 500k resources. The recruit + march tests fast-forward via /api/qa/clock/advance and run /api/qa/scheduler/run — inbox will accumulate BATTLE_REPORT_READY entries per run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend E2E suite at /app/backend/tests/test_public_e2e.py — run with `cd /app/backend && pytest tests/test_public_e2e.py -v -o addopts='' --junitxml=/app/test_reports/pytest/public_e2e.xml` (the -o override bypasses xdist which breaks session-scoped fixtures). Now 22 tests including 2 new overview tests. Frontend Google button URL check: use page.on('request') to capture requests to auth.emergentagent.com and page.on('framenavigated') to capture the top-frame nav — DO NOT try to override window.location.href with Object.defineProperty (silently fails in RN Web builds). To verify the map LOD text, don't rely on a testID (there isn't one for '3D · LOD n') — query the DOM for a leaf element whose textContent matches /3D\\s*·\\s*LOD\\s*\\d/. Map-selection-card home tap: get bounding box of map-label-stl_<id> and click ~25px BELOW the chip (chip has pointerEvents:none so the click passes through the RN Text overlay onto the canvas).",
+  "rca_of_issue": "N/A — no bugs found. The overview endpoint, auth navigation refactor, and 3D map upgrade all behave per spec."
+}
