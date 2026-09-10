@@ -328,3 +328,23 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Iteration 2: 3D map engine upgrade + overview endpoint + auth hardening. Please regression-test map tab flows and the overview endpoint; backend suite from iteration 1 should still pass (run pytest tests/test_public_e2e.py -o addopts='')."
+
+# ---- iteration 3 (main agent) — bug fix ----
+frontend:
+  - task: "BUG: 3D map turns black after Città → building modal → back → Mappa (user report with screenshot)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "user"
+        comment: "Mappa nera dopo aver aperto una costruzione in Città e tornato sulla mappa (HUD e label visibili, canvas nero)."
+      - working: "NA"
+        agent: "main"
+        comment: "Root cause: while the tab is hidden behind the modal the canvas collapses to 0×0; on return our onLayout ran before expo-gl re-applied the canvas size, so renderer.setSize(0,0) left a 0×0 viewport. Fix: engine now resyncs renderer/camera with gl.drawingBufferWidth/Height every frame (syncDrawingBuffer), skips frames while the buffer is 0×0, and ignores 0-size layouts. Reproduced + verified fixed via screenshot on web."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 3: please verify the black-map bug fix (map → Città → tap a building card → back → Mappa: canvas must render terrain, not black). Also check other round-trips (research screen, march modal, queues) return to a rendered map."

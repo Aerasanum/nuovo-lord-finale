@@ -60,6 +60,9 @@ frontend/
 - [x] Camera: inerzia pan, pinch/double-tap con punto focale, centerOn animato, pulsazione selezione/beacon casa
 - [x] Google Auth hardening: session_id letto da URL di lancio (hash/query), listener deep link Android (`dismiss` ≠ annullato), guardia anti-doppio exchange, gate root (login → /worlds via stato auth), scheme app `empirelords`
 
+### Bug fix
+- [x] Mappa nera dopo Città → costruzione → indietro → Mappa (canvas collassato a 0×0 dietro il modal, viewport stantio): engine risincronizza renderer/camera col drawing buffer a ogni frame (`syncDrawingBuffer`), verificato dal testing agent (iteration_3)
+
 ### Prossimi (P1)
 - [ ] Verifica Google Auth con flusso reale su dispositivo (Expo Go / build)
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)

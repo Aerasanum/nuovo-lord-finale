@@ -1,0 +1,36 @@
+{
+  "summary": "Frontend-only regression verification of the 'black map after settlement round trip' bug fix in /app/frontend/src/map3d/engine.ts. Reproduced the exact user sequence (map → Città → building card → back → Mappa) three times, plus research/queues/selection-card/marches round trips. In every case the 3D canvas came back rendered — terrain, castle and the 'Casa Demo L3' label visible; luma ~51 and ~1000 unique colours across all 8 screenshots (no black frame anywhere). Interactions still work post-round-trips: zoom-in changed coords from '7,189 · ×30' to a zoomed-in state; center-home restored; drag/pan produced coords '12,189 · ×30' (visible in screenshot); label [data-testid=\"map-label-stl_0484bd7cfcbd40dd\"] remained present. No THREE/WebGL console errors (only benign ReadPixels GPU-stall warnings, filtered per instructions). Bug is FIXED.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/01_map_initial.jpg",
+    "/app/test_reports/screens/02_roundtrip_1.jpg",
+    "/app/test_reports/screens/02_roundtrip_2.jpg",
+    "/app/test_reports/screens/02_roundtrip_3.jpg",
+    "/app/test_reports/screens/03_after_research.jpg",
+    "/app/test_reports/screens/04_after_queues.jpg",
+    "/app/test_reports/screens/05_after_selection.jpg",
+    "/app/test_reports/screens/06_after_marches.jpg",
+    "/app/test_reports/screens/07_final.jpg"
+  ],
+  "action_items": [
+    "Minor (test-only, not a bug): the coords readout uses testID 'map-camera-coords' — the review-request references 'map-coords-text'. Coord text was still visually verified in every screenshot. Consider aligning testID naming if you want programmatic assertions."
+  ],
+  "critical_code_review_comments": [
+    "engine.ts syncDrawingBuffer() is called every frame in loop() and correctly skips rendering when w or h is 0 — this is what fixes the black canvas after the map tab is remounted behind a modal.",
+    "resize() early-returns on 0×0, preserving the last valid layout size — good defensive behaviour on Expo web.",
+    "loop() aborts before renderer.render when syncDrawingBuffer() returns false, which prevents a stale/uncleared framebuffer from being flushed to the visible canvas."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "seed_data_creation": "None — used the existing demo@empirelords.com user in world_1 (home settlement stl_0484bd7cfcbd40dd).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The engine sync fix is validated. If future changes touch engine.ts loop(), resize() or syncDrawingBuffer(), re-run the same 3× round-trip test (settlement → building card → back → map) and check that the center 240×240 region of the screenshot has luma > 20 and unique_colors > 100 (a black canvas is <10 luma and <30 unique colours). Screenshots at /app/test_reports/screens/ are the reference.",
+  "rca_of_issue": "Original bug: on Expo web, opening a modal-like screen (Città/building detail) hides the map tab and expo-gl reduces the GLView's drawing buffer to 0×0. On tab return, expo-gl restores the buffer size, but three.js's WebGLRenderer still had the old size cached, so subsequent renderer.render() calls issued a clear+draw against a mismatched viewport and the visible framebuffer stayed black. Fix (verified): loop() now calls syncDrawingBuffer() each frame — it re-reads gl.drawingBufferWidth/Height, calls renderer.setSize + camera.aspect update when it changes, and skips rendering while width or height is 0. Confirmed rendered across 8 different post-round-trip captures with no black frames."
+}

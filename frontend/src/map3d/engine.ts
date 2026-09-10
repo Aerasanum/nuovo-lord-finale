@@ -118,6 +118,8 @@ export class MapEngine {
   private palette: TerrainPalette & EntityPalette & { bg: THREE.Color };
   private width: number;
   private height: number;
+  private bufW = 0;
+  private bufH = 0;
   private terrainGrid = new Map<string, Uint8Array>();
   private factory: EntityFactory;
   private water: ReturnType<typeof createWater>;
@@ -162,11 +164,13 @@ export class MapEngine {
     const canvas: any = { width: opts.gl.drawingBufferWidth, height: opts.gl.drawingBufferHeight, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: opts.gl.drawingBufferHeight, getContext: () => opts.gl };
     this.renderer = new THREE.WebGLRenderer({ canvas, context: opts.gl as any, antialias: true, alpha: false, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(1);
-    this.renderer.setSize(opts.gl.drawingBufferWidth, opts.gl.drawingBufferHeight, false);
+    this.bufW = opts.gl.drawingBufferWidth;
+    this.bufH = opts.gl.drawingBufferHeight;
+    this.renderer.setSize(this.bufW, this.bufH, false);
     this.renderer.setClearColor(this.palette.bg, 1);
     this.scene.fog = new THREE.Fog(this.palette.bg, 60, 260);
 
-    this.camera = new THREE.PerspectiveCamera(46, opts.gl.drawingBufferWidth / opts.gl.drawingBufferHeight, 0.5, 900);
+    this.camera = new THREE.PerspectiveCamera(46, this.bufW / Math.max(1, this.bufH), 0.5, 900);
 
     const hemi = new THREE.HemisphereLight(0xffffff, 0x2b2620, 0.7);
     this.scene.add(hemi);
@@ -219,13 +223,32 @@ export class MapEngine {
 
   // ------------------------------------------------------------------------------------------ public API
   resize(width: number, height: number) {
+    if (width <= 0 || height <= 0) return; // hidden (e.g. behind a modal on web): keep the last valid layout size
     this.width = width;
     this.height = height;
-    this.renderer.setSize(this.gl.drawingBufferWidth, this.gl.drawingBufferHeight, false);
-    this.camera.aspect = this.gl.drawingBufferWidth / this.gl.drawingBufferHeight;
-    this.camera.updateProjectionMatrix();
+    this.syncDrawingBuffer();
     this.dirty = true;
     this.labelsDirty = true;
+  }
+
+  /**
+   * The canvas can be resized by the host (expo-gl web re-applies width/height on layout; a modal hiding the tab
+   * collapses it to 0×0 and back). Keep the renderer/camera in step with the real drawing buffer every frame.
+   */
+  private syncDrawingBuffer(): boolean {
+    const w = this.gl.drawingBufferWidth;
+    const h = this.gl.drawingBufferHeight;
+    if (!w || !h) return false;
+    if (w !== this.bufW || h !== this.bufH) {
+      this.bufW = w;
+      this.bufH = h;
+      this.renderer.setSize(w, h, false);
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.dirty = true;
+      this.labelsDirty = true;
+    }
+    return true;
   }
 
   centerOn(x: number, y: number, dist?: number, animate = true) {
@@ -874,6 +897,8 @@ export class MapEngine {
       this.pan(vx * dt, vy * dt);
     }
     this.stream(now);
+    // canvas hidden/collapsed (0×0) or resized behind our back: resync, and skip drawing while there is no buffer
+    if (!this.syncDrawingBuffer()) return;
     if (this.labelsDirty && now - this.lastLabels > 90) this.emitLabels(now);
     // water + pulses animate continuously at ~20 fps; interactions render immediately
     if (!this.dirty && now - this.lastFrame < 50) return;
