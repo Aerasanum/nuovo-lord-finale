@@ -1,14 +1,18 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBattle } from "@/src/api/hooks";
+import { type CinematicSpec, useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen } from "@/src/components/overlay";
-import { CostRow, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, CostRow, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { storage } from "@/src/utils/storage";
+
+const SEEN_KEY = "eld.cinematic.conquest.seen";
 
 const useStyles = makeStyles((c) => ({
   content: { padding: spacing.md, gap: spacing.md },
@@ -72,6 +76,29 @@ export default function BattleReport() {
   const r = b?.report;
   const iAmAttacker = b?.attacker_player_id === player?.player_id;
   const won = r && ((r.winner === "ATTACKER" && iAmAttacker) || (r.winner === "DEFENDER" && !iAmAttacker));
+  const cinematic = useCinematic();
+  const conquered = !!b?.ownership_result?.changed && iAmAttacker;
+  const autoPlayed = useRef(false);
+  const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce") })[m] ?? m;
+  const buildSpec = (kind: CinematicSpec["kind"]): CinematicSpec | null => {
+    if (!b || !r) return null;
+    const mine = iAmAttacker;
+    const units = kind === "CONQUEST" ? r.attacker_survivors ?? {} : mine ? r.attacker_start ?? {} : r.defender_start ?? {};
+    const crest = mine ? (player?.house?.crest ?? null) : null;
+    return { kind, units, missionLabel: missionLabel(b.mission), targetName: b.target_name, etaSeconds: null, crest, houseName: mine ? (player?.house_name ?? null) : (b.attacker_house_name ?? null), allianceTag: mine ? (player?.alliance?.tag ?? null) : (b.attacker_alliance_tag ?? null), pyramid: !!b.target_pyramid, newLevel: b.ownership_result?.new_level ?? null };
+  };
+  // Conquest Success (Bible §41.2): auto-play once per battle when the owner change was committed in my favour
+  useEffect(() => {
+    if (!conquered || autoPlayed.current || !b) return;
+    autoPlayed.current = true;
+    storage.getItem<string>(SEEN_KEY, "[]").then((raw) => {
+      const seen: string[] = JSON.parse(raw || "[]");
+      if (seen.includes(b.battle_id)) return;
+      storage.setItem(SEEN_KEY, JSON.stringify([...seen, b.battle_id].slice(-50)));
+      const spec = buildSpec("CONQUEST");
+      if (spec) cinematic.play(spec);
+    });
+  }, [conquered, b]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Screen
@@ -143,11 +170,16 @@ export default function BattleReport() {
               <Row>
                 <Icon name="crown" size={20} color={colors.brandPrimary} />
                 <T v="heading">
-                  {t("conquered")} · L{b.ownership_result.new_level}
+                  {t("conquered")}
+                  {b.ownership_result.new_level ? ` · L${b.ownership_result.new_level}` : b.target_pyramid ? ` · ${t("pyramid")}` : ""}
                 </T>
               </Row>
             </Panel>
           ) : null}
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Button title={t("cinReplayDeparture")} icon="movie-open-play" variant="secondary" style={{ flex: 1 }} onPress={() => { const sp = buildSpec("DEPARTURE"); if (sp) cinematic.play(sp); }} testID="battle-cinematic-departure" />
+            {conquered ? <Button title={t("cinReplay")} icon="crown" style={{ flex: 1 }} onPress={() => { const sp = buildSpec("CONQUEST"); if (sp) cinematic.play(sp); }} testID="battle-cinematic-conquest" /> : null}
+          </View>
           <T v="caption">
             {t("seed")}: {r.seed} · {b.battle_id}
             {b.ships_excluded ? ` · ${t("ships")} ${b.ships_excluded} (no casualties)` : ""}

@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 14 FRONTEND-ONLY pass — Pyramid Alert + Skippable Cinematics (Bible §41.2 + Alert). Mobile viewport 390x844. Backend pytest NOT re-run per review-request; QA endpoints NOT invoked. World state as seeded: [DEMO] holds pyramid; one [TRZ] attack in flight (ETA ~1g 12h at test time). ALL 7 mandatory flows PASS end-to-end. Only cosmetic WebGL 'GL_CLOSE_PATH_NV / ReadPixels' perf warnings in console; no React Native red screens, no page errors, no deprecated Expo packages in the touched files. Two demo marches were launched to exercise cinematics and both were successfully recalled (Cavalleria 1, and Drago 1 + Falco 1 + Cavalleria 5). Per-flow: (A) MAP — pyramid-alert-banner rendered under top HUD with 'Attacco alla Piramide in arrivo · da [TRZ]' + 'arrivo tra 1g 12h'; tap → /pyramid (pyramid-screen). Verified pyramid-holder='Detentore: [DEMO] Lords Demo', pyramid-reinforce-button present, NO pyramid-attack-button, pyramid-incoming shows 'Attacchi in arrivo: 1' with row '[TRZ] · arrivo tra 1g 12h'. No house name / no unit count for the incoming attack (disclosure limited to attacker alliance tag + ETA as spec requires). (B) ALLIANCE — pyramid-alert-banner rendered above alliance-pyramid-tile (banner.y=70 < tile.y=375). Tile: 'Piramide · [DEMO]', APERTA pill, hold countdown 'Vittoria tra · [DEMO] 6g 23h'. alliance-nav-chat opens Chat · [DEMO] and a system message '⚠ Attacco alla Piramide in arrivo da [TRZ] · ETA 36h 20m' is present (multiple identical entries visible from prior test runs — not a bug per se). (C) INBOX — PYRAMID_ATTACK_INCOMING item 'Attacco alla Piramide · da [TRZ] · 23/01/2027, 05:39:54' with alert-octagon icon; tapping deep-links to /pyramid (pyramid-screen). (D) DEPARTURE STANDARD — pyramid → Rinforza → composer march-composer-screen (URL /march/new?pyramid=1&mission=REINFORCE); march-unit-Cavalleria-input=1 → march-launch-button; cinematic-overlay appeared immediately with cinematic-title='La marcia parte', cinematic-crest, cinematic-alliance-banner='[DEMO]', cinematic-composition present, cinematic-formation with marching sprites (screenshot iter14_D_cinematic_mid). Skip appears after ~1s; tapping closes overlay; app on /marches list. (E) DEPARTURE DRAGON+FALCON — pyramid → Rinforza → composer, Drago=1 + Falco=1 + Cavalleria=5 → launch. cinematic-title='Il Drago scende in campo'; cinematic-dragon SVG descends from top-left with flapping wings and cinematic-breath flame; cinematic-falcon sweeps ahead. Composition chips: '\ud83d\udd25 Drago 1 · Falco 1 · Cavalleria 5'. Duration ~6s (progress bar animates to 100%); overlay auto-closed and app landed on /marches. Screenshots at ~1.5s and ~4s captured (iter14_E_dragon_1_5s/4s). (F) CONQUEST — cleared localStorage 'eld.cinematic.conquest.seen'; opened /battle/btl_mar_6228aa2505d14b01; overlay auto-played with cinematic-title='La Piramide è nostra!', cinematic-conquest wrapper, cinematic-conquest-crest with '[DEMO]' tag, filled golden 3-tier pyramid SVG visible, SUPERSTITI chip 'Cavalleria 2694'. Salta closed it. localStorage now contains '[\"btl_mar_6228aa2505d14b01\"]' — reload did NOT auto-play again (overlay absent on refresh). Both replay buttons work: battle-cinematic-conquest replays 'La Piramide è nostra!'; battle-cinematic-departure replays 'La marcia parte'. (G) NON-OWNER — logged in as rival@empirelords.com; tab-map shows NO pyramid-alert-banner. /pyramid shows pyramid-holder='Detentore: [DEMO] Lords Demo', 'Solo i membri di un'Alleanza Strutturata possono contendere la Piramide.' text, NO pyramid-attack-button, NO pyramid-reinforce-button, NO pyramid-incoming panel, garrison composition replaced by 'Composizione nota solo all'Alleanza detentrice' (no Fanteria/Arciere/Cavalleria rows). No red screens, no expo/react-native deprecated packages spotted in reviewed files. Cinematic HUD renders cleanly at 390x844 — title fills the width but does not overflow (numberOfLines=2 wrap works).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "cinematic overlay (Cinematic.tsx)", "issues": ["Minor: 'Il Drago scende in campo' title comes very close to the right edge on 390 wide screens (line-height 36, fontSize 30). Wraps via numberOfLines=2 so no truncation, but a slightly smaller title or dynamic shrink would look more polished. Not blocking."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter14_A_map_banner.jpg",
+    "/app/test_reports/screens/iter14_A_pyramid_screen.jpg",
+    "/app/test_reports/screens/iter14_B_alliance.jpg",
+    "/app/test_reports/screens/iter14_B_chat.jpg",
+    "/app/test_reports/screens/iter14_C_inbox.jpg",
+    "/app/test_reports/screens/iter14_C_deeplink.jpg",
+    "/app/test_reports/screens/iter14_D_cinematic_mid.jpg",
+    "/app/test_reports/screens/iter14_D_after.jpg",
+    "/app/test_reports/screens/iter14_E_dragon_1_5s.jpg",
+    "/app/test_reports/screens/iter14_E_dragon_4s.jpg",
+    "/app/test_reports/screens/iter14_F_conquest_mid.jpg",
+    "/app/test_reports/screens/iter14_F_replay.jpg",
+    "/app/test_reports/screens/iter14_G_rival_map.jpg",
+    "/app/test_reports/screens/iter14_G_rival_pyramid.jpg"
+  ],
+  "action_items": [
+    "None functional — all 7 review-request flows pass. Feature is production-ready on the frontend.",
+    "OPTIONAL polish: shrink cinematic title font (or add adjustsFontSizeToFit-equivalent) so 'Il Drago scende in campo' has slightly more right padding on 390px screens.",
+    "INFO: When landing on /pyramid via direct URL (fresh reload without prior game-state hydration), the screen shows a 'Caricamento…' spinner until worldId/settlementId are ready. Not a bug — a natural consequence of usePyramid gating — but scripts should navigate through the app (banner tap or tab-alliance → alliance-pyramid-button) rather than deep-linking cold.",
+    "INFO: The alliance chat shows multiple identical '⚠ Attacco alla Piramide in arrivo da [TRZ] · ETA 36h 20m' system entries (from prior test runs / repeated alert postings). If the design intent is a single system line per alert, backend should dedupe by (alert_id, alliance_id). Non-blocking, likely pre-existing test residue."
+  ],
+  "critical_code_review_comments": [
+    "Cinematic.tsx (/app/frontend/src/components/cinematic/Cinematic.tsx:99-116) provider is rendered at root (Layout) and overlay uses zIndex 1000 + StyleSheet.absoluteFill — correctly survives router.replace('/marches') after launch. Cleanup timers in useEffect (line 127-135) properly cleared on unmount.",
+    "Cinematic.tsx skip button (line 201-208) uses a 44x44 touch target (height:44) and is only mounted after 1s — matches spec 'Salta available after one second'.",
+    "Cinematic.tsx cinematicPlan (line 71-78) chooses 6s duration when legendary is present OR total>=25000 — correct MAJOR_UNITS threshold; conquest = 8s.",
+    "march/new.tsx (line 69-79) calls cinematic.play immediately then router.replace — good ordering; overlay renders over the router push because provider is root-level.",
+    "battle/[id].tsx conquest auto-play uses localStorage key 'eld.cinematic.conquest.seen' with a JSON array of battle ids — verified to persist across reload and to be additive (['btl_mar_6228aa2505d14b01']).",
+    "PyramidCard.tsx pyramid-alert-banner + pyramid-incoming disclose only alliance tag + ETA — matches the spec ('house name/unit count must NOT be shown for incoming attack').",
+    "Non-owner /pyramid gating (garrison composition hidden, incoming panel absent, no attack/reinforce buttons) is enforced client-side AND presumably server-side — good defense-in-depth.",
+    "No deprecated expo-av / expo-barcode-scanner / expo-background-fetch usage detected in Cinematic.tsx, PyramidCard.tsx, march/new.tsx, battle/[id].tsx, or the tab screens touched by this iteration."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not re-run (per review-request; iteration 13 was 8/8)", "frontend": "100% (7/7 mandatory flows A-G verified end-to-end)"},
+  "seed_data_creation": "None. Used seeded world_1 (pyramid held by [DEMO], one [TRZ] attack in flight). Two demo marches were launched during flows D and E; both were successfully recalled via the 'Richiama' button on /marches — resources returned.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pyramid alert + cinematic testIDs (verified in iter14): banner → pyramid-alert-banner (map + alliance); overlay → cinematic-overlay, cinematic-title, cinematic-crest, cinematic-alliance-banner, cinematic-composition, cinematic-formation, cinematic-skip; legendary/scout → cinematic-dragon (also -angel/-demon), cinematic-breath, cinematic-falcon; conquest → cinematic-conquest, cinematic-conquest-crest; battle screen replay → battle-cinematic-departure, battle-cinematic-conquest. Cinematic overlay is rendered by CinematicProvider at root — survives router.replace(). Skip button appears after 1s. Departure duration is 4s standard, 6s major/legendary; conquest is 8s. localStorage key 'eld.cinematic.conquest.seen' stores JSON array of already-seen battle ids. When navigating to /pyramid via direct URL from a fresh session, expect a 'Caricamento…' spinner until game state hydrates — prefer navigating through the app (banner tap or tab-alliance → alliance-pyramid-button). To reproduce a cold pyramid state without the alert (rival view), simply log in as rival@empirelords.com. To launch and recall a march quickly: pyramid → Rinforza → set unit → Lancia marcia → (skip cinematic) → /marches → Richiama.",
+  "rca_of_issue": "No bugs found. All 7 review-request flows verified with clean testIDs and correct Italian strings; cinematic overlay renders correctly on the web preview (Reanimated animations work in browser), auto-close and Salta both function, conquest 'seen' persistence works across reload, non-owner disclosure limits enforced. Minor cosmetic nit only on the dragon-title width on 390px."
+}

@@ -180,6 +180,18 @@ class TestCycleOpen:
         # a rival Structured Alliance attacks with a token force and loses; garrison losses are split per contributor
         grant(third["mother"], army={"Fanteria": 60})
         r2 = march_to_pyramid(third, "ATTACK", {"Fanteria": 50})["march"]
+        # Pyramid alert for the holders (tag + ETA only): status.incoming, Inbox PYRAMID_ATTACK_INCOMING, chat system line
+        inc = status(demo["h"])["incoming"]
+        assert inc and inc[0]["march_id"] == r2["march_id"] and inc[0]["attacker_alliance_tag"] == "TRZ" and inc[0]["arrival_at"][:19] == r2["arrival_at"][:19]
+        assert "house_name" not in inc[0] and "units_total" not in inc[0]
+        assert status(third["h"])["incoming"] == []  # the attacker's side sees nothing
+        for acc in (demo, ally):
+            inbox = get(acc["h"], f"/worlds/{WORLD}/inbox?limit=50")["items"]
+            al = [n for n in inbox if n["event"] == "PYRAMID_ATTACK_INCOMING" and n["payload"].get("march_id") == r2["march_id"]]
+            assert al and al[0]["payload"]["attacker_alliance_tag"] == "TRZ" and al[0]["payload"]["eta"][:19] == r2["arrival_at"][:19] and al[0]["deep_link"] == "pyramid" and al[0]["severity"] == "HIGH"
+            assert "house_name" not in al[0]["payload"] and "units" not in al[0]["payload"]
+        chat = get(demo["h"], f"/worlds/{WORLD}/alliance/chat")["messages"]
+        assert any(m["role"] == "SYSTEM" and "Attacco alla Piramide" in m["text"] and "[TRZ]" in m["text"] for m in chat)
         advance(r2["eta_seconds"] + 5)
         s2 = status(demo["h"])
         assert s2["owner"]["alliance_id"] == demo["alliance"]["alliance_id"] and s2["participants"] == 2

@@ -125,6 +125,11 @@ frontend/
 - [x] Frontend: monumento 3D 15×15 a (200,200) (`map3d/pyramid.ts`, aspetto per stato/fazione, braciere+pilastro di luce in OPEN), label mappa con countdown, tap → scheda con azioni, pulsante "centra sulla Piramide", schermata `/pyramid`, `march/new?pyramid=1`, tile nel tab Alleanza, inbox
 - world_1 demo: override `first_open_day: 1` → Piramide OPEN con Guardiano spec (22k unità)
 
+### Allerta Piramide + Cinematiche — iteration_14 (Bibbia §21 / §41.2)
+- [x] **Allerta Piramide** (scelte utente: tutti i membri dell'Alleanza detentrice; solo tag + ETA): a ogni ATTACK lanciato contro la Piramide detenuta → `PYRAMID_ATTACK_INCOMING` (HIGH, deep link `pyramid`) in Inbox per ogni membro + riga di sistema in chat alleanza "⚠ Attacco alla Piramide in arrivo da [TAG] · ETA"; `status.incoming` = `{march_id, attacker_alliance_tag, arrival_at}` (nessuna casata/dimensione); banner rosso `pyramid-alert-banner` su Mappa (sotto HUD) e tab Alleanza + lista "Attacchi in arrivo" in `/pyramid`; marce salvano `alliance_tag`
+- [x] **Cinematiche skippabili** (`src/components/cinematic/Cinematic.tsx`, `CinematicProvider` nel root layout): **PARTENZA** al lancio della marcia (composizione reale, stemma Casata, banner Alleanza, ETA) 4s — 6s "Grande offensiva" se Leggendario o ≥25.000 unità; varianti: Drago/Angelo/Demone scende dal cielo, sbatte le ali e avanza con l'esercito sputando fuoco; Falco fa passate di ricognizione. **CONQUISTA** 8s (bandiera nemica cade, stemma sale con scintille, superstiti reali; variante Piramide "La Piramide è nostra!") auto-play una volta all'apertura del rapporto (`eld.cinematic.conquest.seen`) + pulsanti "Rivedi la partenza" / "Rivedi cinematica" nel rapporto di battaglia. Tasto "Salta" dopo 1s, barra di avanzamento, non blocca i timer server
+- world_1 demo: la Piramide è ora **detenuta da [DEMO]** (hold 168h) con un attacco [TRZ] in arrivo → allerta visibile a demo/ally; Guardiano riportato ai valori spec per il prossimo ciclo
+
 ### Prossimi (P2)
 - [ ] Eliminazione per 120 giorni di inattività, cap Leggendario
 - [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)
@@ -132,7 +137,8 @@ frontend/
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)
 
 ### Backlog (P3)
-- [ ] Santuario Mitico + Unicorno (§12), cinematiche d'attacco skippabili (draghi/falchi)
+- [ ] Santuario Mitico + Unicorno (§12)
+- [ ] Cinematica Intro (24s, prima entrata) rivedibile dalla Cronaca (§41.2)
 - [ ] Metadata Google Play / Android App Bundle
 
 ## Credenziali test

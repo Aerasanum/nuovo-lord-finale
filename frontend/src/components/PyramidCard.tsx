@@ -3,7 +3,7 @@
  * (Details / Attack / Reinforce). Used by the map selection card, the Alliance tab tile and the /pyramid screen.
  */
 import React from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import type { PyramidDto } from "@/src/api/hooks";
 import { Button, Countdown, Icon, ProgressBar, T } from "@/src/components/ui";
@@ -16,6 +16,9 @@ const useStyles = makeStyles((c) => ({
   phase: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   hint: { color: c.muted, marginTop: 4 },
+  alert: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.error, borderRadius: radius.md, paddingHorizontal: spacing.sm, minHeight: 48, borderWidth: 1, borderColor: c.borderStrong },
+  alertTitle: { fontSize: 13, fontWeight: "800" },
+  alertSub: { fontSize: 12 },
 }));
 
 export function pyramidStateLabel(t: (k: StringKey) => string, state: PyramidDto["state"]): string {
@@ -87,6 +90,31 @@ export function pyramidDescription(t: (k: StringKey) => string, dto: PyramidDto)
   if (dto.state === "OPEN") return dto.owner ? fmt(t("pyrDesc_OPEN_HELD"), { tag: dto.owner.tag ?? "" }) : fmt(t("pyrDesc_OPEN_NEUTRAL"), { hours: c.hold_hours });
   if (dto.state === "REWARD_LOCK") return fmt(t("pyrDesc_REWARD_LOCK"), { tag: dto.winner?.tag ?? "", cycle: dto.cycle_id, days: c.reward_days });
   return fmt(t("pyrDesc_DORMANT"), { days: c.dormant_days });
+}
+
+/** Red alert for the holding Alliance: the soonest incoming attack (attacker tag + ETA only — disclosure rule). */
+export function PyramidAlertBanner({ dto, onPress, style }: { dto: PyramidDto | null | undefined; onPress: () => void; style?: any }) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  if (!dto || !dto.me.is_owner || !dto.incoming.length) return null;
+  const first = dto.incoming[0];
+  return (
+    <Pressable onPress={onPress} style={[s.alert, style]} testID="pyramid-alert-banner" accessibilityRole="button">
+      <Icon name="alert-octagon" size={18} color={colors.onError} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.alertTitle, { color: colors.onError }]} numberOfLines={1}>
+          {t("pyramidAlertTitle")}
+          {first.attacker_alliance_tag ? ` · ${t("pyramidAlertFrom")} [${first.attacker_alliance_tag}]` : ""}
+        </Text>
+        <Text style={[s.alertSub, { color: colors.onError }]} numberOfLines={1}>
+          {t("pyramidAlertEta")} <Countdown endsAt={first.arrival_at} style={{ color: colors.onError, fontSize: 12 }} />
+          {dto.incoming.length > 1 ? `  ·  ${fmt(t("pyramidAlertMore"), { n: dto.incoming.length - 1 })}` : ""}
+        </Text>
+      </View>
+      <Icon name="chevron-right" size={18} color={colors.onError} />
+    </Pressable>
+  );
 }
 
 export function PyramidActions({ dto, onDetails, onAttack, onReinforce, compact }: { dto: PyramidDto; onDetails?: () => void; onAttack: () => void; onReinforce: () => void; compact?: boolean }) {

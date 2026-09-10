@@ -5,7 +5,7 @@ import { View } from "react-native";
 import { useAllianceMutations, useMyAlliance, usePyramid } from "@/src/api/hooks";
 import { KindBadge, RoleBadge, TagChip } from "@/src/components/alliance/common";
 import { useToast } from "@/src/components/overlay";
-import { PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
+import { PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
 import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -157,6 +157,7 @@ export function AllianceSummary() {
         ) : null}
       </Panel>
 
+      <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push("/pyramid")} />
       {pyramid.data ? (
         <Panel testID="alliance-pyramid-tile">
           <Row>

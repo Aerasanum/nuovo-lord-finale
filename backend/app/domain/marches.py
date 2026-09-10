@@ -175,7 +175,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         # Pyramid endgame (Bible §21): legality (OPEN, Structured Alliance, mission vs owner) is validated in its domain
         from app.domain import pyramid
 
-        pyr_doc, _ = await pyramid.validate_launch(world, player, mission)
+        pyr_doc, pyr_alliance = await pyramid.validate_launch(world, player, mission)
         tx, ty = (pyr_doc.get("config_snapshot") or pyramid.config(world))["anchor"]
         target_terrain = spec.terrain_name(int((await load_terrain(world["_id"]))[ty, tx]))
         target_name = pyramid.NAME
@@ -293,6 +293,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "player_id": player["_id"],
         "house_name": player.get("house_name"),
         "house_crest": player.get("house_crest"),
+        "alliance_tag": player.get("alliance_tag"),
         "origin_settlement_id": origin["_id"],
         "origin_xy": [origin["x"], origin["y"]],
         "target_settlement_id": target_doc["_id"] if target_doc else None,
@@ -321,6 +322,10 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     }
     await db().marches.insert_one(march)
     await scheduler.schedule(world["_id"], "BATTLE_OR_FLEET_ARRIVAL", arrival, march["_id"], f"march_arrival:{march['_id']}", {"march_id": march["_id"]})
+    if target_pyramid and mission == "ATTACK":
+        from app.domain import pyramid
+
+        await pyramid.on_attack_launched(march, pyr_doc, pyr_alliance)
     # PvP: the defender's surveillance detects the march when it crosses its territory border (Bible §34.10 entry tile)
     if mission in OFFENSIVE and defender_id and defender_id != player["_id"]:
         tiles, _, _ = await _defender_context(world["_id"], defender_id)
@@ -563,6 +568,8 @@ async def _persist_battle(march: dict, report: dict, target: dict | None, sentin
         "world_id": march["world_id"],
         "march_id": march["_id"],
         "attacker_player_id": march["player_id"],
+        "attacker_house_name": march.get("house_name"),
+        "attacker_alliance_tag": march.get("alliance_tag"),
         "defender_player_id": defender_player,
         "participants": participants,
         "target_settlement_id": (target or {}).get("_id"),

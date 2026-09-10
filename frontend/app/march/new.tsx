@@ -5,6 +5,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useArmy, useMarchMutations, usePublicSettlement, usePyramid } from "@/src/api/hooks";
+import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
@@ -32,7 +33,8 @@ export default function MarchComposer() {
   const params = useLocalSearchParams<{ target?: string; sentinel?: string; pyramid?: string; mission?: string }>();
   const { target, sentinel } = params;
   const isPyramid = params.pyramid === "1";
-  const { worldId, settlementId, settlement } = useGame();
+  const { worldId, settlementId, settlement, player } = useGame();
+  const cinematic = useCinematic();
   const army = useArmy(worldId, settlementId);
   const pub = usePublicSettlement(worldId, target);
   const pyr = usePyramid(isPyramid ? worldId : null);
@@ -68,6 +70,8 @@ export default function MarchComposer() {
     try {
       const r = await mm.launch.mutateAsync(body);
       show(`${t("march")} → ${r.march.target_name} · ${formatDuration(r.march.eta_seconds)}`, "success");
+      // departure cinematic (Bible §41.2): real composition, house crest, Alliance banner; skippable
+      cinematic.play({ kind: "DEPARTURE", units: r.march.units, missionLabel: missionLabel(r.march.mission), targetName: r.march.target_name, etaSeconds: r.march.eta_seconds, crest: player?.house?.crest ?? null, houseName: player?.house_name ?? null, allianceTag: player?.alliance?.tag ?? null });
       router.replace("/marches");
     } catch (e) {
       showError(e);

@@ -142,6 +142,7 @@ export class PyramidMonument {
     this.group.add(this.ringMesh);
     const poles: THREE.BufferGeometry[] = [];
     const flags: THREE.BufferGeometry[] = [];
+    const backs: THREE.BufferGeometry[] = [];
     const by = 0.3 + TIERS[0].h + TIERS[1].h + TIERS[2].h;
     const br = TIERS[2].w / 2 - 0.5;
     for (const [sx, sz] of [
@@ -150,10 +151,12 @@ export class PyramidMonument {
       [1, -1],
       [-1, -1],
     ]) {
-      poles.push(place(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 5), sx * br, by + 1.2, sz * br));
-      flags.push(place(box(0.9, 0.55, 0.03), sx * br + sx * 0.45, by + 2.05, sz * br));
+      poles.push(place(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5), sx * br, by + 1.3, sz * br));
+      flags.push(place(box(1.1, 0.7, 0.04), sx * br + sx * 0.55, by + 2.2, sz * br));
+      backs.push(place(box(1.22, 0.82, 0.02), sx * br + sx * 0.55, by + 2.2, sz * br)); // dark plate: the faction colour reads against the gold trim
     }
-    this.bannerGroup.add(new THREE.Mesh(mergeGeos(poles), new THREE.MeshBasicMaterial({ color: "#F2E9DC" })));
+    this.bannerGroup.add(new THREE.Mesh(mergeGeos(poles), new THREE.MeshBasicMaterial({ color: "#3A2F1B" })));
+    this.bannerGroup.add(new THREE.Mesh(mergeGeos(backs), new THREE.MeshBasicMaterial({ color: "#1A1512", side: THREE.DoubleSide })));
     this.bannerGroup.add(new THREE.Mesh(mergeGeos(flags), this.banner));
     this.group.add(this.bannerGroup);
 

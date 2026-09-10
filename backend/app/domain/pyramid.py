@@ -503,6 +503,23 @@ async def validate_launch(world: dict, player: dict, mission: str) -> tuple[dict
     return doc, a
 
 
+async def on_attack_launched(march: dict, doc: dict, attacker_alliance: dict) -> None:
+    """Pyramid alert: every member of the holding Alliance is warned at departure (Inbox + alliance chat system line).
+    Disclosure is deliberately minimal — attacker Alliance tag and ETA only (no house, no composition)."""
+    owner = doc.get("owner_alliance_id")
+    if not owner or owner == attacker_alliance["_id"]:
+        return
+    a = await db().alliances.find_one({"_id": owner, "status": "ACTIVE"})
+    if not a:
+        return
+    eta = clock.aware(march.get("arrival_at"))
+    payload = {"march_id": march["_id"], "target_name": NAME, "attacker_alliance_tag": attacker_alliance["tag"], "eta": clock.iso(eta), "cycle_id": int(doc.get("cycle_id", 0))}
+    for m in a.get("members", []):
+        await notifications.notify(doc["_id"], m["player_id"], "PYRAMID_ATTACK_INCOMING", payload, dedupe_key=f"pyr_incoming:{march['_id']}:{m['player_id']}", deep_link="pyramid")
+    secs = max(0, int((eta - clock.now()).total_seconds())) if eta else 0
+    await alliances._chat_system(a, f"⚠ Attacco alla Piramide in arrivo da [{attacker_alliance['tag']}] · ETA {secs // 3600}h {(secs % 3600) // 60}m")
+
+
 def _split_losses(by_player: dict[str, dict], losses: dict[str, int]) -> dict[str, dict]:
     """Distribute garrison losses per unit proportionally across contributors (largest remainder)."""
     out = {pid: {u: int(c) for u, c in (units or {}).items()} for pid, units in by_player.items()}
@@ -694,8 +711,9 @@ async def status(world: dict, player: dict) -> dict:
         )
     incoming = []
     if is_owner:
+        # disclosure to the holding Alliance: attacker tag + ETA only (user rule — no house, no army size)
         async for m in db().marches.find({"world_id": world["_id"], "target_pyramid": True, "mission": "ATTACK", "status": "OUTBOUND"}).sort("arrival_at", 1).limit(20):
-            incoming.append({"march_id": m["_id"], "house_name": m.get("house_name"), "arrival_at": clock.iso(m.get("arrival_at")), "units_total": _units_total(m.get("units"))})
+            incoming.append({"march_id": m["_id"], "attacker_alliance_tag": m.get("alliance_tag"), "arrival_at": clock.iso(m.get("arrival_at"))})
     my_garrison = {u: int(c) for u, c in ((doc.get("garrison_by_player") or {}).get(player["_id"]) or {}).items() if int(c) > 0}
     show_composition = owner is None or is_owner
     return {

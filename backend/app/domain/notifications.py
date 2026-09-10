@@ -15,6 +15,9 @@ def _catalog(event: str) -> dict:
     # Land analogue of NAVAL_FLEET_DETECTED (Bible §40.5 — naval detection is DISABLED in v3.7): severity HIGH, MAP channel
     if event == "HOSTILE_MARCH_DETECTED":
         return {"severity": "HIGH", "deep_link": "map/march"}
+    # Pyramid alert (Bible §21, user rule): the holding Alliance is warned of every incoming attack — tag + ETA only
+    if event == "PYRAMID_ATTACK_INCOMING":
+        return {"severity": "HIGH", "deep_link": "pyramid"}
     return {"severity": "INFO", "deep_link": "inbox"}
 
 

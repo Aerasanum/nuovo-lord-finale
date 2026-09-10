@@ -169,7 +169,7 @@ export default function PyramidScreen() {
                 {d.incoming.slice(0, 5).map((m) => (
                   <Row key={m.march_id}>
                     <T v="caption" style={{ flex: 1 }}>
-                      {m.house_name ?? "?"} · {formatNumber(m.units_total)} {t("units")}
+                      {m.attacker_alliance_tag ? `[${m.attacker_alliance_tag}]` : "?"} · {t("pyramidAlertEta")}
                     </T>
                     <Countdown endsAt={m.arrival_at} style={{ color: colors.warning }} />
                   </Row>

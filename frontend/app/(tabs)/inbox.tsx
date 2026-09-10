@@ -23,6 +23,7 @@ const useStyles = makeStyles((c) => ({
 
 const EVENT_ICON: Record<string, IconName> = {
   PYRAMID_STATE_CHANGED: "pyramid",
+  PYRAMID_ATTACK_INCOMING: "alert-octagon",
   BUILD_JOB_STATE: "hammer",
   SETTLEMENT_UPGRADE_STATE: "castle",
   RESEARCH_JOB_STATE: "flask",
@@ -111,6 +112,8 @@ export default function InboxScreen() {
         if (p.state === "INTERCEPTED") return `${t("caravanIntercepted")} · ${t("losses")} ${formatNumber(cargoTotal(p.lost))}${cargoTotal(p.returning) > 0 ? ` · ${t("caravanReturning")} ${formatNumber(cargoTotal(p.returning))}` : ""}`;
         return `${t("caravan")} → ${p.target_name ?? ""} · ${cargoLine(p.cargo, lang) || "—"}`;
       }
+      case "PYRAMID_ATTACK_INCOMING":
+        return `${t("pyramidAttackIncomingEvent")}${p.attacker_alliance_tag ? ` · ${t("pyramidAlertFrom")} [${p.attacker_alliance_tag}]` : ""}${p.eta ? ` · ${new Date(p.eta).toLocaleString(lang)}` : ""}`;
       case "PYRAMID_STATE_CHANGED":
         return `${t("pyramid")} · ${t(`pyrState_${p.state}` as any)}${p.owner_tag ? ` · [${p.owner_tag}]` : ""}${p.deadline ? ` · ${new Date(p.deadline).toLocaleString(lang)}` : ""}`;
       default:

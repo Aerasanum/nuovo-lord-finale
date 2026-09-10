@@ -8,7 +8,7 @@ import { useCaravanSearch, useMarches, useMarchMutations, usePyramid, useSettlem
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
-import { PyramidActions, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
+import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
 import { Button, CostRow, Icon, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, useI18n } from "@/src/i18n";
@@ -91,6 +91,7 @@ export default function MapScreen() {
             {marches.data?.marches?.length ? <View style={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brandPrimary }} /> : null}
           </Pressable>
         </Panel>
+        <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push("/pyramid")} style={{ marginTop: spacing.xs }} />
         {settlements.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chipRow, { paddingHorizontal: spacing.xs, paddingTop: spacing.xs }]}>
             {settlements.map((st: any) => (

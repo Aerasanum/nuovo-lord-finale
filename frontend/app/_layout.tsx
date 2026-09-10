@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { CinematicProvider } from "@/src/components/cinematic/Cinematic";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/overlay";
 import { I18nProvider } from "@/src/i18n";
@@ -42,6 +43,7 @@ export default function RootLayout() {
               <I18nProvider>
                 <AuthProvider>
                   <ToastProvider>
+                    <CinematicProvider>
                     <StatusBar style="light" />
                     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface }, animation: "fade" }}>
                       <Stack.Screen name="index" />
@@ -62,6 +64,7 @@ export default function RootLayout() {
                       <Stack.Screen name="battle/[id]" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="auth/callback" />
                     </Stack>
+                    </CinematicProvider>
                   </ToastProvider>
                 </AuthProvider>
               </I18nProvider>

@@ -630,3 +630,33 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Iteration 13: Pyramid endgame. Backend fully covered by pytest (do NOT re-run tests/test_pyramid_e2e.py — it resets the cycle; world_1 is left OPEN with the spec guardian on purpose). Please test the frontend flows (map monument + card + details + composer + alliance tile + inbox). Note: world_1 pyramid is OPEN/neutral; demo is in STRUCTURED [DEMO] (eligible), rival is MERCENARY (not eligible → hint)."
+
+# ---- iteration 14 (main agent) — Allerta Piramide + Cinematiche (Bibbia §21 / §41.2) ----
+backend:
+  - task: "pyramid.on_attack_launched: PYRAMID_ATTACK_INCOMING inbox (HIGH, deep_link pyramid, payload tag+eta only) to every member of the holding alliance + alliance chat SYSTEM line; status.incoming = {march_id, attacker_alliance_tag, arrival_at}; marches store alliance_tag; battles store attacker_house_name/attacker_alliance_tag."
+    implemented: true
+    working: true
+    file: "backend/app/domain/pyramid.py, marches.py, notifications.py, routes_game.py, tests/test_pyramid_e2e.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_pyramid_e2e.py 8/8 incl. new alert assertions (incoming DTO fields, inbox event for demo+ally, chat system line, attacker sees nothing)."
+frontend:
+  - task: "PyramidAlertBanner (pyramid-alert-banner) on Map HUD + Alliance tab → /pyramid; /pyramid incoming list (tag + countdown); inbox PYRAMID_ATTACK_INCOMING row. Cinematics: CinematicProvider (root), DEPARTURE played on march launch (cinematic-overlay, cinematic-title, cinematic-skip, cinematic-composition, cinematic-dragon/angel/demon, cinematic-falcon, cinematic-crest, cinematic-alliance-banner), CONQUEST auto-play once on battle report with ownership change (cinematic-conquest, cinematic-conquest-crest) + battle-cinematic-departure / battle-cinematic-conquest replay buttons."
+    implemented: true
+    working: true
+    file: "frontend/src/components/cinematic/Cinematic.tsx, src/components/PyramidCard.tsx, app/_layout.tsx, app/march/new.tsx, app/battle/[id].tsx, app/(tabs)/map.tsx, app/(tabs)/inbox.tsx, app/pyramid.tsx, src/components/alliance/AllianceSummary.tsx, src/api/hooks.ts, src/i18n/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots: dragon departure cinematic ('Il Drago scende in campo', dragon + falcon + formation + composition + Salta), conquest cinematic on pyramid battle ('La Piramide è nostra!'), red alert banner on map + alliance tab, incoming list in /pyramid."
+      - working: true
+        agent: "testing"
+        comment: "iteration_14.json: all 7 flows PASS (alert banner map+alliance, incoming panel, chat system line, inbox deep link, departure standard + dragon/falcon variants, conquest auto-play once + replay buttons, rival non-owner view). No functional issues."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 14. world_1 state: Pyramid HELD by [DEMO] (demo+ally are owners), one [TRZ] attack in flight (ETA ~1.5 days) → alert banner visible for demo/ally. demo mother has Drago 2, Falco 5 (QA grant) to trigger the dragon/falcon cinematic variants. Max 1 legendary per march (LEGENDARY_LIMIT 409). Do NOT run pytest test_pyramid_e2e.py (resets the cycle). Any march launched for testing should be recalled afterwards (/marches → march card → recall)."

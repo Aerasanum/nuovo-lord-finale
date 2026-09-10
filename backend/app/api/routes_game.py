@@ -528,6 +528,7 @@ def _battle_dto(b: dict) -> dict:
         "target_sentinel_id": b.get("target_sentinel_id"),
         "target_caravan_id": b.get("target_caravan_id"),
         "target_pyramid": bool(b.get("target_pyramid")),
+        "attacker_house_name": b.get("attacker_house_name"),
         "attacker_alliance_tag": b.get("attacker_alliance_tag"),
         "defender_alliance_tag": b.get("defender_alliance_tag"),
         "origin_settlement_id": b.get("origin_settlement_id"),

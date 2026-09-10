@@ -289,6 +289,10 @@ export type BattleDto = {
   defender_player_id: string | null;
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
+  target_pyramid?: boolean;
+  attacker_house_name?: string | null;
+  attacker_alliance_tag?: string | null;
+  defender_alliance_tag?: string | null;
   origin_settlement_id?: string | null;
   target_name: string;
   target_xy: [number, number];
@@ -595,7 +599,7 @@ export type PyramidDto = {
   winner: { cycle_id: number; alliance_id: string; tag: string; name: string; member_count: number; won_at: string | null; reward_until: string | null } | null;
   history: PyramidHistoryEntry[];
   recent_battles: PyramidBattle[];
-  incoming: { march_id: string; house_name: string | null; arrival_at: string | null; units_total: number }[];
+  incoming: { march_id: string; attacker_alliance_tag: string | null; arrival_at: string | null }[];
   me: { alliance_id: string | null; alliance_kind: AllianceKind | null; eligible: boolean; is_owner: boolean; can_attack: boolean; can_reinforce: boolean; participated: boolean; my_garrison: Record<string, number>; reward: PyramidReward | null };
   config: { first_open_day: number; hold_hours: number; reward_days: number; dormant_days: number; garrison_cap_units: number; reward: Record<string, number>; emeralds: { participation: number; victory: number }; prestige: { participation: number; victory: number }; title: string };
   server_time: string;
