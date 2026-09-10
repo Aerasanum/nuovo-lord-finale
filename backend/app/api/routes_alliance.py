@@ -31,6 +31,7 @@ class RoleIn(BaseModel):
 
 class SettingsIn(BaseModel):
     description: str | None = Field(default=None, max_length=200)
+    name: str | None = Field(default=None, max_length=24)
 
 
 class ChatIn(BaseModel):
@@ -123,7 +124,7 @@ async def kick(world_id: str, player_id: str, c: Ctx = Depends(ctx)):
 @router.put("/worlds/{world_id}/alliance/settings")
 async def settings(world_id: str, body: SettingsIn, c: Ctx = Depends(ctx)):
     a = await alliances.require_mine(c.player)
-    return await alliances.update_settings(a, c.player, body.description)
+    return await alliances.update_settings(a, c.player, body.description, body.name)
 
 
 @router.post("/worlds/{world_id}/alliance/dissolve")

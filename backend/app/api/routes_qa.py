@@ -124,3 +124,21 @@ async def qa_emeralds(body: EmeraldsIn):
     ok = await alliances.credit_emeralds(a["world_id"], a["_id"], body.amount, "qa_grant", f"qa_{clock.now().timestamp():.3f}")
     fresh = await db().alliances.find_one({"_id": a["_id"]}, {"emeralds": 1})
     return {"ok": ok, "emeralds": int(fresh.get("emeralds", 0))}
+
+
+class RubiesIn(BaseModel):
+    email: str
+    amount: int = Field(gt=0, le=10_000_000)
+
+
+@router.post("/rubies")
+async def qa_rubies(body: RubiesIn):
+    """Test fixture (Play Billing catalog is empty by spec): credit an account wallet through the real ledger."""
+    _gate()
+    from app.domain import premium
+
+    acc = await db().accounts.find_one({"email": body.email.lower().strip()})
+    if not acc:
+        raise ApiError("ACCOUNT_NOT_FOUND", "Account not found", 404)
+    tx = await premium.grant(acc["_id"], body.amount, "QA_GRANT", {"note": "qa"}, f"qa_{clock.now().timestamp():.3f}")
+    return {"ok": True, "rubies": int(tx["balance_after"])}

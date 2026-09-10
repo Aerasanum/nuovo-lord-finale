@@ -107,15 +107,22 @@ frontend/
 - [x] Frontend: segmento **Alleanza** nel tab Missioni (dashboard / lupo solitario con inviti), `/alliance/create`, `/alliance/browse`, `/alliance/[id]` (azioni diplomatiche), `/alliance/members`, `/alliance/diplomacy` (relazioni + voti), `/alliance/chat`, `/alliance/treasury`, `/alliance/mercenary`; inbox eventi alleanza con deep link; mappa: fazione ALLEATO (colore, legenda, tag `[SIGLA]`), composer solo RINFORZO verso alleati
 - Fixture QA: account ally/third (vedi test_credentials.md), `POST /qa/alliance/emeralds`
 
-### Prossimi (P1)
-- [ ] **Rubini (§23)** — completamento istantaneo costruzione/ricerca/reclutamento a costo proporzionale (catalogo Play Billing vuoto)
+### Rubini & premium — iteration_12 (Bibbia §23, spec.premium) — pytest `tests/test_premium_e2e.py` 8/8 + testing agent UI OK
+- [x] Wallet Rubini a livello account (`accounts.rubies`, registro `ruby_transactions` idempotente per chiave), `GET /wallet`, Rubini in `/me`; negozio DISABILITATO (catalogo Play Billing vuoto) → nessun acquisto; concessione QA `POST /qa/rubies`
+- [x] **Completa ora** su job già avviati: costruzione max(100, min residui×3), ricerca max(150, ×4), reclutamento max(100, ×2,5); vietato per unità speciali/leggendarie (Carro, Drago/Angelo/Demone), con assedio attivo o marcia ostile in arrivo ≤60 min; debito atomico con rollback, stesso handler di completamento dello scheduler; pillola `◆N` su code Città, /queues, dettaglio edificio, ricerca, esercito
+- [x] Cosmetica: **rinomina Casata** 500 Rubini (catalogo `cosmetics_v1`, nome unico nel mondo, copie denormalizzate aggiornate); Casata con **descrizione** (§20) editabile
+- [x] **Specializzazione** giocatore (spec.player_specialization): Attaccante/Difensore +5%, disponibile con 3 insediamenti, prima scelta gratis, cambio 2.500 Rubini, cooldown 7g, bloccata in guerra/assedio/marce militari; il combattimento legge le chiavi spec
+- [x] UX: **Alleanza è un tab** della barra inferiore (accanto a Esercito), impostazioni alleanza (nome unico + descrizione) per il Leader; schermate `/wallet`, `/specialization`
+- Nota: nella Bibbia le missioni personali generano **Smeraldi** per l'alleanza (+5 prima missione/giorno per membro, solo Strutturate) — non Rubini; i Rubini sono solo da acquisto (catalogo vuoto) o QA
+
+### Prossimi (P2)
 - [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)
 - [ ] Verifica Google Auth con flusso reale su dispositivo (Expo Go / build)
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)
 
 ### Backlog (P2/P3)
 - [ ] Evento Piramide al centro mappa (§21) — apre/chiude su timer, NON termina il server
-- [ ] Specializzazione giocatore, eliminazione per 120 giorni di inattività, cap Leggendario
+- [ ] Eliminazione per 120 giorni di inattività, cap Leggendario
 - [ ] Santuario Mitico + Unicorno (§12), cinematiche d'attacco skippabili (draghi/falchi)
 - [ ] Metadata Google Play / Android App Bundle
 

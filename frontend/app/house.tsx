@@ -4,11 +4,11 @@ import { Pressable, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type CrestDto, useHouse, useHouseMutations } from "@/src/api/hooks";
+import { type CrestDto, useHouse, useHouseMutations, usePremiumMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { type StringKey, useI18n } from "@/src/i18n";
+import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -30,23 +30,29 @@ export default function HouseScreen() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { worldId } = useGame();
+  const { worldId, rubies } = useGame();
   const q = useHouse(worldId);
   const mut = useHouseMutations(worldId ?? "");
+  const pm = usePremiumMutations(worldId ?? "");
   const { showError, show } = useToast();
   const [motto, setMotto] = useState("");
+  const [description, setDescription] = useState("");
+  const [newName, setNewName] = useState("");
   const [crest, setCrest] = useState<CrestDto | null>(null);
+  const RENAME_PRICE = 500;
 
   useEffect(() => {
     if (q.data && !crest) {
       setCrest(q.data.house.crest);
       setMotto(q.data.house.motto ?? "");
+      setDescription(q.data.house.description ?? "");
     }
   }, [q.data, crest]);
 
   if (!worldId) return null;
   const cat = q.data?.catalog;
-  const dirty = !!q.data && (JSON.stringify(crest) !== JSON.stringify(q.data.house.crest) || motto !== (q.data.house.motto ?? ""));
+  const dirty = !!q.data && (JSON.stringify(crest) !== JSON.stringify(q.data.house.crest) || motto !== (q.data.house.motto ?? "") || description !== (q.data.house.description ?? ""));
+  const renameValid = newName.trim().length >= 3 && newName.trim() !== q.data?.house.house_name;
   const invalid = !!crest && crest.colors.base === crest.colors.primary;
 
   const setColor = (k: keyof CrestDto["colors"], hex: string) => setCrest((c) => (c ? { ...c, colors: { ...c.colors, [k]: hex } } : c));
@@ -99,9 +105,65 @@ export default function HouseScreen() {
             </View>
             <T v="label">{t("motto")}</T>
             <TextInput testID="house-motto-input" style={s.input} value={motto} onChangeText={setMotto} placeholder="Fortis et fidelis" placeholderTextColor={colors.muted} maxLength={60} />
+            <T v="label" style={{ marginTop: spacing.sm }}>
+              {t("houseDescription")}
+            </T>
+            <TextInput testID="house-description-input" style={[s.input, { height: undefined, minHeight: 80, paddingVertical: 10 }]} value={description} onChangeText={setDescription} multiline maxLength={300} placeholderTextColor={colors.muted} />
             <T v="caption" style={{ marginTop: spacing.xs, color: colors.muted }}>
               {t("crestHint")}
             </T>
+            <Button
+              title={t("save")}
+              icon="content-save"
+              style={{ marginTop: spacing.sm }}
+              disabled={!dirty || invalid || mut.isPending}
+              loading={mut.isPending}
+              onPress={() =>
+                mut
+                  .mutateAsync({ motto, crest, description })
+                  .then(() => show(t("saved"), "success"))
+                  .catch(showError)
+              }
+              testID="house-save-top-button"
+            />
+          </Panel>
+
+          <Panel style={{ marginTop: spacing.md }} testID="house-rename-panel">
+            <Row style={{ justifyContent: "space-between" }}>
+              <Row>
+                <Icon name="rename-box" size={18} color={colors.brandPrimary} />
+                <T v="heading">{t("renameHouse")}</T>
+              </Row>
+              <Row>
+                <Icon name="diamond" size={14} color={colors.brandPrimary} />
+                <T v="caption" testID="house-rename-price">
+                  {RENAME_PRICE} · {formatNumber(rubies)}
+                </T>
+              </Row>
+            </Row>
+            <T v="caption" style={{ marginTop: 4 }}>
+              {t("renameHouseHint")}
+            </T>
+            <TextInput testID="house-rename-input" style={[s.input, { marginTop: spacing.sm }]} value={newName} onChangeText={setNewName} placeholder={t("newName")} placeholderTextColor={colors.muted} maxLength={40} />
+            <Button
+              title={`${t("renameHouse")} · ${RENAME_PRICE}`}
+              icon="diamond"
+              variant="secondary"
+              style={{ marginTop: spacing.sm }}
+              disabled={!renameValid || rubies < RENAME_PRICE || pm.rename.isPending}
+              loading={pm.rename.isPending}
+              onPress={() =>
+                pm.rename
+                  .mutateAsync(newName.trim())
+                  .then(() => {
+                    show(t("renamed"), "success");
+                    setNewName("");
+                  })
+                  .catch(showError)
+              }
+              testID="house-rename-button"
+            />
+            <Button title={t("specialization")} icon="account-star" variant="ghost" style={{ marginTop: spacing.xs }} onPress={() => router.push("/specialization")} testID="house-specialization-button" />
           </Panel>
 
           <Panel style={{ marginTop: spacing.md }}>
@@ -130,7 +192,7 @@ export default function HouseScreen() {
               loading={mut.isPending}
               onPress={() =>
                 mut
-                  .mutateAsync({ motto, crest })
+                  .mutateAsync({ motto, crest, description })
                   .then(() => show(t("saved"), "success"))
                   .catch(showError)
               }

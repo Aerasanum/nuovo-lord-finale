@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api import routes_alliance, routes_auth, routes_game, routes_qa
+from app.api import routes_alliance, routes_auth, routes_game, routes_premium, routes_qa
 from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
@@ -76,6 +76,7 @@ async def unhandled_handler(_: Request, exc: Exception):
 app.include_router(routes_auth.router)
 app.include_router(routes_game.router)
 app.include_router(routes_alliance.router)
+app.include_router(routes_premium.router)
 app.include_router(routes_qa.router)
 
 

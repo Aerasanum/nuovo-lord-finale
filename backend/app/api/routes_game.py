@@ -106,12 +106,14 @@ async def me(c: Ctx = Depends(ctx)):
         s = await economy.accrue(s)
         settlements.append({**public_dto(s, c.player["_id"], c.player.get("alliance_id")), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
     unread = await db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None})
-    return {"player": player_dto(c.player), "world": world_dto(c.world), "settlements": settlements, "unread_inbox": unread, "server_time": clock.iso(clock.now())}
+    acc = await db().accounts.find_one({"_id": c.account_id}, {"rubies": 1})
+    return {"player": player_dto(c.player), "world": world_dto(c.world), "settlements": settlements, "unread_inbox": unread, "rubies": int((acc or {}).get("rubies", 0)), "server_time": clock.iso(clock.now())}
 
 
 class HouseIn(BaseModel):
     motto: str | None = None
     crest: dict | None = None
+    description: str | None = None
 
 
 @router.get("/worlds/{world_id}/house")
@@ -121,7 +123,7 @@ async def house_get(c: Ctx = Depends(ctx)):
 
 @router.put("/worlds/{world_id}/house")
 async def house_update(body: HouseIn, c: Ctx = Depends(ctx)):
-    return {"house": await house.update(c.player, body.motto, body.crest), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
+    return {"house": await house.update(c.player, body.motto, body.crest, body.description), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
 
 
 # --------------------------------------------------------------------------- settlements

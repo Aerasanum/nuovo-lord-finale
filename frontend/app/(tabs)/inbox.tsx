@@ -124,7 +124,7 @@ export default function InboxScreen() {
     else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");
     else if (n.deep_link === "alliance/treasury") router.push("/alliance/treasury");
     else if (n.deep_link === "alliance/mercenary") router.push("/alliance/mercenary");
-    else if (n.deep_link?.startsWith("alliance")) router.push({ pathname: "/(tabs)/missions", params: { seg: "alliance" } });
+    else if (n.deep_link?.startsWith("alliance")) router.push("/(tabs)/alliance");
     else if (n.deep_link?.startsWith("map")) router.push("/marches");
     else if (n.deep_link?.startsWith("army")) router.push("/(tabs)/army");
     else if (n.deep_link?.startsWith("settlement")) router.push("/(tabs)/settlement");

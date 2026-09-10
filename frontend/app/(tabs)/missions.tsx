@@ -1,10 +1,9 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ChronicleEntry, type MissionCatalogEntry, type MissionDto, type ProgressTrack, useChronicle, useHouse, useMissions } from "@/src/api/hooks";
-import { AllianceSummary } from "@/src/components/alliance/AllianceSummary";
 import { Crest } from "@/src/components/Crest";
 import { Screen } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
@@ -25,7 +24,7 @@ const useStyles = makeStyles((c) => ({
   histRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
 }));
 
-type Seg = "missions" | "house" | "alliance" | "chronicle";
+type Seg = "missions" | "house" | "chronicle";
 
 /** Missioni tab (Bible §22 / §39): personal missions, Casata progression (Prestige, achievement tiers, titles) and the World Chronicle. */
 export default function MissionsScreen() {
@@ -38,11 +37,7 @@ export default function MissionsScreen() {
   const q = useMissions(worldId);
   const chr = useChronicle(worldId);
   const house = useHouse(worldId);
-  const { seg: segParam } = useLocalSearchParams<{ seg?: string }>();
-  const [seg, setSeg] = useState<Seg>((segParam as Seg) || "missions");
-  useEffect(() => {
-    if (segParam) setSeg(segParam as Seg);
-  }, [segParam]);
+  const [seg, setSeg] = useState<Seg>("missions");
   if (!worldId) return null;
   const data = q.data;
 
@@ -248,10 +243,9 @@ export default function MissionsScreen() {
       <View style={s.tabs}>
         <Chip label={t("missions")} selected={seg === "missions"} onPress={() => setSeg("missions")} testID="missions-seg-missions" />
         <Chip label={t("missionsSegHouse")} selected={seg === "house"} onPress={() => setSeg("house")} testID="missions-seg-house" />
-        <Chip label={t("allianceSeg")} selected={seg === "alliance"} onPress={() => setSeg("alliance")} testID="missions-seg-alliance" />
         <Chip label={t("missionsSegChronicle")} selected={seg === "chronicle"} onPress={() => setSeg("chronicle")} testID="missions-seg-chronicle" />
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>{seg === "missions" ? renderMissions() : seg === "house" ? renderHouse() : seg === "alliance" ? <AllianceSummary /> : renderChronicle()}</ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>{seg === "missions" ? renderMissions() : seg === "house" ? renderHouse() : renderChronicle()}</ScrollView>
     </Screen>
   );
 }

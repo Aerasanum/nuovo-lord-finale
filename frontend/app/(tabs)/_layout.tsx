@@ -35,6 +35,14 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="shield.fill" />
           <NativeTabs.Trigger.Label>{t("tabArmy")}</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="alliance">
+          <NativeTabs.Trigger.Icon sf="person.3.fill" />
+          <NativeTabs.Trigger.Label>{t("tabAlliance")}</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="missions">
+          <NativeTabs.Trigger.Icon sf="scroll.fill" />
+          <NativeTabs.Trigger.Label>{t("tabMissions")}</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="inbox">
           <NativeTabs.Trigger.Icon sf="tray.fill" />
           <NativeTabs.Trigger.Label>{t("tabInbox")}</NativeTabs.Trigger.Label>
@@ -51,13 +59,14 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: colors.surfaceSecondary, borderTopColor: colors.border, ...(Platform.OS === "web" ? { height: 64 } : {}) },
         tabBarItemStyle: { alignSelf: "center" },
-        tabBarLabelStyle: { fontFamily: fonts.body, fontSize: 11 },
+        tabBarLabelStyle: { fontFamily: fonts.body, fontSize: 10 },
         sceneStyle: { backgroundColor: colors.surface },
       }}
     >
       <Tabs.Screen name="map" options={{ title: t("tabMap"), tabBarIcon: ({ color, size }) => <Icon name="map" size={size} color={String(color)} />, tabBarButtonTestID: "tab-map" }} />
       <Tabs.Screen name="settlement" options={{ title: t("tabCity"), tabBarIcon: ({ color, size }) => <Icon name="castle" size={size} color={String(color)} />, tabBarButtonTestID: "tab-settlement" }} />
       <Tabs.Screen name="army" options={{ title: t("tabArmy"), tabBarIcon: ({ color, size }) => <Icon name="sword-cross" size={size} color={String(color)} />, tabBarButtonTestID: "tab-army" }} />
+      <Tabs.Screen name="alliance" options={{ title: t("tabAlliance"), tabBarIcon: ({ color, size }) => <Icon name="shield-crown" size={size} color={String(color)} />, tabBarButtonTestID: "tab-alliance" }} />
       <Tabs.Screen name="missions" options={{ title: t("tabMissions"), tabBarIcon: ({ color, size }) => <Icon name="compass-outline" size={size} color={String(color)} />, tabBarButtonTestID: "tab-missions" }} />
       <Tabs.Screen
         name="inbox"

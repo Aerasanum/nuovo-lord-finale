@@ -61,19 +61,25 @@ def dto(p: dict) -> dict:
     return {
         "house_name": p["house_name"],
         "motto": p.get("house_motto"),
+        "description": p.get("house_description"),
         "crest": p.get("house_crest") or default_crest(p["house_name"]),
         "prestige": int(p.get("prestige", 0)),
         "history": [{**h, "at": clock.iso(h.get("at"))} for h in (p.get("house_history") or [])[-30:]][::-1],
     }
 
 
-async def update(player: dict, motto: str | None, crest: dict | None) -> dict:
+async def update(player: dict, motto: str | None, crest: dict | None, description: str | None = None) -> dict:
     sets: dict = {"house_updated_at": clock.now()}
     if motto is not None:
         motto = motto.strip()
         if len(motto) > 60:
             raise ApiError("INVALID_MOTTO", "Motto max 60 characters", 400)
         sets["house_motto"] = motto or None
+    if description is not None:
+        description = description.strip()
+        if len(description) > 300:
+            raise ApiError("INVALID_DESCRIPTION", "Description max 300 characters", 400)
+        sets["house_description"] = description or None
     if crest is not None:
         sets["house_crest"] = validate_crest(crest)
     await db().players.update_one({"_id": player["_id"]}, {"$set": sets})
@@ -107,3 +113,21 @@ async def _first_banner(player: dict, crest: dict) -> None:
         return
     await progress.award_prestige(player["world_id"], player["_id"], int(cat["reward"]["prestige"]), "first_banner", player["_id"])
     await notifications.notify(player["world_id"], player["_id"], "MISSION_COMPLETED", {"mission_key": "first_banner", "name": cat["name"], "reward": cat["reward"], "completion_id": f"fb:{player['_id']}"}, dedupe_key=f"fb:{player['_id']}", deep_link="missions")
+
+
+async def rename(player: dict, new_name: str) -> dict:
+    """Unique-per-world House rename (Bible §20 / §23 cosmetic). Denormalised copies (settlements, marches, alliance
+    members, invites, chat) follow the Player document."""
+    new_name = (new_name or "").strip()
+    if not 3 <= len(new_name) <= 40:
+        raise ApiError("INVALID_HOUSE_NAME", "House name must be 3–40 characters", 400)
+    if new_name.lower() != player["house_name"].lower() and await db().players.find_one({"world_id": player["world_id"], "house_name_lc": new_name.lower()}):
+        raise ApiError("HOUSE_NAME_TAKEN", "House name already used in this world", 409)
+    now = clock.now()
+    await db().players.update_one({"_id": player["_id"]}, {"$set": {"house_name": new_name, "house_name_lc": new_name.lower(), "house_updated_at": now}, "$push": {"house_history": {"$each": [{"kind": "RENAMED", "from": player["house_name"], "to": new_name, "at": now}], "$slice": -200}}})
+    await db().settlements.update_many({"owner_player_id": player["_id"]}, {"$set": {"owner_house_name": new_name}})
+    await db().marches.update_many({"player_id": player["_id"], "status": {"$in": ["OUTBOUND", "RESOLVING", "RETURNING"]}}, {"$set": {"house_name": new_name}})
+    await db().alliances.update_many({"members.player_id": player["_id"]}, {"$set": {"members.$.house_name": new_name}})
+    await db().alliance_chat.update_many({"player_id": player["_id"]}, {"$set": {"house_name": new_name}})
+    fresh = await db().players.find_one({"_id": player["_id"]})
+    return dto(fresh)

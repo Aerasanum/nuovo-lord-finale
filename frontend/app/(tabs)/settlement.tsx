@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BuildingEntry, JobDto } from "@/src/api/hooks";
 import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
+import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
@@ -23,6 +24,7 @@ const useStyles = makeStyles((c) => ({
   lvl: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
   lvlText: { color: c.onBrandTertiary, fontSize: 12, fontWeight: "700" },
   hdrBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  rubies: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
   jobRow: { gap: 6, paddingVertical: 6 },
   queueDots: { flexDirection: "row", gap: 4 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
@@ -37,7 +39,7 @@ export default function SettlementScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { selectSettlement } = useAuth();
-  const { worldId, settlementId, settlement, settlements, player } = useGame();
+  const { worldId, settlementId, settlement, settlements, player, rubies } = useGame();
   const buildings = useBuildings(worldId, settlementId);
   const m = useSettlementMutations(worldId ?? "", settlementId ?? "");
   const { showError, show } = useToast();
@@ -74,6 +76,12 @@ export default function SettlementScreen() {
       }
       right={
         <Row>
+          <Pressable style={s.rubies} onPress={() => router.push("/wallet")} testID="settlement-wallet-button" accessibilityLabel={t("wallet")}>
+            <Icon name="diamond" size={14} color={colors.brandPrimary} />
+            <T v="caption" style={{ color: colors.onSurface, fontWeight: "700" }} testID="settlement-rubies">
+              {formatNumber(rubies)}
+            </T>
+          </Pressable>
           <Pressable style={s.hdrBtn} onPress={() => router.push("/house")} testID="settlement-house-button" accessibilityLabel={t("house")}>
             {player?.house?.crest ? <Crest crest={player.house.crest} size={24} /> : <Icon name="shield-half-full" size={22} color={colors.onSurfaceSecondary} />}
           </Pressable>
@@ -245,6 +253,7 @@ export function JobLine({ job, onCancel }: { job: JobDto; onCancel?: () => void 
           {label}
         </T>
         <Countdown endsAt={job.ends_at} testID={`job-${job.job_id}-countdown`} />
+        <FinishNowButton job={job} />
         {onCancel ? (
           <Pressable onPress={onCancel} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }} testID={`job-${job.job_id}-cancel`}>
             <Icon name="close-circle-outline" size={20} color={colors.muted} />

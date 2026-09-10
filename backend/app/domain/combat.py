@@ -177,8 +177,9 @@ def resolve_battle(
     # ---- 3) power ----
     # specialization slot of the frozen attacker order also carries the mercenary-contract target bonus (+3% ATK,
     # Bible §19.1): same category → percentages add first, then multiply
-    spec_att = 1.0 + (0.05 if attacker_specialization == "ATTACCANTE" else 0.0) + max(0.0, float(attacker_bonus_atk_pct)) / 100.0
-    spec_def = 1.05 if defender_specialization == "DIFENSORE" else 1.0
+    ps = spec.player_specialization["choices"]
+    spec_att = 1.0 + (float(ps["ATTACKER"]["bonus_pct"]) / 100.0 if attacker_specialization == "ATTACKER" else 0.0) + max(0.0, float(attacker_bonus_atk_pct)) / 100.0
+    spec_def = 1.0 + (float(ps["DEFENDER"]["bonus_pct"]) / 100.0 if defender_specialization == "DEFENDER" else 0.0)
     terrain_bonus = float(spec.terrain[terrain]["defender_bonus_pct"]) / 100.0
     wall_def = 0.0
     if wall and defender_kind == "SETTLEMENT" and wall.get("max_hp", 0) > 0:

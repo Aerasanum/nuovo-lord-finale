@@ -314,10 +314,31 @@ async def transfer_leadership(a: dict, actor: dict, pid: str) -> dict:
     return {"ok": True, "role": "LEADER"}
 
 
-async def update_settings(a: dict, actor: dict, description: str | None) -> dict:
+async def update_settings(a: dict, actor: dict, description: str | None, name: str | None = None) -> dict:
+    """Leader-only settings: description and (unique per world) name; the tag is the permanent identifier."""
     require(a, actor["_id"], "alliance_settings")
-    await db().alliances.update_one({"_id": a["_id"]}, {"$set": {"description": (description or "").strip()[:200]}})
-    return {"ok": True}
+    sets: dict = {}
+    if description is not None:
+        sets["description"] = description.strip()[:200]
+    if name is not None:
+        name = name.strip()
+        if not 3 <= len(name) <= 24:
+            raise ApiError("INVALID_ALLIANCE_NAME", "Name must be 3–24 characters", 400)
+        if name.lower() != a["name_lc"] and await db().alliances.find_one({"world_id": a["world_id"], "status": "ACTIVE", "name_lc": name.lower()}):
+            raise ApiError("ALLIANCE_NAME_TAKEN", "Name already used in this world", 409)
+        sets["name"] = name
+        sets["name_lc"] = name.lower()
+    if not sets:
+        return {"ok": True}
+    await db().alliances.update_one({"_id": a["_id"]}, {"$set": sets})
+    if "name" in sets:
+        await db().players.update_many({"alliance_id": a["_id"]}, {"$set": {"alliance_name": sets["name"]}})
+        await db().alliance_invites.update_many({"alliance_id": a["_id"], "status": "PENDING"}, {"$set": {"alliance_name": sets["name"]}})
+        await db().mercenary_contracts.update_many({"client_alliance_id": a["_id"]}, {"$set": {"client_name": sets["name"]}})
+        await db().mercenary_contracts.update_many({"provider_alliance_id": a["_id"]}, {"$set": {"provider_name": sets["name"]}})
+        await db().mercenary_contracts.update_many({"target_alliance_id": a["_id"]}, {"$set": {"target_name": sets["name"]}})
+        await _chat_system(a, f"L'alleanza si chiama ora {sets['name']}")
+    return {"ok": True, **sets}
 
 
 async def dissolve(a: dict, actor: dict) -> dict:

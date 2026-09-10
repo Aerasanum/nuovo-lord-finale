@@ -14,5 +14,5 @@ export function useGame() {
     if (activeId && activeId !== settlementId) selectSettlement(activeId);
   }, [activeId, settlementId, selectSettlement]);
   const settlement = useSettlement(worldId, activeId);
-  return { worldId, settlementId: activeId, me, player: me.data?.player, world: me.data?.world, settlements, settlement, unread: me.data?.unread_inbox ?? 0 };
+  return { worldId, settlementId: activeId, me, player: me.data?.player, world: me.data?.world, settlements, settlement, unread: me.data?.unread_inbox ?? 0, rubies: (me.data?.rubies ?? 0) as number };
 }

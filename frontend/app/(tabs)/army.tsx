@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UnitEntry } from "@/src/api/hooks";
 import { useArmy, useSettlementMutations } from "@/src/api/hooks";
+import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
@@ -146,6 +147,7 @@ export default function ArmyScreen() {
                     {u.job.target} {u.job.produced_so_far}/{u.job.count}
                   </T>
                   <Countdown endsAt={u.job.ends_at} />
+                  <FinishNowButton job={u.job} />
                   <Pressable onPress={() => m.cancelJob.mutateAsync(u.job!.job_id).catch(showError)} testID={`unit-${u.name}-cancel`}>
                     <Icon name="close-circle-outline" size={20} color={colors.muted} />
                   </Pressable>

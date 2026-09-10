@@ -162,6 +162,7 @@ export function AllianceSummary() {
         <Button title={t("treasury")} icon="diamond-stone" variant="secondary" style={s.navBtn} disabled={!can("treasury")} onPress={() => router.push("/alliance/treasury")} testID="alliance-nav-treasury" />
         <Button title={t("mercenaries")} icon="sword" variant="secondary" style={s.navBtn} onPress={() => router.push("/alliance/mercenary")} testID="alliance-nav-mercenary" />
         <Button title={t("allianceDirectory")} icon="magnify" variant="secondary" style={s.navBtn} onPress={() => router.push("/alliance/browse")} testID="alliance-nav-browse" />
+        {can("alliance_settings") ? <Button title={t("allianceSettings")} icon="cog-outline" variant="secondary" style={s.navBtn} onPress={() => router.push("/alliance/settings")} testID="alliance-nav-settings" /> : null}
       </View>
     </View>
   );

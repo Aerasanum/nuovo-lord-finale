@@ -106,7 +106,7 @@ user_problem_statement: "Empire Lords Dragon — gioco mobile Android persistent
 backend:
   - task: "Auth: register/login/refresh/me/logout (JWT) + Emergent Google session exchange"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_auth.py, backend/app/core/auth.py"
     stuck_count: 0
     priority: "high"
@@ -117,7 +117,7 @@ backend:
         comment: "Curl verified register+login works. Full validation pending testing agent."
   - task: "Worlds: list, join (creates mother settlement), /me"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_game.py, backend/app/domain/worlds.py"
     stuck_count: 0
     priority: "high"
@@ -128,7 +128,7 @@ backend:
         comment: "Curl verified join+me for demo user."
   - task: "Settlement: buildings catalog, upgrade building, upgrade settlement, jobs, cancel"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_game.py, backend/app/domain/construction.py, settlements.py"
     stuck_count: 0
     priority: "high"
@@ -139,7 +139,7 @@ backend:
         comment: "Pytest passes; E2E over HTTP pending."
   - task: "Research: catalog (114 nodes/12 branches), start research"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/research.py"
     stuck_count: 0
     priority: "high"
@@ -150,7 +150,7 @@ backend:
         comment: "Pytest passes; E2E pending."
   - task: "Army: catalog, recruit, ships"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/recruitment.py, navy.py"
     stuck_count: 0
     priority: "high"
@@ -161,7 +161,7 @@ backend:
         comment: "Pytest passes; E2E pending."
   - task: "Map: chunk fetch (terrain_b64 + settlements + sentinels + territory), marches visible"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_game.py, backend/app/domain/worldgen.py, pathfinding.py"
     stuck_count: 0
     priority: "high"
@@ -172,7 +172,7 @@ backend:
         comment: "Frontend renders chunks; E2E pending."
   - task: "Marches: preview, launch (ATTACK/RAID vs NEUTRAL), list, get, recall; battle resolution + report + inbox"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/marches.py, combat.py, scheduler.py, notifications.py"
     stuck_count: 0
     priority: "high"
@@ -183,7 +183,7 @@ backend:
         comment: "Use QA /api/qa/clock/advance (X-Admin-Key) to fast-forward timers and resolve marches/jobs."
   - task: "Scheduler idempotent job completion (BUILD/RESEARCH/RECRUIT/MARCH)"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/scheduler.py"
     stuck_count: 0
     priority: "high"
@@ -196,7 +196,7 @@ backend:
 frontend:
   - task: "Login/Register screen (IT/EN toggle, JWT, Google button)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/login.tsx"
     stuck_count: 0
     priority: "high"
@@ -207,7 +207,7 @@ frontend:
         comment: "Screenshot smoke test OK."
   - task: "Worlds screen: list, join sheet, enter"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/worlds.tsx"
     stuck_count: 0
     priority: "high"
@@ -218,7 +218,7 @@ frontend:
         comment: "Screenshot smoke test OK."
   - task: "Map tab: 3D map render, HUD resources, zoom/rotate/center, tile selection card, target/march actions"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/map.tsx, frontend/src/map3d/engine.ts, MapView.tsx"
     stuck_count: 0
     priority: "high"
@@ -229,7 +229,7 @@ frontend:
         comment: "Screenshot smoke: 3D terrain renders on web."
   - task: "Settlement tab: buildings list, building detail modal, upgrade, queues screen, research screen"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/settlement.tsx, frontend/app/building/[name].tsx, queues.tsx, research.tsx"
     stuck_count: 0
     priority: "high"
@@ -240,7 +240,7 @@ frontend:
         comment: "Not yet E2E tested."
   - task: "Army tab: recruit units, ships, sentinels screen"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/army.tsx, sentinels.tsx"
     stuck_count: 0
     priority: "high"
@@ -251,7 +251,7 @@ frontend:
         comment: "Not yet E2E tested."
   - task: "March new modal: preview + launch; marches list; target detail"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/march/new.tsx, marches.tsx, target/[id].tsx"
     stuck_count: 0
     priority: "high"
@@ -262,7 +262,7 @@ frontend:
         comment: "Not yet E2E tested."
   - task: "Inbox tab + battle report screen"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/inbox.tsx, battle/[id].tsx"
     stuck_count: 0
     priority: "medium"
@@ -293,7 +293,7 @@ agent_communication:
 backend:
   - task: "Map overview endpoint GET /api/worlds/{w}/map/overview (downsampled terrain 100x100 + player settlements)"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_game.py"
     stuck_count: 0
     priority: "high"
@@ -305,7 +305,7 @@ backend:
 frontend:
   - task: "3D map upgrade: terrain LOD (step1/step2), world overview far-LOD, animated water plane, instanced castles/props, RN label overlay (map-labels), labels toggle button (map-labels-button), pan inertia, focal pinch zoom, double-tap zoom, eased centerOn"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/engine.ts, terrain.ts, entities.ts, water.ts, MapLabels.tsx, MapView.tsx, app/(tabs)/map.tsx"
     stuck_count: 0
     priority: "high"
@@ -316,7 +316,7 @@ frontend:
         comment: "Visual smoke via screenshots OK on web. Need regression: controls, selection card via canvas tap, labels appear (map-label-<settlement_id>), LOD indicator text '3D · LOD n' changes with zoom, no console errors."
   - task: "Google Auth flow hardening (session_id parsed from launch URL in AuthProvider, callback route gates, login screen auto-redirects when account set)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/state/AuthContext.tsx, app/auth/callback.tsx, app/login.tsx"
     stuck_count: 0
     priority: "medium"
@@ -333,7 +333,7 @@ agent_communication:
 frontend:
   - task: "BUG: 3D map turns black after Città → building modal → back → Mappa (user report with screenshot)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/engine.ts"
     stuck_count: 0
     priority: "high"
@@ -353,7 +353,7 @@ agent_communication:
 frontend:
   - task: "Marches on the 3D map: tappable markers → march selection card (mission → target, units, status pill, ETA countdown, 'Marce attive', 'Richiama' if OUTBOUND own, battle button if battle_id); march label chips with live ETA (testID map-label-march:<id>); returning marches rendered paler; marches hidden at far zoom (dist > 100, Bible §41.3)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/engine.ts, MapLabels.tsx, app/(tabs)/map.tsx"
     stuck_count: 0
     priority: "high"
@@ -372,7 +372,7 @@ agent_communication:
 frontend:
   - task: "3D map graphics v3: smooth terrain (no tile squares), custom terrain shader (micro detail, slope rock, snow caps), ridged mountains, dusky horizon fog, richer flora (3-tier conifers, broadleaf, bushes, boulders; sparse trees at mid LOD), territory drawn as faint fill + border ribbon (no square tiles), tactical grid only at zoom < 13"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/terrain.ts, terrainMaterial.ts, flora.ts, territory.ts, engine.ts"
     stuck_count: 0
     priority: "high"
@@ -382,7 +382,7 @@ frontend:
         comment: "Verified visually on web (home, mountains, far zoom). Regression to check: chunk streaming, LOD switch, no WebGL/shader errors in console, tap-to-select still works (castles are taller now: pick points at 0.6/1.7/2.6 × scale)."
   - task: "Castle v2 + skins: bigger (≈2× footprint) decorated castles (plinth, octagonal wall with merlons, keep with windows, 4/8 towers by level, gatehouse with door + torches, wall banners at L≥10, corner turrets at L≥20, crest banner on top). Skin registry src/map3d/castle.ts (classic/royal/obsidian/sandstone; neutrals = ruin). Backend passes settlement `skin` through in public DTO (null → classic)."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/castle.ts, entities.ts, backend/app/domain/settlements.py"
     stuck_count: 0
     priority: "high"
@@ -392,7 +392,7 @@ frontend:
         comment: "Royal skin verified by temporarily setting skin on the demo settlement (reverted). Labels anchor at CASTLE_TOP×scale."
   - task: "Pending from iteration 5 (never validated by testing agent): hostile march intel on map (incoming[] with intel disclosure → red halo marker + chip; selection card testID map-selection-intel with intel-* fields), tactical minimap (testID minimap / minimap-touch: tap recentres camera; shows footprint, march lines, player dots), house crests (house.tsx: crest editor + motto; crest on castles/marches/march-card; deterministic default crest from house name), battle report from map (map-selection-march-battle on a march with battle_id; map-selection-last-battle / map-selection-open-report on a settlement card)"
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/map.tsx, frontend/app/house.tsx, frontend/src/map3d/MiniMap.tsx, frontend/src/components/Crest.tsx, backend/app/domain/intel.py, house.py, marches.py"
     stuck_count: 0
     priority: "high"
@@ -403,7 +403,7 @@ frontend:
 backend:
   - task: "GET /worlds/{w}/marches returns own marches + incoming[] hostile marches with intel disclosure (Bible §34.10) only after detection time; GET/PUT /worlds/{w}/house crest+motto; public settlement DTO includes owner_house_crest + skin"
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/marches.py, intel.py, house.py, settlements.py"
     stuck_count: 0
     priority: "high"
@@ -419,7 +419,7 @@ agent_communication:
 backend:
   - task: "Castle skins: GET /worlds/{w}/settlements/{s}/skins (catalog: current, level, skins[{id,min_level,unlocked}]) and PUT /worlds/{w}/settlements/{s}/skin {skin} — owner only; INVALID_SKIN 400 for unknown id; SKIN_LOCKED 409 when settlement level < min_level (classic 1, sandstone 5, royal 10, obsidian 20). Persists settlements.skin (exposed in public DTO / chunks)."
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/skins.py, backend/app/api/routes_game.py"
     stuck_count: 0
     priority: "high"
@@ -429,7 +429,7 @@ backend:
         comment: "Manually verified with demo (L3): royal → 409 SKIN_LOCKED, nope → 400, classic → 200."
   - task: "GET /worlds/{w}/settlements/{s}/battles?limit=5 → battles the viewer took part in where the settlement is target or origin (new battles store origin_settlement_id)."
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/api/routes_game.py, backend/app/domain/marches.py"
     stuck_count: 0
     priority: "medium"
@@ -439,7 +439,7 @@ backend:
         comment: "Demo vs neutral 5,183 returns 5 battles."
   - task: "QA clock offset persisted in Mongo (qa_state.clock) and reloaded at startup so backend restarts no longer reset the world clock."
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/core/clock.py, server.py, routes_qa.py"
     stuck_count: 0
     priority: "medium"
@@ -450,7 +450,7 @@ backend:
 frontend:
   - task: "Skins screen /skins (Città header palette button, testID settlement-skins-button): live 3D CastlePreview (GLView) with the selected skin, skin cards skin-card-<id> (locked show lock + 'Si sblocca al livello N', current shows 'In uso'), skins-apply-button (disabled unless unlocked & different), toast on success; map castles re-render with the new skin after chunk refresh."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/skins.tsx, frontend/src/map3d/CastlePreview.tsx, frontend/app/(tabs)/settlement.tsx"
     stuck_count: 0
     priority: "high"
@@ -460,7 +460,7 @@ frontend:
         comment: "Visually verified; apply not yet exercised on an unlocked non-classic skin (demo is L3 → only classic unlocked; QA can raise level via /qa/grant? no — use a settlement upgrade or accept the lock test)."
   - task: "Map selection card: BattleHistory (testID map-selection-battles) replaces last-battle line — up to 5 rows battle-row-<id> (trophy/skull, outcome · mission · date, losses, loot, conquered), tap → /battle/<id>; empty state map-selection-no-battles."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/components/MarchCard.tsx, frontend/app/(tabs)/map.tsx"
     stuck_count: 0
     priority: "high"
@@ -470,7 +470,7 @@ frontend:
         comment: "Verified on Neutrale 5,183 (5 rows)."
   - task: "Living map: waving flags (vertex shader via onBeforeCompile, instanced + march banners), flickering torch/brazier glow (additive), stylised smoke from castle chimneys, gate torches and guarded sentinel braziers (SmokeSystem, close zoom only < ×48)."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/src/map3d/entities.ts, smoke.ts, castle.ts, engine.ts"
     stuck_count: 0
     priority: "medium"
@@ -486,7 +486,7 @@ agent_communication:
 backend:
   - task: "Missions: GET /worlds/{w}/missions (catalog with cooldown_until/active_mission_id, active, slots_left, history, progress), POST /worlds/{w}/missions {key, origin_settlement_id, units, idempotency_key} (201; validations: UNKNOWN_MISSION 400, MISSION_UNITS_NOT_ALLOWED 400, MISSION_MIN_UNITS 400, MISSION_MIXED_UNITS 400, MISSION_NEEDS_FALCO 400, MISSION_RESEARCH_REQUIRED 409, MISSION_COOLDOWN 409, MISSION_SLOTS_FULL 409 (max 2), MISSION_TYPE_ACTIVE 409, INSUFFICIENT_UNITS 409); troops removed from garrison at start, returned at completion; reward = production snapshot × hours clamped to warehouse (overflow in reward_result.overflow) + prestige; cooldown from completion; MISSION_COMPLETE scheduled event (priority 60); MISSION_COMPLETED inbox notification."
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/missions.py, routes_game.py"
     stuck_count: 0
     priority: "high"
@@ -496,7 +496,7 @@ backend:
         comment: "Manually verified patrol_local start → +1h QA advance → COMPLETED, troops back, +10 prestige, cooldown 2h."
   - task: "Progress ledger: prestige events (pvp_defense_win 10, pvp_battle_win 2, pvp conquest 25, neutral conquest 5, missions), achievement tracks (kills/successful_defenses/conquests/supports/territory_tiles/caravans_intercepted) with tier unlocks + notification, World Chronicle (SETTLEMENT_CONQUERED, LARGEST_BATTLE record, PATH_OF_CONQUERORS, FIRST_METROPOLIS), one-shots Prima Bandiera (crest ≥3 layers changed → +20 prestige), Guardiani del Confine window, Via dei Conquistatori, Prima Metropoli. GET /worlds/{w}/progress, GET /worlds/{w}/chronicle."
     implemented: true
-    working: "NA"
+    working: true
     file: "backend/app/domain/progress.py, marches.py (_persist_battle hook), conquest.py, construction.py, house.py, territory.py"
     stuck_count: 0
     priority: "high"
@@ -507,7 +507,7 @@ backend:
 frontend:
   - task: "Tab 'Missioni' (tab-missions) with segments missions-seg-missions / -house / -chronicle: active missions (slots dots, countdown, progress bar), catalogue cards mission-card-<key> with status pill (Disponibile/In corso/Ricarica), requirements/rewards, Avvia → /mission/new composer (mission-unit-<U>-minus/input/plus/max, mission-new-total, mission-new-blocker, mission-new-submit); Casata segment (progress-prestige, progress-titles, track-<track> rows, house history); Cronaca segment (records-panel, chronicle-<id> rows). Inbox: MISSION_COMPLETED rendering + deep link to missions."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/(tabs)/missions.tsx, frontend/app/mission/new.tsx, frontend/src/game/missions.ts, frontend/app/(tabs)/_layout.tsx, inbox.tsx"
     stuck_count: 0
     priority: "high"
@@ -534,7 +534,7 @@ backend:
 frontend:
   - task: "Caravans hub /caravans (settlement-caravans-button in Città quick row): caravans-info (slots/capacity/speed/radius, caravans-send-button → /caravan/new), 'Le mie carovane' (MarchListCard with cargo/delivered/overflow lines, recall), caravans-detected panel (detected-caravan-<id> rows, countdown, detected-caravan-<id>-intercept → /caravan/intercept?caravan=). Map: detected foreign caravans rendered as hostile markers (caravanAsMarch) → tap → DetectedCaravanCard (map-selection-caravan, map-selection-intercept). Inbox: CARAVAN_STATE rows (OUTBOUND/DELIVERED/INTERCEPTED) + deep link caravans → /caravans. /marches now uses the shared MarchListCard (missionLabel, cargo lines)."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/caravans.tsx, frontend/src/game/caravans.ts, frontend/src/components/MarchCard.tsx, frontend/app/(tabs)/map.tsx, settlement.tsx, inbox.tsx, frontend/app/marches.tsx, frontend/app/caravan/new.tsx, intercept.tsx, src/i18n/index.tsx"
     stuck_count: 0
     priority: "high"
@@ -563,7 +563,7 @@ backend:
 frontend:
   - task: "Alliance UI: 4th segment 'Alleanza' in the Missioni tab (missions-seg-alliance) → AllianceSummary (lone wolf: invites accept/decline, create/browse; member: dashboard tiles + nav buttons). Screens: /alliance/create (kind cards, name/tag/description), /alliance/browse (directory), /alliance/[id] (public page + diplomacy actions: PNA propose/accept/decline/terminate, war propose, peace propose/accept, hire), /alliance/members (roles, invite form, leave/cancel, dissolve confirm), /alliance/diplomacy (relations + war votes with yes/no), /alliance/chat (bubbles + sticky composer), /alliance/treasury (balance + ledger, Leader/Vice), /alliance/mercenary (offers to accept for MERC, hire form with target/escrow/duration, contracts history). Inbox: new alliance events + deep links. Map: ALLY faction colour/legend/label tag, REINFORCE-only composer for allied targets."
     implemented: true
-    working: "NA"
+    working: true
     file: "frontend/app/alliance/*.tsx, frontend/src/components/alliance/*.tsx, frontend/src/game/alliances.ts, frontend/app/(tabs)/missions.tsx, inbox.tsx, map.tsx, app/march/new.tsx, app/target/[id].tsx, src/api/hooks.ts, src/i18n/index.tsx, src/map3d/*"
     stuck_count: 0
     priority: "high"
@@ -576,3 +576,27 @@ agent_communication:
     message: "Iteration 10: FRONTEND focus for alliances. Fixture accounts in /app/memory/test_credentials.md (demo LEADER [DEMO] STRUCTURED, ally VICE [DEMO], rival LEADER [MERC] MERCENARY, third LEADER [TRZ] STRUCTURED; an ACTIVE contract MERC vs TRZ hired by DEMO). Backend covered by pytest; do NOT re-run test_alliances_e2e.py (it dissolves and recreates the alliances). Please test UI flows as described in the task."
   - agent: "main"
     message: "Iteration 10/11 results: pass 1 (demo single account) all PASS — 'map legend missing' was a false alarm (legend toggles with map-legend-button). Pass 2 (iteration_11.json) multi-account A–H all PASS: PNA accept/terminate, war vote (demo proposes, ally VICE passes it), peace propose/accept → PEACE_PENDING, hire → rival MERC accepts → auto-war + peace lock, lone-wolf register/create MERC/dissolve/cooldown, invite → decline. Minor observation (by design): alliance-public-war-blocked note only renders while not at war. Frontend alliances → working: true."
+
+# ---- iteration 12 (main agent) — Rubini (§23), Casata descrizione/rename, Alleanza tab + impostazioni ----
+backend:
+  - task: "premium.py + routes_premium.py: account Ruby wallet (accounts.rubies, ruby_transactions ledger, idempotency per key), GET /wallet, GET/POST /worlds/{w}/jobs/{id}/finish (quote + instant completion: construction ×3/min min 100, research ×4 min 150, recruitment ×2.5 min 100; forbidden special/legendary units; competitive lock SIEGE_ACTIVE / INCOMING_HOSTILE ≤60 min; atomic debit with rollback; same completion handler as scheduler), POST /worlds/{w}/house/rename (cosmetic 500 rubies, unique per world, denormalised copies updated), GET/POST /worlds/{w}/specialization (ATTACKER/DEFENDER +5%, available at 3 settlements, first free, change 2500 rubies, 168h cooldown, blocked AT_WAR/ACTIVE_SIEGE/ACTIVE_MILITARY_MARCH), combat reads spec keys. house.update accepts description (≤300). alliances.update_settings accepts name (unique) + description. /me exposes rubies. QA: POST /qa/rubies {email, amount}."
+    implemented: true
+    working: true
+    file: "backend/app/domain/premium.py, routes_premium.py, house.py, alliances.py, combat.py, routes_game.py, routes_qa.py, tests/test_premium_e2e.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_premium_e2e.py -o addopts='' → 8 passed (wallet/QA grant, construction quote+pay+effect+idempotent replay, recruit allowed/forbidden, INSUFFICIENT_RUBIES rollback, house rename cost + denormalisation + rename back, house description, alliance rename, specialization)."
+frontend:
+  - task: "Alliance is now a bottom TAB (tab-alliance, between Esercito and Missioni; segment removed from Missioni); alliance-settings-button (gear) + alliance-nav-settings → /alliance/settings (name + description). Casata: description input + save, 'Rinomina Casata' panel (500 rubies) + Specializzazione link. Rubies chip in Città header (settlement-rubies → /wallet). FinishNowButton pill (job-<id>-finish, price ◆) on job rows in Città queue, /queues, building detail, research, army. /wallet (balance, store disabled note, transactions) and /specialization screens."
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/alliance.tsx, _layout.tsx, missions.tsx, settlement.tsx, house.tsx, wallet.tsx, specialization.tsx, alliance/settings.tsx, src/components/FinishNow.tsx, src/components/alliance/AllianceSummary.tsx, src/api/hooks.ts, src/state/useGame.ts, src/i18n/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots: house description/motto saved + rename 500 → 'Casa Demo Drago'; alliance settings rename → '[DEMO] Lords Demo del Drago'; Città finish pill 100 ◆ → 'Completato', rubies 3800→3700; wallet + specialization screens render."

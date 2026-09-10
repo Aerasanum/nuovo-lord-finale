@@ -125,7 +125,7 @@ export type CrestDto = {
   colors: { base: string; primary: string; secondary: string; border: string };
 };
 
-export type HouseDto = { house_name: string; motto: string | null; crest: CrestDto; prestige: number; history: unknown[] };
+export type HouseDto = { house_name: string; motto: string | null; description: string | null; crest: CrestDto; prestige: number; history: unknown[] };
 export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[] };
 
 /** Bible §34.10 disclosure — only the fields the intel tier reveals are non-null. */
@@ -381,7 +381,7 @@ export function useHouse(worldId?: string | null) {
 export function useHouseMutations(worldId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { motto?: string | null; crest?: CrestDto }) => put<{ house: HouseDto }>(`/worlds/${worldId}/house`, body),
+    mutationFn: (body: { motto?: string | null; crest?: CrestDto; description?: string | null }) => put<{ house: HouseDto }>(`/worlds/${worldId}/house`, body),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.house(worldId) });
       qc.invalidateQueries({ queryKey: qk.me(worldId) });
@@ -553,7 +553,7 @@ export function useAllianceMutations(worldId: string) {
     cancelLeave: useMutation({ mutationFn: () => post(`${w}/alliance/leave/cancel`), onSuccess: invalidate }),
     setRole: useMutation({ mutationFn: (v: { player_id: string; role: AllianceRole }) => post(`${w}/alliance/members/${v.player_id}/role`, { role: v.role }), onSuccess: invalidate }),
     kick: useMutation({ mutationFn: (player_id: string) => api(`${w}/alliance/members/${player_id}`, { method: "DELETE" }), onSuccess: invalidate }),
-    settings: useMutation({ mutationFn: (body: { description: string }) => put(`${w}/alliance/settings`, body), onSuccess: invalidate }),
+    settings: useMutation({ mutationFn: (body: { description?: string; name?: string }) => put(`${w}/alliance/settings`, body), onSuccess: invalidate }),
     dissolve: useMutation({ mutationFn: () => post(`${w}/alliance/dissolve`), onSuccess: invalidate }),
     diplomacy: useMutation({ mutationFn: (v: { other_id: string; action: DiplomacyAction }) => post<RelationDto | VoteDto>(`${w}/alliance/diplomacy/${v.other_id}/${v.action}`), onSuccess: invalidate }),
     vote: useMutation({ mutationFn: (v: { vote_id: string; yes: boolean }) => post<VoteDto>(`${w}/alliance/votes/${v.vote_id}`, { yes: v.yes }), onSuccess: invalidate }),
@@ -561,5 +561,44 @@ export function useAllianceMutations(worldId: string) {
     offer: useMutation({ mutationFn: (body: { target_alliance_id: string; emeralds: number; duration_hours: number }) => post<ContractDto>(`${w}/alliance/mercenary/offers`, body), onSuccess: invalidate }),
     acceptOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/accept`), onSuccess: invalidate }),
     withdrawOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/withdraw`), onSuccess: invalidate }),
+  };
+}
+
+
+// ---------------------------------------------------------------------------------------------- premium / rubies (Bible §23)
+export type RubyTx = { transaction_id: string; kind: string; amount: number; balance_after: number; effect: Record<string, any> | null; world_id: string | null; at: string };
+export type WalletDto = { rubies: number; store: { status: string; products: unknown[]; channels: string[] }; cosmetics: { version: string; items: Record<string, { price_rubies: number; label: string }> }; transactions: RubyTx[]; server_time: string };
+export type FinishQuote = { job_id: string; kind: string; target: string | null; allowed: boolean; reason: string | null; rubies: number; price_rubies?: number; remaining_minutes?: number; rule?: string; affordable?: boolean; lock?: { reason: string; arrival_at?: string } };
+export type SpecializationDto = { current: "ATTACKER" | "DEFENDER" | null; choices: Record<string, { bonus_pct: number; effect: string }>; available: boolean; required_settlements: number; settlement_count: number; price_rubies: number; cooldown_until: string | null; blocked: string[]; rubies: number };
+
+export const FINISH_RATES: Record<string, { min: number; perMinute: number }> = {
+  BUILDING: { min: 100, perMinute: 3.0 },
+  SETTLEMENT_UPGRADE: { min: 100, perMinute: 3.0 },
+  RESEARCH: { min: 150, perMinute: 4.0 },
+  RECRUIT: { min: 100, perMinute: 2.5 },
+};
+
+export function useWallet(enabled = true) {
+  return useQuery<WalletDto>({ queryKey: ["wallet"], queryFn: () => get("/wallet"), enabled, refetchInterval: 30000 });
+}
+export function useSpecialization(worldId?: string | null) {
+  return useQuery<SpecializationDto>({ queryKey: ["specialization", worldId], queryFn: () => get(`/worlds/${worldId}/specialization`), enabled: !!worldId });
+}
+export function usePremiumMutations(worldId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["wallet"] });
+    qc.invalidateQueries({ queryKey: ["specialization"] });
+    qc.invalidateQueries({ queryKey: qk.me(worldId) });
+    qc.invalidateQueries({ queryKey: ["settlement"] });
+    qc.invalidateQueries({ queryKey: ["army"] });
+    qc.invalidateQueries({ queryKey: ["research"] });
+    qc.invalidateQueries({ queryKey: qk.house(worldId) });
+    qc.invalidateQueries({ queryKey: ["alliance"] });
+  };
+  return {
+    finish: useMutation({ mutationFn: (job_id: string) => post<{ job: JobDto; price_rubies: number; rubies: number; replayed: boolean }>(`/worlds/${worldId}/jobs/${job_id}/finish`, { idempotency_key: idem() }), onSuccess: invalidate }),
+    rename: useMutation({ mutationFn: (house_name: string) => post<{ house: HouseDto; price_rubies: number; rubies: number }>(`/worlds/${worldId}/house/rename`, { house_name, idempotency_key: idem() }), onSuccess: invalidate }),
+    specialize: useMutation({ mutationFn: (choice: string) => post<SpecializationDto>(`/worlds/${worldId}/specialization`, { choice, idempotency_key: idem() }), onSuccess: invalidate }),
   };
 }
