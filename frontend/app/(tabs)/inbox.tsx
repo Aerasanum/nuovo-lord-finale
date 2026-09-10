@@ -22,6 +22,7 @@ const useStyles = makeStyles((c) => ({
 }));
 
 const EVENT_ICON: Record<string, IconName> = {
+  PYRAMID_STATE_CHANGED: "pyramid",
   BUILD_JOB_STATE: "hammer",
   SETTLEMENT_UPGRADE_STATE: "castle",
   RESEARCH_JOB_STATE: "flask",
@@ -110,6 +111,8 @@ export default function InboxScreen() {
         if (p.state === "INTERCEPTED") return `${t("caravanIntercepted")} · ${t("losses")} ${formatNumber(cargoTotal(p.lost))}${cargoTotal(p.returning) > 0 ? ` · ${t("caravanReturning")} ${formatNumber(cargoTotal(p.returning))}` : ""}`;
         return `${t("caravan")} → ${p.target_name ?? ""} · ${cargoLine(p.cargo, lang) || "—"}`;
       }
+      case "PYRAMID_STATE_CHANGED":
+        return `${t("pyramid")} · ${t(`pyrState_${p.state}` as any)}${p.owner_tag ? ` · [${p.owner_tag}]` : ""}${p.deadline ? ` · ${new Date(p.deadline).toLocaleString(lang)}` : ""}`;
       default:
         return JSON.stringify(p).slice(0, 80);
     }
@@ -119,6 +122,7 @@ export default function InboxScreen() {
     if (!n.read_at) mut.read.mutate(n.notification_id);
     if ((n.event === "BATTLE_REPORT_READY" || n.event === "BATTLE_RESOLVED") && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
     else if (n.deep_link?.startsWith("battle/")) router.push({ pathname: "/battle/[id]", params: { id: n.deep_link.slice("battle/".length) } });
+    else if (n.deep_link?.startsWith("pyramid")) router.push("/pyramid");
     else if (n.deep_link?.startsWith("research")) router.push("/research");
     else if (n.deep_link?.startsWith("caravans")) router.push("/caravans");
     else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");

@@ -4,7 +4,7 @@ import { PixelRatio, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { get, serverNow } from "@/src/api/client";
-import type { ChunkDto, MarchDto, OverviewDto } from "@/src/api/hooks";
+import type { ChunkDto, MarchDto, OverviewDto, PyramidDto } from "@/src/api/hooks";
 import { useTheme } from "@/src/theme";
 
 import { MapEngine, MapLabel, Selection, setEngineServerOffset } from "./engine";
@@ -14,6 +14,7 @@ type Props = {
   worldId: string;
   home?: { x: number; y: number } | null;
   marches?: MarchDto[];
+  pyramid?: PyramidDto | null;
   onSelect: (sel: Selection | null) => void;
   onEngine?: (engine: MapEngine | null) => void;
   onCameraChange?: (cam: { tx: number; tz: number; dist: number }) => void;
@@ -21,7 +22,7 @@ type Props = {
   showLabels?: boolean;
 };
 
-export function MapView3D({ worldId, home, marches, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true }: Props) {
+export function MapView3D({ worldId, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true }: Props) {
   const { colors } = useTheme();
   const engineRef = useRef<MapEngine | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
@@ -68,6 +69,7 @@ export function MapView3D({ worldId, home, marches, onSelect, onEngine, onCamera
         centeredRef.current = true;
       }
       if (marches) engine.setMarches(marches);
+      if (pyramid) engine.setPyramid(pyramid);
       onEngine?.(engine);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,6 +90,10 @@ export function MapView3D({ worldId, home, marches, onSelect, onEngine, onCamera
     setEngineServerOffset(serverNow() - Date.now());
     engineRef.current?.setMarches(marches ?? []);
   }, [marches]);
+
+  useEffect(() => {
+    engineRef.current?.setPyramid(pyramid ?? null);
+  }, [pyramid]);
 
   useEffect(() => {
     if (refreshToken) {

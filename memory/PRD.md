@@ -115,14 +115,23 @@ frontend/
 - [x] UX: **Alleanza è un tab** della barra inferiore (accanto a Esercito), impostazioni alleanza (nome unico + descrizione) per il Leader; schermate `/wallet`, `/specialization`
 - Nota: nella Bibbia le missioni personali generano **Smeraldi** per l'alleanza (+5 prima missione/giorno per membro, solo Strutturate) — non Rubini; i Rubini sono solo da acquisto (catalogo vuoto) o QA
 
+### Piramide endgame — iteration_13 (Bibbia §21 / §31.7 / §34.8 / §39.2, spec.pyramid) — pytest `tests/test_pyramid_e2e.py` 8/8
+- [x] Backend `domain/pyramid.py`: macchina a stati per mondo (collezione `pyramid`, `_id`=world_id) DORMANT_INITIAL → OPEN → REWARD_LOCK → DORMANT → OPEN…, eventi `PYRAMID_STATE_DEADLINE` con `scheduled_at` persistiti (`deadline_key` scarta gli eventi stantii), `epoch` per chiave anti-collisione dei reset QA
+- [x] **Configurazione modulare**: default da spec.pyramid + override per mondo `worlds.pyramid_config` (`GET/PUT /api/qa/pyramid/config`, `POST /api/qa/pyramid/reset {clear_config, config}`) — durate, giorno di apertura, cap presidio, % premi, Smeraldi, Prestigio, Guardiano; un cambio ricalcola la scadenza pendente dagli anchor persistiti (`_reschedule`)
+- [x] Guardiano ad ogni OPEN: top-10 development_score → mediana max legal march power (cap Sala di Guerra × 11,35) → clamp 250k–1,5M → 45/35/20 Fanteria/Arciere/Cavalleria
+- [x] Marce `target_pyramid` (ATTACK solo Strutturate/OPEN/non owner; REINFORCE solo owner, cap 1M): battaglia vs presidio (`defender_kind PYRAMID`), sopravvissuti = presidio (`garrison_by_player`), perdite ripartite per contributore, cambio owner azzera l'hold, partecipazione +500 Smeraldi/alleanza/ciclo + Prestigio +50 + sigillo bronzo
+- [x] Hold completato → REWARD_LOCK: snapshot membri (`players.pyramid_reward` + denormalizzato sugli insediamenti), +8% produzione / +5% ricerca / +5% addestramento / +10% cap carovane (formule `extra_pct`, non nel cap ricerca), titolo "Signore della Piramide", sigillo oro, Prestigio +250, +2000 Smeraldi, Cronaca `PYRAMID_WON`; REWARD_LOCK → DORMANT: presidio torna a casa con marce reali (`PYRAMID_RELEASED`); scioglimento alleanza → neutralizzata
+- [x] `GET /worlds/{w}/pyramid` (stato, countdown, owner/hold, presidio — composizione solo se neutrale o propria —, battaglie recenti dell'epoca, attacchi in arrivo per l'owner, `me.*`, config, storico); notifiche `PYRAMID_STATE_CHANGED` (deep link `pyramid`)
+- [x] Frontend: monumento 3D 15×15 a (200,200) (`map3d/pyramid.ts`, aspetto per stato/fazione, braciere+pilastro di luce in OPEN), label mappa con countdown, tap → scheda con azioni, pulsante "centra sulla Piramide", schermata `/pyramid`, `march/new?pyramid=1`, tile nel tab Alleanza, inbox
+- world_1 demo: override `first_open_day: 1` → Piramide OPEN con Guardiano spec (22k unità)
+
 ### Prossimi (P2)
+- [ ] Eliminazione per 120 giorni di inattività, cap Leggendario
 - [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)
 - [ ] Verifica Google Auth con flusso reale su dispositivo (Expo Go / build)
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)
 
-### Backlog (P2/P3)
-- [ ] Evento Piramide al centro mappa (§21) — apre/chiude su timer, NON termina il server
-- [ ] Eliminazione per 120 giorni di inattività, cap Leggendario
+### Backlog (P3)
 - [ ] Santuario Mitico + Unicorno (§12), cinematiche d'attacco skippabili (draghi/falchi)
 - [ ] Metadata Google Play / Android App Bundle
 

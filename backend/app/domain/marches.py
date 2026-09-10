@@ -34,6 +34,7 @@ def dto(m: dict) -> dict:
         "origin_settlement_id": m["origin_settlement_id"],
         "target_settlement_id": m.get("target_settlement_id"),
         "target_sentinel_id": m.get("target_sentinel_id"),
+        "target_pyramid": bool(m.get("target_pyramid")),
         "target_name": m.get("target_name"),
         "target_xy": m.get("target_xy"),
         "mission": m["mission"],
@@ -145,7 +146,7 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
     }
 
 
-async def launch(world: dict, player: dict, origin: dict, mission: str, units: dict[str, int], target_settlement_id: str | None, target_sentinel_id: str | None, idempotency_key: str | None, naval: bool = False, ships: int = 0) -> dict:
+async def launch(world: dict, player: dict, origin: dict, mission: str, units: dict[str, int], target_settlement_id: str | None, target_sentinel_id: str | None, idempotency_key: str | None, naval: bool = False, ships: int = 0, target_pyramid: bool = False) -> dict:
     spec = get_spec()
     if idempotency_key:
         existing = await db().marches.find_one({"world_id": world["_id"], "player_id": player["_id"], "idempotency_key": idempotency_key})
@@ -170,7 +171,17 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     # ---- target resolution + revalidation at launch ----
     target_doc = None
     sentinel_doc = None
-    if target_sentinel_id:
+    if target_pyramid:
+        # Pyramid endgame (Bible §21): legality (OPEN, Structured Alliance, mission vs owner) is validated in its domain
+        from app.domain import pyramid
+
+        pyr_doc, _ = await pyramid.validate_launch(world, player, mission)
+        tx, ty = (pyr_doc.get("config_snapshot") or pyramid.config(world))["anchor"]
+        target_terrain = spec.terrain_name(int((await load_terrain(world["_id"]))[ty, tx]))
+        target_name = pyramid.NAME
+        if naval:
+            raise ApiError("INVALID_TARGET", "The Pyramid is a land target", 400)
+    elif target_sentinel_id:
         sentinel_doc = await db().sentinels.find_one({"_id": target_sentinel_id, "world_id": world["_id"], "state": {"$ne": "REMOVED"}})
         if not sentinel_doc:
             raise ApiError("SENTINEL_NOT_FOUND", "Sentinel not found", 404)
@@ -286,6 +297,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "origin_xy": [origin["x"], origin["y"]],
         "target_settlement_id": target_doc["_id"] if target_doc else None,
         "target_sentinel_id": sentinel_doc["_id"] if sentinel_doc else None,
+        "target_pyramid": bool(target_pyramid),
         "target_xy": [tx, ty],
         "target_name": target_name,
         "target_terrain": target_terrain,
@@ -315,7 +327,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         idx = intel.entry_index(march["path"], tiles)
         detect_at = intel.detection_time(now, eta, len(march["path"]), idx)
         await scheduler.schedule(world["_id"], "NOTIFICATION_ONLY", detect_at, march["_id"], f"hostile_detected:{march['_id']}", {"kind": "HOSTILE_MARCH_DETECTED", "march_id": march["_id"], "defender_player_id": defender_id})
-    await notifications.notify(world["_id"], player["_id"], "MARCH_DEPARTED", {"march_id": march["_id"], "mission_type": mission, "target_id": target_doc["_id"] if target_doc else sentinel_doc["_id"], "target_name": target_name, "eta": clock.iso(arrival), "own_composition": units}, dedupe_key=f"march_departed:{march['_id']}", deep_link="map/march")
+    await notifications.notify(world["_id"], player["_id"], "MARCH_DEPARTED", {"march_id": march["_id"], "mission_type": mission, "target_id": target_doc["_id"] if target_doc else (sentinel_doc["_id"] if sentinel_doc else "pyramid"), "target_name": target_name, "eta": clock.iso(arrival), "own_composition": units}, dedupe_key=f"march_departed:{march['_id']}", deep_link="map/march")
     return march
 
 
@@ -383,6 +395,11 @@ async def on_arrival(evt: dict) -> None:
         from app.domain import caravans
 
         await caravans.on_intercept_arrival(march)
+        return
+    if march.get("target_pyramid"):
+        from app.domain import pyramid
+
+        await pyramid.on_arrival(march)
         return
 
     # ---- sentinel targets ----

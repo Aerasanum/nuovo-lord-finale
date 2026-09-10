@@ -155,6 +155,7 @@ export type MarchDto = {
   origin_settlement_id: string | null;
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
+  target_pyramid?: boolean;
   target_name: string;
   target_xy?: [number, number] | null;
   mission: string;
@@ -488,6 +489,7 @@ export function useMarchMutations(worldId: string) {
     qc.invalidateQueries({ queryKey: ["settlement", worldId] });
     qc.invalidateQueries({ queryKey: ["army", worldId] });
     qc.invalidateQueries({ queryKey: qk.inbox(worldId) });
+    qc.invalidateQueries({ queryKey: ["pyramid", worldId] });
   };
   const launch = useMutation({ mutationFn: (body: any) => post(`/worlds/${worldId}/marches`, { ...body, idempotency_key: idem() }), onSettled: invalidate });
   const preview = useMutation({ mutationFn: (body: any) => post(`/worlds/${worldId}/marches/preview`, body) });
@@ -564,6 +566,44 @@ export function useAllianceMutations(worldId: string) {
   };
 }
 
+
+// ---------------------------------------------------------------------------------------------- pyramid (Bible §21)
+export type PyramidState = "DORMANT_INITIAL" | "OPEN" | "REWARD_LOCK" | "DORMANT";
+export type PyramidBattle = { battle_id: string; at: string; attacker_house_name: string | null; attacker_alliance_tag: string | null; defender_alliance_tag: string | null; winner: "ATTACKER" | "DEFENDER" | null; captured: boolean; attacker_losses: number; defender_losses: number; mine: boolean };
+export type PyramidHistoryEntry = { cycle_id: number; alliance_id: string; tag: string; name: string; member_count: number; won_at: string | null; reward_until: string | null };
+export type PyramidReward = { production_pct: number; research_pct: number; training_pct: number; caravan_capacity_pct: number; until: string | null; cycle_id: number | null; tag: string | null };
+export type PyramidDto = {
+  world_id: string;
+  name: string;
+  anchor: [number, number];
+  footprint: [number, number];
+  state: PyramidState;
+  cycle_id: number;
+  state_since: string | null;
+  deadline: string | null;
+  opens_at: string | null;
+  lock_until: string | null;
+  dormant_until: string | null;
+  owner: { alliance_id: string; tag: string | null; name: string | null } | null;
+  faction: "OWN" | "ENEMY" | "NEUTRAL";
+  hold: { started_at: string | null; deadline: string | null; hours: number; progress: number } | null;
+  garrison_total: number;
+  garrison: Record<string, number> | null;
+  garrison_cap: number;
+  guardian: { target_power: number | null; unit_count: number | null; sample_size: number | null } | null;
+  participants: number;
+  winner: { cycle_id: number; alliance_id: string; tag: string; name: string; member_count: number; won_at: string | null; reward_until: string | null } | null;
+  history: PyramidHistoryEntry[];
+  recent_battles: PyramidBattle[];
+  incoming: { march_id: string; house_name: string | null; arrival_at: string | null; units_total: number }[];
+  me: { alliance_id: string | null; alliance_kind: AllianceKind | null; eligible: boolean; is_owner: boolean; can_attack: boolean; can_reinforce: boolean; participated: boolean; my_garrison: Record<string, number>; reward: PyramidReward | null };
+  config: { first_open_day: number; hold_hours: number; reward_days: number; dormant_days: number; garrison_cap_units: number; reward: Record<string, number>; emeralds: { participation: number; victory: number }; prestige: { participation: number; victory: number }; title: string };
+  server_time: string;
+};
+
+export function usePyramid(worldId?: string | null) {
+  return useQuery<PyramidDto>({ queryKey: ["pyramid", worldId], queryFn: () => get(`/worlds/${worldId}/pyramid`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+}
 
 // ---------------------------------------------------------------------------------------------- premium / rubies (Bible §23)
 export type RubyTx = { transaction_id: string; kind: string; amount: number; balance_after: number; effect: Record<string, any> | null; world_id: string | null; at: string };

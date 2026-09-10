@@ -16,6 +16,7 @@ from app.core.errors import ApiError
 from app.core.spec import get_spec
 from app.domain import alliances, combat, economy, formulas as F, intel, notifications, progress, scheduler, territory
 from app.domain.pathfinding import astar, load_terrain
+from app.domain.pyramid_reward import bonus_pct
 
 BUILDING = "Caravanserraglio"
 UNLOCK_RESEARCH = "logistics.caravans_1"  # Bible §13: "richiede Carovane I"
@@ -34,11 +35,12 @@ def base_capacity(level: int) -> int:
     return 0 if level < 1 else int(round(5000 * (1.17 ** (level - 1))))
 
 
-def capacity(level: int, assigned: int, research: dict) -> int:
+def capacity(level: int, assigned: int, research: dict, extra_pct: float = 0.0) -> int:
+    """extra_pct: Pyramid reward window (+caravan capacity, Bible §21) — multiplicative, outside the research cap."""
     bonus, cap = F.research_metric(research, "caravan_capacity")
     if cap is not None:
         bonus = min(bonus, cap)
-    return int(math.floor(base_capacity(level) * assigned * (1 + bonus)))
+    return int(math.floor(base_capacity(level) * assigned * (1 + bonus) * (1 + max(0.0, float(extra_pct)) / 100.0)))
 
 
 def speed_tph(escort: dict[str, int], research: dict) -> float:
@@ -66,13 +68,15 @@ def info(origin: dict) -> dict:
     research = origin.get("research", {})
     lvl = int(origin["buildings"].get(BUILDING, 0))
     per = caravans_per_march(lvl)
+    pyr = bonus_pct(origin)["caravan_capacity_pct"]
     return {
         "unlocked": F.rget(research, UNLOCK_RESEARCH) >= 1,
         "research_unlock_key": UNLOCK_RESEARCH,
         "caravanserai_level": lvl,
         "caravans_per_march": per,
-        "capacity_per_caravan": capacity(lvl, 1, research) if lvl else 0,
-        "max_capacity": capacity(lvl, per, research) if lvl else 0,
+        "capacity_per_caravan": capacity(lvl, 1, research, pyr) if lvl else 0,
+        "max_capacity": capacity(lvl, per, research, pyr) if lvl else 0,
+        "pyramid_capacity_bonus_pct": pyr,
         "unescorted_speed_tph": round(speed_tph({}, research), 3),
         "max_outgoing": int(get_spec().marches["caravan_outgoing_max_per_settlement"]),
         "interception_unlocked": F.rget(research, INTERCEPT_RESEARCH) >= 1,
@@ -100,7 +104,7 @@ async def send(world: dict, player: dict, origin: dict, target_id: str, cargo: d
     total = sum(cargo.values())
     if total <= 0:
         raise ApiError("EMPTY_CARGO", "Load at least one resource", 400)
-    cap = capacity(lvl, assigned, research)
+    cap = capacity(lvl, assigned, research, bonus_pct(origin)["caravan_capacity_pct"])
     if total > cap:
         raise ApiError("CARAVAN_CAPACITY_EXCEEDED", "Cargo exceeds convoy capacity", 409, {"capacity": cap, "cargo": total})
     escort = {u: int(c) for u, c in (escort or {}).items() if int(c) > 0}

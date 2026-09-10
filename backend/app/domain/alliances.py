@@ -370,6 +370,10 @@ async def _dissolve(a: dict, reason: str) -> None:
             await _end_contract(c, "FAILED_PROVIDER_DISSOLVED")
         elif c["status"] == "ACTIVE" and c["target_alliance_id"] == a["_id"]:
             await _end_contract(c, "SUCCESS_TARGET_DISSOLVED")
+    # Pyramid (Bible §21): dissolution while holding → neutralised, timer 0, garrison goes home
+    from app.domain import pyramid  # local import: pyramid depends on alliances
+
+    await pyramid.on_alliance_dissolved(a)
 
 
 # ------------------------------------------------------------------------------------------------ diplomacy

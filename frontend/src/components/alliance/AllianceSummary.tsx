@@ -2,9 +2,10 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { View } from "react-native";
 
-import { useAllianceMutations, useMyAlliance } from "@/src/api/hooks";
+import { useAllianceMutations, useMyAlliance, usePyramid } from "@/src/api/hooks";
 import { KindBadge, RoleBadge, TagChip } from "@/src/components/alliance/common";
 import { useToast } from "@/src/components/overlay";
+import { PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
 import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -30,6 +31,7 @@ export function AllianceSummary() {
   const { worldId } = useGame();
   const q = useMyAlliance(worldId);
   const mm = useAllianceMutations(worldId ?? "");
+  const pyramid = usePyramid(worldId);
   const { show, showError } = useToast();
   if (!q.data) return <Loading />;
   const { alliance: a, invites, join_cooldown_until } = q.data;
@@ -154,6 +156,26 @@ export function AllianceSummary() {
           </Row>
         ) : null}
       </Panel>
+
+      {pyramid.data ? (
+        <Panel testID="alliance-pyramid-tile">
+          <Row>
+            <Icon name="pyramid" size={20} color={pyramid.data.faction === "OWN" ? colors.factionOwn : pyramid.data.state === "OPEN" ? colors.brandPrimary : colors.muted} />
+            <T v="heading" style={{ flex: 1 }}>
+              {pyramid.data.name}
+              {pyramid.data.owner ? ` · [${pyramid.data.owner.tag}]` : ""}
+            </T>
+            <PyramidStatePill dto={pyramid.data} />
+          </Row>
+          <T v="caption" style={{ marginTop: 4 }} numberOfLines={2}>
+            {pyramidDescription(t, pyramid.data)}
+          </T>
+          <View style={{ marginTop: spacing.sm }}>
+            <PyramidPhase dto={pyramid.data} />
+          </View>
+          <Button title={t("pyramidDetails")} icon="pyramid" variant="secondary" style={{ marginTop: spacing.sm }} onPress={() => router.push("/pyramid")} testID="alliance-pyramid-button" />
+        </Panel>
+      ) : null}
 
       <View style={s.nav}>
         <Button title={t("members")} icon="account-group" variant="secondary" style={s.navBtn} onPress={() => router.push("/alliance/members")} testID="alliance-nav-members" />

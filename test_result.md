@@ -600,3 +600,33 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Smoke screenshots: house description/motto saved + rename 500 → 'Casa Demo Drago'; alliance settings rename → '[DEMO] Lords Demo del Drago'; Città finish pill 100 ◆ → 'Completato', rubies 3800→3700; wallet + specialization screens render."
+
+# ---- iteration 13 (main agent) — Piramide endgame (Bibbia §21) ----
+backend:
+  - task: "pyramid.py: per-world cycle state machine (DORMANT_INITIAL→OPEN→REWARD_LOCK→DORMANT→OPEN), PYRAMID_STATE_DEADLINE scheduler events, configurable via spec defaults + worlds.pyramid_config override (GET/PUT /api/qa/pyramid/config, POST /api/qa/pyramid/reset), guardian snapshot, marches target_pyramid (ATTACK/REINFORCE gates), capture/hold/rewards (+8/5/5/10% windows on players+settlements, title, seals, prestige, emeralds), garrison return marches, GET /worlds/{w}/pyramid, PYRAMID_STATE_CHANGED notifications."
+    implemented: true
+    working: true
+    file: "backend/app/domain/pyramid.py, pyramid_reward.py, marches.py, alliances.py, economy.py, formulas.py, research.py, recruitment.py, caravans.py, settlements.py, conquest.py, routes_game.py, routes_qa.py, tests/test_pyramid_e2e.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_pyramid_e2e.py -o addopts='' → 8 passed (config override + open + guardian 441 units, launch gates MERCENARY/REINFORCE/RAID, preview + capture + emeralds/prestige/seal, ally reinforce + enemy repelled + loss split, hold reschedule → REWARD_LOCK rewards (+8% production verified on settlement), lock→dormant return marches + notifications, dormant→cycle 2 with history, realistic restore: world_1 OPEN with spec guardian 22k)."
+frontend:
+  - task: "3D pyramid monument at 200,200 (map3d/pyramid.ts) with state look; map label 'Piramide' + countdown; tap → map-pyramid-card (state pill, description, phase, Dettagli/Attacca/Rinforza); map-center-pyramid-button; /pyramid screen (hero, my reward, garrison, rewards, cycle timeline, battles, winners); march/new?pyramid=1 (target Piramide, missions from can_attack/can_reinforce, target_pyramid body); inbox PYRAMID_STATE_CHANGED + deep link; alliance tab pyramid tile."
+    implemented: true
+    working: true
+    file: "frontend/src/map3d/pyramid.ts, engine.ts, MapView.tsx, MapLabels.tsx, src/components/PyramidCard.tsx, app/pyramid.tsx, app/(tabs)/map.tsx, app/march/new.tsx, app/(tabs)/inbox.tsx, src/components/alliance/AllianceSummary.tsx, src/api/hooks.ts, src/i18n/index.tsx, app/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots: pyramid rendered + label 'Piramide APERTA', card with Guardiano 22.0k, /pyramid details render, march composer for Piramide (path 195 tiles, mission Attacco)."
+      - working: true
+        agent: "testing"
+        comment: "iteration_13.json: all 7 frontend flows PASS (map HUD center button + 3D monument + label, selection card, /pyramid screen values, march composer target Piramide 195 tiles, alliance tile, inbox deep link, MERCENARY not-eligible hint). No console errors."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 13: Pyramid endgame. Backend fully covered by pytest (do NOT re-run tests/test_pyramid_e2e.py — it resets the cycle; world_1 is left OPEN with the spec guardian on purpose). Please test the frontend flows (map monument + card + details + composer + alliance tile + inbox). Note: world_1 pyramid is OPEN/neutral; demo is in STRUCTURED [DEMO] (eligible), rival is MERCENARY (not eligible → hint)."

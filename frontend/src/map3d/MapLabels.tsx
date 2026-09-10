@@ -40,6 +40,18 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
           );
         }
         const isPlayer = l.kind === "PLAYER";
+        if (l.kind === "PYRAMID") {
+          const awake = l.status === "OPEN" || l.status === "REWARD_LOCK";
+          return (
+            <View key={l.id} style={[styles.chip, styles.pyramid, { left: clampX(l.x, 70, 130), top: l.y, borderColor: awake ? accent : colors.borderStrong, backgroundColor: colors.glass }]} testID="map-label-pyramid">
+              <Icon name="pyramid" size={12} color={awake ? colors.brandPrimary : colors.muted} />
+              <T numberOfLines={1} style={[styles.name, { color: colors.onSurface, fontWeight: "700" }]}>
+                {l.name}
+              </T>
+              {l.endsAt ? <Countdown endsAt={l.endsAt} style={[styles.level, { color: accent }]} /> : <T style={[styles.level, { color: accent }]}>{t(l.status === "OPEN" ? "pyramidOpenShort" : "pyramidDormantShort")}</T>}
+            </View>
+          );
+        }
         return (
           <View key={l.id} style={[styles.chip, { left: clampX(l.x, 40, 100), top: l.y, borderColor: accent, backgroundColor: colors.glass, opacity: isPlayer ? 1 : 0.82 }]} testID={`map-label-${l.id}`}>
             <T numberOfLines={1} style={[styles.name, { color: isPlayer ? colors.onSurface : colors.onSurfaceSecondary }]}>
@@ -68,6 +80,7 @@ const styles = StyleSheet.create({
     maxWidth: 140,
   },
   march: { maxWidth: 170, transform: [{ translateX: -60 }, { translateY: -46 }] },
+  pyramid: { maxWidth: 200, height: 24, transform: [{ translateX: -70 }, { translateY: -30 }] },
   name: { fontFamily: fonts.body, fontSize: 10, maxWidth: 96 },
   level: { fontFamily: fonts.body, fontSize: 10, fontWeight: "700" },
 });

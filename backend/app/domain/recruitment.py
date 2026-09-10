@@ -11,6 +11,7 @@ from app.core.errors import ApiError, insufficient_resources
 from app.core.spec import get_spec
 from app.domain import economy, notifications, scheduler
 from app.domain import formulas as F
+from app.domain.pyramid_reward import bonus_pct
 from app.domain.settlements import new_id, unit_unlocked
 
 
@@ -36,7 +37,7 @@ async def start_recruitment(doc: dict, player: dict, unit: str, count: int, idem
         unit_time = float(spec.unit_base_time_seconds(unit))  # 14 days exact, no modifiers
     else:
         cap = F.batch_cap(plevel, spec)
-        unit_time = F.unit_effective_time_seconds(unit, plevel, research, spec)
+        unit_time = F.unit_effective_time_seconds(unit, plevel, research, spec, pyramid_training_bonus_pct=bonus_pct(doc)["training_pct"])
     if count > cap:
         raise ApiError("BATCH_CAP_EXCEEDED", "Batch exceeds producer cap", 409, {"cap": cap})
     unit_cost = spec.unit_cost(unit)

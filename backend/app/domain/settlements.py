@@ -11,6 +11,7 @@ from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec
 from app.domain import formulas as F
+from app.domain.pyramid_reward import bonus_pct
 
 CHUNK = 32
 
@@ -312,7 +313,7 @@ def research_catalog(doc: dict, jobs: list[dict]) -> list[dict]:
         else:
             entry["state"] = "AVAILABLE"
         if cur < int(n["max_level"]):
-            q = F.research_cost_time(n["cost_class"], cur + 1, research, spec)
+            q = F.research_cost_time(n["cost_class"], cur + 1, research, spec, speed_bonus_pct=bonus_pct(doc)["research_pct"])
             entry["next"] = {"level": cur + 1, **q}
             missing = {r: q["cost"][r] - int(doc["resources"].get(r, 0)) for r in F.RES if int(doc["resources"].get(r, 0)) < q["cost"][r]}
             entry["missing"] = missing
@@ -351,7 +352,7 @@ def unit_catalog(doc: dict, jobs: list[dict]) -> list[dict]:
             entry["effective_time_s"] = spec.unit_base_time_seconds(name)
         else:
             entry["batch_cap"] = F.batch_cap(plevel, spec) if plevel else 0
-            entry["effective_time_s"] = F.unit_effective_time_seconds(name, plevel, research, spec) if plevel else None
+            entry["effective_time_s"] = F.unit_effective_time_seconds(name, plevel, research, spec, pyramid_training_bonus_pct=bonus_pct(doc)["training_pct"]) if plevel else None
         if producer in rjobs:
             entry["state"] = "IN_PROGRESS" if rjobs[producer]["target"] == name else "BLOCKED_QUEUE"
             entry["job"] = job_dto(rjobs[producer])
@@ -405,8 +406,9 @@ async def owner_dto(doc: dict, player: dict) -> dict:
     spec = get_spec()
     jobs = await running_jobs(doc["_id"])
     owned = int(player.get("settlement_count", 1))
+    pyr = bonus_pct(doc)
     rates = {
-        "production_per_h": F.production_per_hour(doc["buildings"], doc.get("research", {}), spec),
+        "production_per_h": F.production_per_hour(doc["buildings"], doc.get("research", {}), spec, extra_pct=pyr["production_pct"]),
         "warehouse_capacity": F.warehouse_capacity(doc["buildings"], doc.get("research", {}), spec),
     }
     wall = F.wall_stats(int(doc["buildings"].get("Mura", 0)), doc.get("research", {}), spec)
@@ -425,6 +427,7 @@ async def owner_dto(doc: dict, player: dict) -> dict:
         "wall": {**doc.get("wall", {}), "defense_bonus_pct": wall["defense_bonus_pct"], "static_damage": round(wall["static_damage"], 2)},
         "loyalty": int(doc.get("loyalty", 100)),
         "development_score": F.development_score(int(doc["level"]), doc["buildings"], doc.get("research", {})),
+        "pyramid_reward": {**pyr, "until": clock.iso((doc.get("pyramid_reward") or {}).get("until"))} if any(pyr.values()) else None,
         "march_capacity": F.war_hall_cap(wh, doc.get("research", {}), "ATTACK", spec),
         "outgoing_marches": out_marches,
         "outgoing_cap": int(spec.marches["outgoing_per_settlement"]),

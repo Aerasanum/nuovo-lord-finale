@@ -12,11 +12,12 @@
 import type { ExpoWebGLRenderingContext } from "expo-gl";
 import * as THREE from "three";
 
-import type { ChunkDto, MarchDto, OverviewDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
+import type { ChunkDto, MarchDto, OverviewDto, PyramidDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
 import type { ThemeColors } from "@/src/theme";
 
 import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlementScale } from "./entities";
 import { FloraFactory } from "./flora";
+import { PYRAMID_HALF, PYRAMID_TOP, PyramidMonument } from "./pyramid";
 import { type SmokeEmitter, SmokeSystem } from "./smoke";
 import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
 import { createTerrainMaterial } from "./terrainMaterial";
@@ -31,7 +32,7 @@ const OV_PER_CHUNK = CHUNK / OV_FACTOR;
 const OV_SIZE = WORLD / OV_FACTOR;
 const OV_SCALE_Y = 1.2;
 
-export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto };
+export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidDto };
 export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string };
 
 type EngineOpts = {
@@ -72,6 +73,7 @@ const PIN_ZOOM = 70;
 const MARCH_LOD_DIST = 100; // Bible §41.3: marches are a mid-zoom detail; far zoom shows settlements/territory only
 const MARCH_LABEL_DIST = 60;
 const SMOKE_DIST = 48; // chimney / torch smoke is a close-up detail
+const PYRAMID_XY: [number, number] = [200, 200]; // spec.world.pyramid_anchor (server DTO confirms it)
 
 function hexToColor(hex: string): THREE.Color {
   return new THREE.Color(hex);
@@ -97,6 +99,7 @@ function blockedTiles(data: ChunkDto): Set<number> {
   };
   for (const s of data.settlements) mark(s.x, s.y, s.kind === "PLAYER_SLOT" ? 0 : s.level >= 10 ? 2 : 1);
   for (const s of data.sentinels) mark(s.x, s.y, 0);
+  mark(PYRAMID_XY[0], PYRAMID_XY[1], Math.ceil(PYRAMID_HALF) + 1); // Pyramid plateau stays clear of flora (Bible §21)
   return out;
 }
 
@@ -121,6 +124,9 @@ export class MapEngine {
   private marchGroup = new THREE.Group();
   private marchMarkers: { march: MarchDto; marker: THREE.Object3D; line: THREE.Line }[] = [];
   private selected: Selection | null = null;
+  private selScale = 1;
+  private pyramid: PyramidMonument;
+  private pyramidDto: PyramidDto | null = null;
   private selectionRing: THREE.Mesh;
   private homeBeacon: THREE.Mesh;
   private palette: TerrainPalette & EntityPalette & { bg: THREE.Color; horizon: THREE.Color };
@@ -222,6 +228,10 @@ export class MapEngine {
     this.homeBeacon.rotation.x = -Math.PI / 2;
     this.homeBeacon.visible = false;
     this.scene.add(this.homeBeacon);
+
+    this.pyramid = new PyramidMonument({ own: this.palette.own, enemy: this.palette.enemy, neutral: this.palette.neutral });
+    this.scene.add(this.pyramid.group);
+    this.placePyramid();
 
     this.scene.add(this.marchGroup);
     this.minimap = this.createMinimap();
@@ -352,13 +362,23 @@ export class MapEngine {
       if (v.z > 1) return Infinity;
       return Math.hypot(((v.x + 1) / 2) * this.width - px, ((1 - v.y) / 2) * this.height - py);
     };
-    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number } | null = null;
+    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: boolean } | null = null;
     // marches first: they move over the terrain and are the most time-critical thing to inspect
     if (this.marchGroup.visible) {
       for (const mm of this.marchMarkers) {
         const p = mm.marker.position;
         const d = Math.min(screenDist(p.x, p.y + 0.6, p.z), screenDist(p.x, p.y + 1.3, p.z));
         if (d < TOUCH_PX && (!best || d < best.d)) best = { d, m: mm.march, mx: p.x, mz: p.z };
+      }
+    }
+    // the Pyramid is a 15×15 monument: pick on its apex/body or on any footprint tile
+    {
+      const py = this.pyramid.group.position.y;
+      const dp = Math.min(screenDist(PYRAMID_XY[0] + 0.5, py + PYRAMID_TOP, PYRAMID_XY[1] + 0.5), screenDist(PYRAMID_XY[0] + 0.5, py + PYRAMID_TOP * 0.5, PYRAMID_XY[1] + 0.5));
+      const inside = Math.abs(hit.x - (PYRAMID_XY[0] + 0.5)) <= PYRAMID_HALF && Math.abs(hit.z - (PYRAMID_XY[1] + 0.5)) <= PYRAMID_HALF;
+      if (inside || dp < TOUCH_PX * 1.6) {
+        const d = inside ? TOUCH_PX * 0.9 : dp; // a march marker tapped directly still wins
+        if (!best || d < best.d) best = { d, pyr: true };
       }
     }
     const consider = (list: SettlementPublic[]) => {
@@ -379,8 +399,9 @@ export class MapEngine {
       }
     }
     if (!best && this.overview) consider(this.overview.data.settlements);
-    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number } | null;
+    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: boolean } | null;
     if (b?.m) this.select({ x: Math.floor(b.mx!), y: Math.floor(b.mz!), march: b.m });
+    else if (b?.pyr) this.select({ x: PYRAMID_XY[0], y: PYRAMID_XY[1], pyramid: this.pyramidDto ?? undefined });
     else if (b?.s) this.select({ x: b.s.x, y: b.s.y, settlement: b.s });
     else if (b?.sen) this.select({ x: b.sen.x, y: b.sen.y, sentinel: b.sen });
     else this.select({ x: tx, y: tz });
@@ -388,12 +409,29 @@ export class MapEngine {
 
   select(sel: Selection | null) {
     this.selected = sel;
+    const isPyr = !!sel && sel.x === PYRAMID_XY[0] && sel.y === PYRAMID_XY[1] && !sel.march && !sel.settlement && !sel.sentinel;
+    if (sel && isPyr && !sel.pyramid && this.pyramidDto) sel.pyramid = this.pyramidDto;
+    this.selScale = isPyr ? (PYRAMID_HALF + 1.9) / 0.8 : 1;
     if (sel) {
       this.selectionRing.position.set(sel.x + 0.5, this.heightAt(sel.x, sel.y) + 0.06, sel.y + 0.5);
       this.selectionRing.visible = true;
     } else this.selectionRing.visible = false;
     this.dirty = true;
     this.opts.onSelect(sel);
+  }
+
+  /** Pyramid cycle state from the server → monument look + label; the anchor is fixed (spec.world.pyramid_anchor). */
+  setPyramid(dto: PyramidDto | null) {
+    this.pyramidDto = dto;
+    this.pyramid.setLook({ state: dto?.state ?? "DORMANT_INITIAL", faction: dto?.faction ?? "NEUTRAL" });
+    if (this.selected?.pyramid && dto) this.select({ ...this.selected, pyramid: dto });
+    this.dirty = true;
+    this.labelsDirty = true;
+  }
+
+  private placePyramid() {
+    this.pyramid.group.position.set(PYRAMID_XY[0] + 0.5, this.heightAt(PYRAMID_XY[0], PYRAMID_XY[1]), PYRAMID_XY[1] + 0.5);
+    this.dirty = true;
   }
 
   setMarches(marches: MarchDto[]) {
@@ -463,6 +501,7 @@ export class MapEngine {
     }
     disposeGroup(this.minimap.scene);
     this.smoke.dispose();
+    this.pyramid.dispose();
     this.renderer.dispose();
   }
 
@@ -540,6 +579,11 @@ export class MapEngine {
       if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
       mm.statics.add(dots);
     }
+    const pyrGeo = new THREE.CircleGeometry(9, 4);
+    pyrGeo.rotateX(-Math.PI / 2);
+    const pyr = new THREE.Mesh(pyrGeo, new THREE.MeshBasicMaterial({ color: this.palette.own.clone().offsetHSL(0, 0.1, 0.15) }));
+    pyr.position.set(PYRAMID_XY[0] + 0.5, 1.2, PYRAMID_XY[1] + 0.5);
+    mm.statics.add(pyr);
   }
 
   private updateMinimapMarches(marches: MarchDto[]) {
@@ -662,6 +706,7 @@ export class MapEngine {
         }
         this.rebuildPins();
         this.buildMinimapStatics();
+        this.placePyramid();
         if (this.homeBeacon.visible) this.setHome(Math.floor(this.homeBeacon.position.x), Math.floor(this.homeBeacon.position.z));
         this.dirty = true;
         this.labelsDirty = true;
@@ -851,6 +896,7 @@ export class MapEngine {
     this.scene.add(group);
     const node: ChunkNode = { key, cx: data.cx, cy: data.cy, group, terrain: [null, null], flora, territory, entities, emitters, data, lastUsed: now, lod: -1 };
     this.chunks.set(key, node);
+    if (data.cx === Math.floor(PYRAMID_XY[0] / CHUNK) && data.cy === Math.floor(PYRAMID_XY[1] / CHUNK)) this.placePyramid();
     this.applyLod(node, this.chunkDistance(data.cx, data.cy));
     // neighbours share corner heights: rebuild their terrain so seams close
     for (const [dx, dy] of [
@@ -952,6 +998,16 @@ export class MapEngine {
       }
     }
     if (this.overview) for (const s of this.overview.data.settlements) push(s);
+    {
+      const d = this.pyramidDto;
+      v.set(PYRAMID_XY[0] + 0.5, this.pyramid.group.position.y + PYRAMID_TOP + 0.6, PYRAMID_XY[1] + 0.5).project(this.camera);
+      if (!(v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1)) {
+        out.push({
+          d: -2000, // the monument always keeps its label
+          label: { id: "pyramid", x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, name: d?.owner?.tag ? `${d.name} [${d.owner.tag}]` : d?.name ?? "Piramide", level: 0, faction: d?.faction ?? "NEUTRAL", kind: "PYRAMID", status: d?.state ?? "DORMANT_INITIAL", endsAt: d?.deadline ?? null },
+        });
+      }
+    }
     if (this.marchGroup.visible && this.cam.dist < MARCH_LABEL_DIST) {
       for (const { march, marker } of this.marchMarkers) {
         v.copy(marker.position).setY(marker.position.y + 1.7).project(this.camera);
@@ -1061,8 +1117,9 @@ export class MapEngine {
     const t = (now - this.startedAt) / 1000;
     this.water.update(t);
     this.factory.tick(t);
+    this.pyramid.tick(t);
     this.animateSmoke(t);
-    this.selectionRing.scale.setScalar(1 + 0.08 * Math.sin(t * 3.2));
+    this.selectionRing.scale.setScalar(this.selScale * (1 + 0.08 * Math.sin(t * 3.2)));
     this.homeBeacon.scale.setScalar(1 + 0.12 * Math.sin(t * 2.1));
     (this.homeBeacon.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 2.1));
     if (this.marchMarkers.length) this.animateMarches(now + serverOffset());

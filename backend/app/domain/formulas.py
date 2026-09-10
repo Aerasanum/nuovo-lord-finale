@@ -72,7 +72,8 @@ def capped_metric(research: dict[str, int], metric: str, default_cap: float | No
 
 
 # --------------------------------------------------------------------------- economy
-def production_per_hour(buildings: dict[str, int], research: dict[str, int], spec: Spec | None = None) -> dict[str, float]:
+def production_per_hour(buildings: dict[str, int], research: dict[str, int], spec: Spec | None = None, extra_pct: float = 0.0) -> dict[str, float]:
+    """extra_pct: additive-free multiplicative window bonus (Pyramid reward, Bible §21) — never part of the research cap."""
     spec = spec or get_spec()
     producer = {
         "grain": "Fattoria",
@@ -87,7 +88,7 @@ def production_per_hour(buildings: dict[str, int], research: dict[str, int], spe
         lvl = int(buildings.get(bname, 0))
         base = float(spec.economy[lvl][f"{res}_per_h"]) if lvl > 0 else 0.0
         bonus = capped_metric(research, f"production.{res}", cap)
-        out[res] = base * (1.0 + bonus)
+        out[res] = base * (1.0 + bonus) * (1.0 + max(0.0, float(extra_pct)) / 100.0)
     return out
 
 
@@ -149,12 +150,12 @@ def construction_cost_time(
     }
 
 
-def research_cost_time(cost_class: str, level: int, research: dict[str, int], spec: Spec | None = None) -> dict:
+def research_cost_time(cost_class: str, level: int, research: dict[str, int], spec: Spec | None = None, speed_bonus_pct: float = 0.0) -> dict:
     spec = spec or get_spec()
     cost, base_min = spec.research_cost(cost_class, level)
     reduction = capped_metric(research, "research_time_reduction", 0.35)
-    minutes = max(1, ceil_int(base_min * (1.0 - reduction)))
-    return {"cost": cost, "base_time_min": base_min, "duration_min": minutes, "research_time_reduction": reduction}
+    minutes = max(1, ceil_int(base_min * (1.0 - reduction) / (1.0 + max(0.0, float(speed_bonus_pct)) / 100.0)))
+    return {"cost": cost, "base_time_min": base_min, "duration_min": minutes, "research_time_reduction": reduction, "pyramid_bonus_pct": float(speed_bonus_pct)}
 
 
 # --------------------------------------------------------------------------- recruitment
@@ -166,11 +167,12 @@ def training_time_multiplier(producer_level: int) -> float:
     return 1.0 / (1.0 + 0.04 * (max(1, producer_level) - 1))
 
 
-def unit_effective_time_seconds(unit: str, producer_level: int, research: dict[str, int], spec: Spec | None = None) -> float:
+def unit_effective_time_seconds(unit: str, producer_level: int, research: dict[str, int], spec: Spec | None = None, pyramid_training_bonus_pct: float = 0.0) -> float:
+    """Bible §31.4: base × 1/(1+0,04(L-1)) / (1 + training_research_bonus + pyramid_training_bonus)."""
     spec = spec or get_spec()
     base = spec.unit_base_time_seconds(unit)
     bonus = research_metric(research, "recruitment_throughput", spec)[0]
-    return max(1.0, base * training_time_multiplier(producer_level) / (1.0 + bonus))
+    return max(1.0, base * training_time_multiplier(producer_level) / (1.0 + bonus + max(0.0, float(pyramid_training_bonus_pct)) / 100.0))
 
 
 def war_hall_cap(war_hall_level: int, research: dict[str, int], mission: str, spec: Spec | None = None) -> int:

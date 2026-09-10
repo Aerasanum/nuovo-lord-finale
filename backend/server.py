@@ -15,7 +15,7 @@ from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
-from app.domain import conquest, construction, marches, missions, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
+from app.domain import conquest, construction, marches, missions, pyramid, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
 from app.domain.research import validate_dag
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
     worker = None
     if config.WORLD_AUTO_CREATE:
         asyncio.create_task(worlds.ensure_default_world())
+    asyncio.create_task(pyramid.bootstrap())  # Pyramid cycle state + first deadline for every OPEN world (Bible §21)
     if config.SCHEDULER_ENABLED:
         worker = asyncio.create_task(scheduler.worker_loop(stop))
     try:

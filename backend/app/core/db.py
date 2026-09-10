@@ -65,6 +65,8 @@ async def ensure_indexes() -> None:
     )
 
     await d.battles.create_index([("world_id", ASCENDING), ("participants", ASCENDING), ("created_at", DESCENDING)])
+    await d.battles.create_index([("world_id", ASCENDING), ("target_pyramid", ASCENDING), ("created_at", DESCENDING)])
+    await d.marches.create_index([("world_id", ASCENDING), ("target_pyramid", ASCENDING), ("status", ASCENDING)])
     await d.inbox.create_index([("world_id", ASCENDING), ("player_id", ASCENDING), ("created_at_utc", DESCENDING)])
     await d.inbox.create_index("event_id", unique=True)
 

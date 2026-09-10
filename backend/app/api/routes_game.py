@@ -12,7 +12,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, house, marches, missions, navy, notifications, progress, recruitment, research, scheduler, sentinels, skins, worlds
+from app.domain import alliances, caravans, construction, economy, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -444,11 +444,20 @@ async def settlement_public(world_id: str, settlement_id: str, c: Ctx = Depends(
     return d
 
 
+# --------------------------------------------------------------------------- pyramid (Bible §21)
+@router.get("/worlds/{world_id}/pyramid")
+async def pyramid_status(world_id: str, c: Ctx = Depends(ctx)):
+    """Cycle state, deadlines, owner/hold, garrison (composition only when neutral or held by the viewer's Alliance),
+    recent battles, the viewer's eligibility/reward window and the effective (configurable) cycle parameters."""
+    return await pyramid.status(c.world, c.player)
+
+
 # --------------------------------------------------------------------------- marches
 class MarchIn(IdemIn):
     origin_settlement_id: str
     target_settlement_id: str | None = None
     target_sentinel_id: str | None = None
+    target_pyramid: bool = False
     mission: str
     units: dict[str, int]
     naval: bool = False
@@ -458,7 +467,11 @@ class MarchIn(IdemIn):
 @router.post("/worlds/{world_id}/marches/preview")
 async def march_preview(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
     origin = await get_owned_settlement(world_id, body.origin_settlement_id, c.player["_id"])
-    if body.target_sentinel_id:
+    if body.target_pyramid:
+        ax, ay = pyramid.config(c.world)["anchor"]
+        grid = await __import__("app.domain.pathfinding", fromlist=["load_terrain"]).load_terrain(world_id)
+        target = {"x": ax, "y": ay, "terrain": get_spec().terrain_name(int(grid[ay, ax]))}
+    elif body.target_sentinel_id:
         s = await db().sentinels.find_one({"_id": body.target_sentinel_id, "world_id": world_id})
         if not s:
             raise not_found("sentinel", body.target_sentinel_id)
@@ -474,7 +487,7 @@ async def march_preview(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
 @router.post("/worlds/{world_id}/marches")
 async def march_launch(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
     origin = await _fresh_settlement(world_id, body.origin_settlement_id, c.player["_id"])
-    m = await marches.launch(c.world, c.player, origin, body.mission, body.units, body.target_settlement_id, body.target_sentinel_id, body.idempotency_key, naval=body.naval, ships=body.ships)
+    m = await marches.launch(c.world, c.player, origin, body.mission, body.units, body.target_settlement_id, body.target_sentinel_id, body.idempotency_key, naval=body.naval, ships=body.ships, target_pyramid=body.target_pyramid)
     return {"march": marches.dto(m)}
 
 
@@ -514,6 +527,9 @@ def _battle_dto(b: dict) -> dict:
         "target_settlement_id": b.get("target_settlement_id"),
         "target_sentinel_id": b.get("target_sentinel_id"),
         "target_caravan_id": b.get("target_caravan_id"),
+        "target_pyramid": bool(b.get("target_pyramid")),
+        "attacker_alliance_tag": b.get("attacker_alliance_tag"),
+        "defender_alliance_tag": b.get("defender_alliance_tag"),
         "origin_settlement_id": b.get("origin_settlement_id"),
         "target_name": b.get("target_name"),
         "target_xy": b.get("target_xy"),

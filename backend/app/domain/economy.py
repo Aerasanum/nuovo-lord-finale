@@ -7,6 +7,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.spec import get_spec
 from app.domain import formulas as F
+from app.domain.pyramid_reward import bonus_pct
 
 
 def snapshot_rates(doc: dict) -> dict:
@@ -14,7 +15,7 @@ def snapshot_rates(doc: dict) -> dict:
     buildings = doc.get("buildings", {})
     research = doc.get("research", {})
     return {
-        "production_per_h": F.production_per_hour(buildings, research, spec),
+        "production_per_h": F.production_per_hour(buildings, research, spec, extra_pct=bonus_pct(doc)["production_pct"]),
         "warehouse_capacity": F.warehouse_capacity(buildings, research, spec),
     }
 

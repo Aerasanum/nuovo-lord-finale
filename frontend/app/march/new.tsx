@@ -4,7 +4,7 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useArmy, useMarchMutations, usePublicSettlement } from "@/src/api/hooks";
+import { useArmy, useMarchMutations, usePublicSettlement, usePyramid } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
@@ -29,13 +29,16 @@ export default function MarchComposer() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { target, sentinel } = useLocalSearchParams<{ target?: string; sentinel?: string }>();
+  const params = useLocalSearchParams<{ target?: string; sentinel?: string; pyramid?: string; mission?: string }>();
+  const { target, sentinel } = params;
+  const isPyramid = params.pyramid === "1";
   const { worldId, settlementId, settlement } = useGame();
   const army = useArmy(worldId, settlementId);
   const pub = usePublicSettlement(worldId, target);
+  const pyr = usePyramid(isPyramid ? worldId : null);
   const mm = useMarchMutations(worldId ?? "");
   const { showError, show } = useToast();
-  const [mission, setMission] = useState<string>(sentinel ? "GARRISON_SENTINEL" : "ATTACK");
+  const [mission, setMission] = useState<string>(sentinel ? "GARRISON_SENTINEL" : isPyramid ? (params.mission === "REINFORCE" ? "REINFORCE" : "ATTACK") : "ATTACK");
   const [units, setUnits] = useState<Record<string, number>>({});
   const [preview, setPreview] = useState<any>(null);
   const friendly = pub.data?.faction === "OWN" || pub.data?.faction === "ALLY";
@@ -46,10 +49,10 @@ export default function MarchComposer() {
   const available = army.data?.army ?? {};
   const totalUnits = Object.values(units).reduce((a, c) => a + c, 0);
   const cap = settlement.data?.march_capacity ?? 0;
-  const body = useMemo(() => ({ origin_settlement_id: settlementId, target_settlement_id: target ?? null, target_sentinel_id: sentinel ?? null, mission, units }), [settlementId, target, sentinel, mission, units]);
+  const body = useMemo(() => ({ origin_settlement_id: settlementId, target_settlement_id: target ?? null, target_sentinel_id: sentinel ?? null, target_pyramid: isPyramid, mission, units }), [settlementId, target, sentinel, isPyramid, mission, units]);
 
   useEffect(() => {
-    if (!settlementId || (!target && !sentinel)) return;
+    if (!settlementId || (!target && !sentinel && !isPyramid)) return;
     const h = setTimeout(() => {
       mm.preview
         .mutateAsync(body)
@@ -57,7 +60,7 @@ export default function MarchComposer() {
         .catch((e) => setPreview({ error: e }));
     }, 300);
     return () => clearTimeout(h);
-  }, [body, settlementId, target, sentinel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [body, settlementId, target, sentinel, isPyramid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!worldId || !settlementId) return null;
   const setUnit = (u: string, v: number) => setUnits((prev) => ({ ...prev, [u]: Math.max(0, Math.min(available[u] ?? 0, v)) }));
@@ -71,7 +74,9 @@ export default function MarchComposer() {
     }
   };
   const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce"), GARRISON_SENTINEL: t("missionGarrison") })[m] ?? m;
-  const targetName = pub.data?.name ?? (sentinel ? `${t("sentinels")}` : "…");
+  const targetName = isPyramid ? (pyr.data?.name ?? t("pyramid")) : (pub.data?.name ?? (sentinel ? `${t("sentinels")}` : "…"));
+  // Pyramid (Bible §21): ATTACK while another Alliance/the Guardian holds it, REINFORCE only while ours holds it
+  const pyramidMissions = pyr.data ? ([pyr.data.me.can_reinforce ? "REINFORCE" : null, pyr.data.me.can_attack ? "ATTACK" : null].filter(Boolean) as string[]) : [];
   const canLaunch = totalUnits > 0 && !!preview && !preview.error && !mm.launch.isPending && totalUnits <= cap;
 
   return (
@@ -88,17 +93,20 @@ export default function MarchComposer() {
         <Panel testID="march-target">
           <Row style={{ justifyContent: "space-between" }}>
             <Row>
-              <Icon name="target" size={20} color={colors.brandPrimary} />
+              <Icon name={isPyramid ? "pyramid" : "target"} size={20} color={colors.brandPrimary} />
               <View>
-                <T v="heading">{targetName}</T>
+                <T v="heading" testID="march-target-name">
+                  {targetName}
+                </T>
                 <T v="caption">
                   {pub.data ? `${pub.data.faction} · L${pub.data.level} · ${pub.data.terrain} (+${pub.data.terrain_defender_bonus_pct}%)` : ""}
                   {pub.data?.garrison_total != null ? ` · ${t("garrison")} ${formatNumber(pub.data.garrison_total)}` : ""}
+                  {pyr.data ? `${pyr.data.owner ? `[${pyr.data.owner.tag}]` : t("pyramidGuardian")} · ${t("pyramidGarrison")} ${formatNumber(pyr.data.garrison_total)}` : ""}
                 </T>
               </View>
             </Row>
             <T v="caption">
-              {settlement.data?.name} → {pub.data ? `${pub.data.x},${pub.data.y}` : ""}
+              {settlement.data?.name} → {pub.data ? `${pub.data.x},${pub.data.y}` : pyr.data ? `${pyr.data.anchor[0]},${pyr.data.anchor[1]}` : ""}
             </T>
           </Row>
         </Panel>
@@ -106,7 +114,7 @@ export default function MarchComposer() {
         {!sentinel ? (
           <View style={cs.row}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[cs.content, { paddingHorizontal: 0 }]}>
-              {MISSIONS.filter((m) => (friendly ? m === "REINFORCE" : m !== "REINFORCE")).map((m) => (
+              {(isPyramid ? pyramidMissions : MISSIONS.filter((m) => (friendly ? m === "REINFORCE" : m !== "REINFORCE"))).map((m) => (
                 <Chip key={m} label={missionLabel(m)} selected={mission === m} onPress={() => setMission(m)} testID={`march-mission-${m}`} />
               ))}
             </ScrollView>

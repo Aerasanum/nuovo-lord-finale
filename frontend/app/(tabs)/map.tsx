@@ -4,10 +4,11 @@ import { Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useCaravanSearch, useMarches, useMarchMutations, useSettlementBattles } from "@/src/api/hooks";
+import { useCaravanSearch, useMarches, useMarchMutations, usePyramid, useSettlementBattles } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
+import { PyramidActions, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
 import { Button, CostRow, Icon, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, useI18n } from "@/src/i18n";
@@ -47,6 +48,7 @@ export default function MapScreen() {
   const { worldId, settlementId, settlement, settlements, player } = useGame();
   const marches = useMarches(worldId);
   const caravanSearch = useCaravanSearch(worldId, settlementId);
+  const pyramid = usePyramid(worldId);
   const marchMut = useMarchMutations(worldId ?? "");
   const { showError } = useToast();
   const engineRef = useRef<MapEngine | null>(null);
@@ -66,6 +68,7 @@ export default function MapScreen() {
   );
   const selS = sel?.settlement;
   const selM = sel?.march;
+  const selP = sel?.pyramid ? (pyramid.data ?? sel.pyramid) : null;
   const history = useSettlementBattles(worldId, selS && selS.kind !== "PLAYER_SLOT" ? selS.settlement_id : null);
 
   if (!worldId) return null;
@@ -75,7 +78,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      <MapView3D worldId={worldId} home={home} marches={allMarches} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} />
+      <MapView3D worldId={worldId} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} />
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -112,6 +115,9 @@ export default function MapScreen() {
       <View style={[s.right, { top: insets.top + 110 + (settlements.length > 1 ? 40 : 0) }]}>
         <Pressable style={s.iconBtn} onPress={() => active && engineRef.current?.centerOn(active.x, active.y, 30)} testID="map-center-home-button" accessibilityLabel={t("centerOnHome")}>
           <Icon name="home-map-marker" size={22} color={colors.brandPrimary} />
+        </Pressable>
+        <Pressable style={s.iconBtn} onPress={() => engineRef.current?.centerOn(pyramid.data?.anchor[0] ?? 200, pyramid.data?.anchor[1] ?? 200, 44)} testID="map-center-pyramid-button" accessibilityLabel={t("pyramidCenter")}>
+          <Icon name="pyramid" size={22} color={pyramid.data?.state === "OPEN" ? colors.brandPrimary : colors.onSurface} />
         </Pressable>
         <Pressable style={s.iconBtn} onPress={() => engineRef.current?.zoomBy(1.4)} testID="map-zoom-in-button">
           <Icon name="plus" size={22} color={colors.onSurface} />
@@ -160,6 +166,31 @@ export default function MapScreen() {
       {sel && selM ? (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
           <MarchCard march={selM} onClose={() => engineRef.current?.select(null)} onRecall={(id) => marchMut.recall.mutateAsync(id).catch(showError)} />
+        </Animated.View>
+      ) : sel && selP ? (
+        <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
+          <Panel glass testID="map-pyramid-card">
+            <Row>
+              <Icon name="pyramid" size={24} color={selP.faction === "OWN" ? colors.factionOwn : selP.faction === "ENEMY" ? colors.factionEnemy : colors.brandPrimary} />
+              <View style={s.selName}>
+                <T v="heading" numberOfLines={1} testID="map-pyramid-name">
+                  {selP.name}
+                  {selP.owner ? ` · [${selP.owner.tag}]` : ""}
+                </T>
+                <T v="caption" numberOfLines={2}>
+                  {pyramidDescription(t, selP)}
+                </T>
+              </View>
+              <PyramidStatePill dto={selP} testID="map-pyramid-state" />
+              <Pressable onPress={() => engineRef.current?.select(null)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }} testID="map-selection-close">
+                <Icon name="close" size={20} color={colors.muted} />
+              </Pressable>
+            </Row>
+            <View style={{ marginTop: spacing.sm }}>
+              <PyramidPhase dto={selP} />
+            </View>
+            <PyramidActions dto={selP} compact onDetails={() => router.push("/pyramid")} onAttack={() => router.push({ pathname: "/march/new", params: { pyramid: "1", mission: "ATTACK" } })} onReinforce={() => router.push({ pathname: "/march/new", params: { pyramid: "1", mission: "REINFORCE" } })} />
+          </Panel>
         </Animated.View>
       ) : sel ? (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>

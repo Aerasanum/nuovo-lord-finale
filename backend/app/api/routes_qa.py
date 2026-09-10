@@ -142,3 +142,48 @@ async def qa_rubies(body: RubiesIn):
         raise ApiError("ACCOUNT_NOT_FOUND", "Account not found", 404)
     tx = await premium.grant(acc["_id"], body.amount, "QA_GRANT", {"note": "qa"}, f"qa_{clock.now().timestamp():.3f}")
     return {"ok": True, "rubies": int(tx["balance_after"])}
+
+
+# --------------------------------------------------------------------------- pyramid (Bible §21) — configurable cycle
+class PyramidConfigIn(BaseModel):
+    world_id: str
+    config: dict
+
+
+class PyramidWorldIn(BaseModel):
+    world_id: str
+    clear_config: bool = False
+    config: dict | None = None
+
+
+@router.get("/pyramid/config")
+async def qa_pyramid_config_get(world_id: str):
+    """Effective Pyramid parameters (spec defaults ⊕ per-world override) and the current cycle state."""
+    _gate()
+    from app.domain import pyramid
+
+    world = await db().worlds.find_one({"_id": world_id})
+    if not world:
+        raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
+    doc = await pyramid.ensure_state(world)
+    return {"config": pyramid.config(world), "override": world.get("pyramid_config") or {}, "state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "owner_alliance_id": doc.get("owner_alliance_id")}
+
+
+@router.put("/pyramid/config")
+async def qa_pyramid_config_set(body: PyramidConfigIn):
+    """Admin override of the cycle parameters (first_open_day, hold_hours, reward_days, dormant_days, garrison_cap_units,
+    reward{...}, emeralds{...}, prestige{...}, guardian{...}). Deep-merged; the pending deadline is re-derived."""
+    _gate()
+    from app.domain import pyramid
+
+    return await pyramid.set_config(body.world_id, body.config)
+
+
+@router.post("/pyramid/reset")
+async def qa_pyramid_reset(body: PyramidWorldIn):
+    """Test fixture: back to DORMANT_INITIAL with the current config (pending Pyramid events cancelled)."""
+    _gate()
+    from app.domain import pyramid
+
+    doc = await pyramid.reset(body.world_id, body.clear_config, body.config)
+    return {"state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "config": pyramid.config(await db().worlds.find_one({"_id": body.world_id}))}

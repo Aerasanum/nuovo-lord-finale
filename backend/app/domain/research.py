@@ -9,6 +9,7 @@ from app.core.errors import ApiError, insufficient_resources, queue_full
 from app.core.spec import get_spec
 from app.domain import economy, notifications, scheduler
 from app.domain import formulas as F
+from app.domain.pyramid_reward import bonus_pct
 from app.domain.settlements import new_id
 
 
@@ -56,7 +57,7 @@ async def start_research(doc: dict, player: dict, key: str, idempotency_key: str
     for p in spec.research_prereqs(key):
         if F.rget(research, p) < 1:
             raise ApiError("RESEARCH_PREREQUISITE_MISSING", "Prerequisite research missing", 409, {"prerequisite": p})
-    quote = F.research_cost_time(node["cost_class"], cur + 1, research, spec)
+    quote = F.research_cost_time(node["cost_class"], cur + 1, research, spec, speed_bonus_pct=bonus_pct(doc)["research_pct"])
     cost = quote["cost"]
     queues = int(spec.research_scope["queues_per_settlement"])
     flt: dict = {"_id": doc["_id"], "research_active": {"$not": {"$gte": queues}}, "busy_research": {"$ne": key}}
