@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 9 CARAVANS UI frontend testing complete. Backend was already validated (5/5 pytest tests/test_caravans_e2e.py) - not re-run to avoid QA-clock drift. FRONTEND (390x844, demo login → Entra → world_1): ALL primary review items PASS. (1) HUB /caravans (Città tab → settlement-caravans-button): caravans-info panel shows 'Caravanserraglio L3 · Casa Demo', caravans-slots='2', caravans-capacity='6844 per carovana', speed '3 tile/h', caravans-radius='5 tile'; caravans-send-button enabled; initially caravans-mine-empty rendered; caravans-detected panel with one detected-caravan-crv_d62dfa6ba2694f93 row 'Casa Rivale · Posizione 9,184 · Direzione S · Senza scorta · Intel', countdown '7h 56m' (detected-caravan-<id>-eta) and 'Intercetta' button (detected-caravan-<id>-intercept). (2) COMPOSER caravans-send-button → /caravan/new (caravan-new-screen): caravan-dest-stl_84e946900a4745b6 auto-selected (single destination 'Casa Demo · 5,183 (5,183)'); slots stepper starts at '1 / 2', +→'2 / 2' (caravan-slots-value + caravan-capacity from '0/6844' → '0/13.7k'); typing 999999 into caravan-res-wood-input clamps to 13688 (caravan-capacity '13.7k / 13.7k'); caravan-res-grain-max fills remaining (grain=13188); caravan-escort-toggle reveals Fanteria/Arciere/Cavalleria/Falco rows with disponibile counts and MAX buttons; caravan-new-blocker='Carico' at 0 cargo, cleared when cargo>0; caravan-new-submit succeeds → resources decrement (49.9k→36.7k grain, 44.0k→43.5k wood) → hub shows 'Le mie carovane (1)' with march-card-crv_9f31bc6f6f474741 'Carovana → Casa Demo · 5,183 · In marcia · Senza scorta · Carico: Legno 500 · Grano 13.2k · 2 × 13.7k · 6 tile · 3 tile/h · 2h 08m' + 'Richiama' (not clicked). (3) INTERCEPT COMPOSER detected-caravan-<id>-intercept → /caravan/intercept?caravan=<id> (intercept-screen): intercept-target 'Carovana straniera · Casa Rivale · Posizione 9,184 · Senza scorta · Intel 12/100 · Carico stimato n/d · Arrivo 7h 55m'; intercept-units lists ONLY Fanteria/Arciere/Cavalleria (Falco correctly excluded — ATK=0 filter working); intercept-blocker='Solo unità con ATK > 0' at 0, cleared after adding Cavalleria; intercept-unit-Cavalleria-plus adds 10 per tap (verified 30 after 3 taps); intercept-unit-Cavalleria-max fills to 500 (intercept-total='500'); intercept-submit → toast + back to hub → new march-card-mar_ffa8dcfff1374915 'Intercettazione → Carovana Casa Rivale · In marcia · Cavalleria 500 · 4 tile · 4.8 tile/h · 1h 21m · Richiama'. (4) INBOX (tab-inbox): 10 rows visible with correct icons: CARAVAN STATE '󰔾' 'Carovana → Casa Demo · 5,183 · Legno 500 · Grano 13.2k', 'Consegnato → Casa Demo · 5,183 · Legno 6000', 'Carovana → Casa Demo · 5,183 · Legno 6000' etc.; MARCH DEPARTED, MARCH RETURNED, MISSION COMPLETED all render with human text. Tapping CARAVAN STATE row navigates to /caravans hub (deep_link='caravans' handled correctly). (5) /MARCHES (map-marches-button): renders both active marches with 'Carovana' and 'Intercettazione' labels + cargo + ETA + 'Richiama'; marches-back-button returns to /map. Hub caravans-back returns to Città. (6) REPORTS TAB (inbox-tab-reports) shows battle-item-<id> rows → tapping opens battle report screen (URL /battle/<id>). (7) REGRESSION: Missioni tab (tab-missions) still renders missions-screen. No console errors seen apart from a stray 'GO_BACK was not handled' when submitting caravan-new via direct deep-link (test setup artefact — did not occur via normal hub → composer flow after retry). MAP TAB: could not verify 'Carovana' label on the WebGL canvas — toggling map-labels-button did not surface the rival caravan label at the current zoom (rival at 9,184 vs home 6,188). No console errors, no red-screen. Per review-request this is acceptable and reported as-is. Deprecated packages: NONE detected (expo-av / expo-barcode-scanner / expo-background-fetch not in package.json). Two MINOR issues discovered — see below.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Inbox describe() — BATTLE_RESOLVED event",
+        "issue": "Inbox rows for the new BATTLE_RESOLVED event (emitted by backend/app/domain/caravans.py:426 after INTERCEPT resolution) fall into the default describe() branch and render the raw payload as JSON: '{\"battle_id\":\"btl_mar_...\",\"march_id\":\"mar_...\",\"winne'. Root cause: frontend/app/(tabs)/inbox.tsx describe() has cases for BATTLE_REPORT_READY but not BATTLE_RESOLVED (line 55-92). Fix: add a case for BATTLE_RESOLVED returning localized 'Battaglia risolta · <mission> · <winner> · Bottino <cargoLine(loot)>' or similar.",
+        "testID": "inbox-item-ntf_7fb4d61ec09a4ce2",
+        "priority": "MINOR"
+      },
+      {
+        "component": "Inbox open() — BATTLE_RESOLVED tap",
+        "issue": "Tapping a BATTLE_RESOLVED inbox row does nothing because open() (frontend/app/(tabs)/inbox.tsx:95-104) only routes to /battle/[id] for event==='BATTLE_REPORT_READY', and the deep_link 'battle/<id>' matches no other prefix (research/caravans/map/army/settlement/missions). Fix: extend the branch to also match n.event==='BATTLE_RESOLVED' OR match deep_link?.startsWith('battle/'). The Reports tab still surfaces the underlying battle via battle-item-<id> so the report is reachable, but the Inbox row itself is a dead-tap.",
+        "testID": "inbox-item-<battle_resolved_id>",
+        "priority": "MINOR"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter9_00_home.jpg",
+    "/app/test_reports/screens/iter9_01_hub.jpg",
+    "/app/test_reports/screens/iter9_02_new_initial.jpg",
+    "/app/test_reports/screens/iter9_03_new_filled.jpg",
+    "/app/test_reports/screens/iter9_04_after_submit.jpg",
+    "/app/test_reports/screens/iter9_05_hub_with_mine.jpg",
+    "/app/test_reports/screens/iter9_06_intercept_initial.jpg",
+    "/app/test_reports/screens/iter9_07_intercept_filled.jpg",
+    "/app/test_reports/screens/iter9_08_after_intercept.jpg",
+    "/app/test_reports/screens/iter9_09_map_home.jpg",
+    "/app/test_reports/screens/iter9_11_marches.jpg",
+    "/app/test_reports/screens/iter9_13_inbox.jpg",
+    "/app/test_reports/screens/iter9_19_battle_report.jpg",
+    "/app/backend/tests/test_caravans_e2e.py"
+  ],
+  "action_items": [
+    "MINOR: Add BATTLE_RESOLVED handling to frontend/app/(tabs)/inbox.tsx describe() so the row shows a localized summary instead of raw JSON. Suggested: `case 'BATTLE_RESOLVED': return `${t('battleResolved')} · ${p.mission} · ${p.winner} · ${cargoLine(p.loot, lang) || '—'}`;` (add battleResolved key to i18n).",
+    "MINOR: Extend open() in the same file to route BATTLE_RESOLVED taps to /battle/[id] using n.payload?.battle_id (or generalise deep_link.startsWith('battle/')).",
+    "OBS: caravan-new-submit works, but if the caravan-new screen is entered via a deep-link with no history stack, router.back() after submit logs a benign console error 'The action GO_BACK was not handled by any navigator'. In real user flow (hub → composer) this is fine; consider router.replace('/caravans') or router.canGoBack() ? back() : replace() as a defensive fix.",
+    "INFO: Map-marker (WebGL) tap for the detected caravan was not verified. Zoom/pan to bring 9,184 into view and toggling map-labels-button did not surface a 'Carovana' RN-View label at the current camera. Main agent may want to add an on-canvas testable indicator (e.g., a hidden data-testid element mirroring visible caravan labels) so Playwright can reliably assert. No console errors observed while on the map."
+  ],
+  "critical_code_review_comments": [
+    "frontend/app/caravans.tsx correctly gates the send button on d.unlocked && d.caravanserai_level >= 1 and uses isLogistics filter on marches to segregate own caravans from military marches — clean.",
+    "frontend/app/caravan/new.tsx capacity clamp on typing 999999 → 13688 works (max_capacity = caravans_per_march × capacity_per_caravan). 'MAX' button on grain correctly fills remaining slot.",
+    "frontend/app/caravan/intercept.tsx correctly filters unit rows by ATK>0 (Falco excluded); blocker string 'Solo unità con ATK > 0' matches spec.",
+    "backend/app/domain/caravans.py:426 emits BATTLE_RESOLVED with deep_link='battle/<id>' but the frontend inbox has no handler for either the describe or the open branch of this event — see ui_bugs.",
+    "src/game/caravans.ts isLogistics filter working: 'Carovana' vs 'Intercettazione' correctly labelled on the MarchListCard headings via mission-based rendering."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5 test_caravans_e2e.py verified in prior iteration; not re-run this pass)", "frontend": "≈95% — all seven primary review items exercised end-to-end. Two minor Inbox regressions for the new BATTLE_RESOLVED event. Map-canvas marker click not exercised (Playwright limitation on WebGL); no console errors on map."},
+  "seed_data_creation": "After this run the demo player has: 1 OUTBOUND caravan crv_9f31bc6f6f474741 → Casa Demo 5,183 (ETA ~2h from run), 1 INTERCEPT march mar_ffa8dcfff1374915 (Cavalleria 500) → Casa Rivale caravan crv_d62dfa6ba2694f93 (ETA ~1h 20m). Resources decremented: grain 49.9k→36.7k, wood 44.0k→43.5k. Cavalleria home garrison 500→0 (per interceptor). max_outgoing=1 for caravans, so a further caravan-new-submit before the current one settles will 409 with CARAVAN_OUTGOING_MAX (per spec). All caravan/intercept marches marked so main agent may want to fast-forward or let them resolve naturally.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Two minor inbox regressions for BATTLE_RESOLVED event (raw JSON body + dead tap) documented above. Caravan flows all work. Note that the /caravans hub is now the correct deep-link target for CARAVAN_STATE (inbox tap verified navigates to /caravans). If retesting after main-agent fix, use email demo@empirelords.com / Demo12345!, home stl_0484bd7cfcbd40dd; there will be an active own caravan + interceptor march (may still be OUTBOUND, so new caravan sends will 409 CARAVAN_OUTGOING_MAX until they resolve). To re-seed a fresh detectable rival caravan, log in as rival@empirelords.com / Rival12345! and POST /api/worlds/world_1/caravans {origin_settlement_id:'stl_2f5b4160b87f43b7', target_settlement_id:'stl_49c3127daafd4c79', cargo:{grain:3000}, caravans_assigned:1, escort:{}, idempotency_key:<uuid>} then advance QA clock 1800s a few times (X-Admin-Key: eld-admin-7f3c9a1d2b4e; POST /api/qa/clock/advance {seconds} + /api/qa/scheduler/run) until the demo caravans/search endpoint lists it.",
+  "rca_of_issue": "BATTLE_RESOLVED regression RCA — Symptom: Inbox row body shows raw JSON `{\"battle_id\":\"btl_mar_79b1bb77f94a4564\",...}`. Repro: complete an INTERCEPT battle (either wait for the interceptor to arrive or use the previous interceptor already resolved in this world) → open tab-inbox → find a row labelled 'BATTLE RESOLVED'. Root cause: two-part. (a) frontend/app/(tabs)/inbox.tsx describe() switch does not include BATTLE_RESOLVED; falls to default = JSON.stringify(payload).slice(0,80). (b) frontend/app/(tabs)/inbox.tsx open() routes to /battle/[id] only for event === 'BATTLE_REPORT_READY'; deep_link 'battle/<id>' doesn't match any startsWith prefix, so the row is a dead tap. Backend has been emitting BATTLE_RESOLVED specifically for INTERCEPT battles (caravans.py:426) since caravans landed, but frontend was not updated. Mitigation: add BATTLE_RESOLVED case to describe() + extend open() with either `if (n.event === 'BATTLE_RESOLVED' && n.payload?.battle_id) router.push(...)` or a `deep_link?.startsWith('battle/')` branch. Impact is cosmetic — the Reports tab still exposes battle reports via battle-item-<id>."
+}

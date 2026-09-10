@@ -38,6 +38,10 @@ export default function MarchComposer() {
   const [mission, setMission] = useState<string>(sentinel ? "GARRISON_SENTINEL" : "ATTACK");
   const [units, setUnits] = useState<Record<string, number>>({});
   const [preview, setPreview] = useState<any>(null);
+  const friendly = pub.data?.faction === "OWN" || pub.data?.faction === "ALLY";
+  useEffect(() => {
+    if (friendly && mission !== "REINFORCE") setMission("REINFORCE");
+  }, [friendly, mission]);
 
   const available = army.data?.army ?? {};
   const totalUnits = Object.values(units).reduce((a, c) => a + c, 0);
@@ -102,7 +106,7 @@ export default function MarchComposer() {
         {!sentinel ? (
           <View style={cs.row}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[cs.content, { paddingHorizontal: 0 }]}>
-              {MISSIONS.filter((m) => (pub.data?.faction === "OWN" ? m === "REINFORCE" : m !== "REINFORCE")).map((m) => (
+              {MISSIONS.filter((m) => (friendly ? m === "REINFORCE" : m !== "REINFORCE")).map((m) => (
                 <Chip key={m} label={missionLabel(m)} selected={mission === m} onPress={() => setMission(m)} testID={`march-mission-${m}`} />
               ))}
             </ScrollView>

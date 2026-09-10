@@ -8,7 +8,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError, insufficient_resources, queue_full
 from app.core.spec import get_spec
-from app.domain import economy, notifications, scheduler
+from app.domain import economy, notifications, progress, scheduler
 from app.domain import formulas as F
 from app.domain.settlements import building_unlocked, job_dto, new_id, owned_count, running_jobs
 
@@ -213,6 +213,7 @@ async def _apply_settlement_upgrade(job: dict) -> None:
         {"$set": {"level": new_level, "buildings.Castello / Fortezza": new_level}, "$inc": {"construction_active": -1}, "$pull": {"busy_targets": job["target"]}, "$push": {"applied_effects": {"$each": [job["_id"]], "$slice": -500}}},
     )
     prog = get_spec().settlement_progression[new_level]
+    await progress.on_settlement_level(doc["world_id"], doc.get("owner_player_id"), doc, new_level, job["_id"])
     await notifications.notify(doc["world_id"], doc.get("owner_player_id"), "SETTLEMENT_UPGRADE_STATE",
                                {"settlement_id": doc["_id"], "old_level": new_level - 1, "new_level": new_level, "state": "COMPLETED", "eta": None, "unlocks": prog["unlocks"]},
                                dedupe_key=f"job_done:{job['_id']}", deep_link="settlement")

@@ -8,6 +8,7 @@ import hashlib
 from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
+from app.core.spec import get_spec
 
 SHIELD_BASES = ["heater", "round", "kite", "square"]
 SYMBOLS = ["circle", "diamond", "cross", "star", "chevron", "tower", "crescent", "triangle"]
@@ -62,7 +63,7 @@ def dto(p: dict) -> dict:
         "motto": p.get("house_motto"),
         "crest": p.get("house_crest") or default_crest(p["house_name"]),
         "prestige": int(p.get("prestige", 0)),
-        "history": p.get("house_history", []),
+        "history": [{**h, "at": clock.iso(h.get("at"))} for h in (p.get("house_history") or [])[-30:]][::-1],
     }
 
 
@@ -80,5 +81,29 @@ async def update(player: dict, motto: str | None, crest: dict | None) -> dict:
         # denormalised copies used by public map DTOs and in-flight marches
         await db().settlements.update_many({"owner_player_id": player["_id"]}, {"$set": {"owner_house_crest": sets["house_crest"]}})
         await db().marches.update_many({"player_id": player["_id"], "status": {"$in": ["OUTBOUND", "RESOLVING", "RETURNING"]}}, {"$set": {"house_crest": sets["house_crest"]}})
+        await _first_banner(player, sets["house_crest"])
     fresh = await db().players.find_one({"_id": player["_id"]})
     return dto(fresh)
+
+
+def crest_layers_changed(house_name: str, crest: dict) -> int:
+    """Number of the 5 canonical layers (shield_base, primary_symbol, secondary_mark, border, color_scheme) differing from the default."""
+    d = default_crest(house_name)
+    n = sum(1 for k in ("shield_base", "primary_symbol", "secondary_mark", "border") if crest.get(k) != d[k])
+    if {k: v.upper() for k, v in crest["colors"].items()} != {k: v.upper() for k, v in d["colors"].items()}:
+        n += 1
+    return n
+
+
+async def _first_banner(player: dict, crest: dict) -> None:
+    """Prima Bandiera (spec.missions first_banner): one-shot per World — save a valid crest with ≥3 layers changed."""
+    from app.domain import notifications, progress  # local import (progress → notifications)
+
+    cat = next(m for m in get_spec().missions["catalog"] if m["key"] == "first_banner")
+    if crest_layers_changed(player["house_name"], crest) < int(cat["requirements"]["crest_layers_changed_from_default_min"]):
+        return
+    res = await db().players.update_one({"_id": player["_id"], "cosmetics": {"$ne": cat["reward"]["cosmetic_unlock"]}}, {"$addToSet": {"cosmetics": {"$each": [cat["reward"]["cosmetic_unlock"], "first_banner"]}}})
+    if not res.modified_count:
+        return
+    await progress.award_prestige(player["world_id"], player["_id"], int(cat["reward"]["prestige"]), "first_banner", player["_id"])
+    await notifications.notify(player["world_id"], player["_id"], "MISSION_COMPLETED", {"mission_key": "first_banner", "name": cat["name"], "reward": cat["reward"], "completion_id": f"fb:{player['_id']}"}, dedupe_key=f"fb:{player['_id']}", deep_link="missions")

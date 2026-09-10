@@ -4,11 +4,12 @@ import { Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useMarches, useMarchMutations, useSettlementBattles } from "@/src/api/hooks";
+import { useCaravanSearch, useMarches, useMarchMutations, useSettlementBattles } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
 import { Button, CostRow, Icon, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, useI18n } from "@/src/i18n";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
 import { MapView3D } from "@/src/map3d/MapView";
@@ -45,6 +46,7 @@ export default function MapScreen() {
   const { selectSettlement } = useAuth();
   const { worldId, settlementId, settlement, settlements, player } = useGame();
   const marches = useMarches(worldId);
+  const caravanSearch = useCaravanSearch(worldId, settlementId);
   const marchMut = useMarchMutations(worldId ?? "");
   const { showError } = useToast();
   const engineRef = useRef<MapEngine | null>(null);
@@ -56,15 +58,19 @@ export default function MapScreen() {
   const home = useMemo(() => (active ? { x: active.x, y: active.y } : null), [active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelect = useCallback((v: Selection | null) => setSel(v), []);
   const onCam = useCallback((c: { tx: number; tz: number; dist: number }) => setCam(c), []);
-  // own marches + detected hostile marches (intel-disclosed by the server) share one marker layer
-  const allMarches = useMemo(() => [...(marches.data?.marches ?? []), ...(marches.data?.incoming ?? [])], [marches.data]);
+  // own marches + detected hostile marches (intel-disclosed by the server) + foreign caravans detected by the active
+  // settlement's search radius (Bible §34.9) share one marker layer
+  const allMarches = useMemo(
+    () => [...(marches.data?.marches ?? []), ...(marches.data?.incoming ?? []), ...(caravanSearch.data?.caravans ?? []).map(caravanAsMarch)],
+    [marches.data, caravanSearch.data],
+  );
   const selS = sel?.settlement;
   const selM = sel?.march;
   const history = useSettlementBattles(worldId, selS && selS.kind !== "PLAYER_SLOT" ? selS.settlement_id : null);
 
   if (!worldId) return null;
   const distance = selS && active ? Math.max(Math.abs(selS.x - active.x), Math.abs(selS.y - active.y)) : null;
-  const factionLabel = (f?: string) => (f === "OWN" ? t("own") : f === "ENEMY" ? t("enemy") : f === "RESERVED_SLOT" ? t("reservedSlot") : t("neutral"));
+  const factionLabel = (f?: string) => (f === "OWN" ? t("own") : f === "ALLY" ? t("ally") : f === "ENEMY" ? t("enemy") : f === "RESERVED_SLOT" ? t("reservedSlot") : t("neutral"));
   const terrainLabel = (tr?: string) => (tr === "forest" ? t("forest") : tr === "mountain" ? t("mountain") : tr === "water" ? t("water") : t("plain"));
 
   return (
@@ -134,6 +140,7 @@ export default function MapScreen() {
               [colors.terrainMountain, t("mountain")],
               [colors.terrainWater, t("water")],
               [colors.factionOwn, t("own")],
+              [colors.factionAlly, t("ally")],
               [colors.factionEnemy, t("enemy")],
               [colors.factionNeutral, t("neutral")],
             ].map(([c, label]) => (
@@ -158,13 +165,13 @@ export default function MapScreen() {
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
           <Panel glass testID="map-selection-card">
             <Row>
-              {selS?.owner_house_crest ? <Crest crest={selS.owner_house_crest} size={28} testID="map-selection-crest" /> : <Icon name={selS ? (selS.faction === "NEUTRAL" ? "home-group" : "castle") : sel.sentinel ? "tower-fire" : "map-marker"} size={22} color={selS?.faction === "OWN" ? colors.factionOwn : selS?.faction === "ENEMY" ? colors.factionEnemy : colors.factionNeutral} />}
+              {selS?.owner_house_crest ? <Crest crest={selS.owner_house_crest} size={28} testID="map-selection-crest" /> : <Icon name={selS ? (selS.faction === "NEUTRAL" ? "home-group" : "castle") : sel.sentinel ? "tower-fire" : "map-marker"} size={22} color={selS?.faction === "OWN" ? colors.factionOwn : selS?.faction === "ALLY" ? colors.factionAlly : selS?.faction === "ENEMY" ? colors.factionEnemy : colors.factionNeutral} />}
               <View style={s.selName}>
                 <T v="heading" numberOfLines={1} testID="map-selection-name">
                   {selS ? selS.name : sel.sentinel ? `${t("sentinels")} ${sel.sentinel.direction}` : `${terrainLabel(undefined)} ${sel.x},${sel.y}`}
                 </T>
                 <T v="caption">
-                  {selS ? `${factionLabel(selS.faction)} · L${selS.level} · ${terrainLabel(selS.terrain)} (+${selS.terrain_defender_bonus_pct}%) · ${selS.x},${selS.y}` : sel.sentinel ? `${sel.sentinel.state} · ${sel.x},${sel.y}` : `${sel.x},${sel.y}`}
+                  {selS ? `${selS.owner_alliance_tag ? `[${selS.owner_alliance_tag}] ` : ""}${factionLabel(selS.faction)} · L${selS.level} · ${terrainLabel(selS.terrain)} (+${selS.terrain_defender_bonus_pct}%) · ${selS.x},${selS.y}` : sel.sentinel ? `${sel.sentinel.state} · ${sel.x},${sel.y}` : `${sel.x},${sel.y}`}
                   {distance !== null ? ` · ${distance} ${t("tiles")}` : ""}
                 </T>
               </View>
@@ -180,7 +187,7 @@ export default function MapScreen() {
                 ) : (
                   <>
                     <Button title={t("target")} icon="information-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push({ pathname: "/target/[id]", params: { id: selS.settlement_id } })} testID="map-selection-detail" />
-                    <Button title={t("march")} icon="sword" style={{ flex: 1 }} onPress={() => router.push({ pathname: "/march/new", params: { target: selS.settlement_id } })} testID="map-selection-march" />
+                    <Button title={selS.faction === "ALLY" ? t("missionReinforce") : t("march")} icon={selS.faction === "ALLY" ? "shield-plus" : "sword"} style={{ flex: 1 }} onPress={() => router.push({ pathname: "/march/new", params: { target: selS.settlement_id } })} testID="map-selection-march" />
                   </>
                 )}
               </View>

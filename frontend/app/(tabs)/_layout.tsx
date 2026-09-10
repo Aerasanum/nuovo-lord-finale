@@ -58,6 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="map" options={{ title: t("tabMap"), tabBarIcon: ({ color, size }) => <Icon name="map" size={size} color={String(color)} />, tabBarButtonTestID: "tab-map" }} />
       <Tabs.Screen name="settlement" options={{ title: t("tabCity"), tabBarIcon: ({ color, size }) => <Icon name="castle" size={size} color={String(color)} />, tabBarButtonTestID: "tab-settlement" }} />
       <Tabs.Screen name="army" options={{ title: t("tabArmy"), tabBarIcon: ({ color, size }) => <Icon name="sword-cross" size={size} color={String(color)} />, tabBarButtonTestID: "tab-army" }} />
+      <Tabs.Screen name="missions" options={{ title: t("tabMissions"), tabBarIcon: ({ color, size }) => <Icon name="compass-outline" size={size} color={String(color)} />, tabBarButtonTestID: "tab-missions" }} />
       <Tabs.Screen
         name="inbox"
         options={{

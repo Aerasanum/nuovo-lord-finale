@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { get, post, put, syncServerTime } from "./client";
+import { api, get, post, put, syncServerTime } from "./client";
 
 export type Resources = Record<"grain" | "wood" | "clay" | "iron" | "gold", number>;
 
@@ -36,7 +36,8 @@ export type SettlementDto = {
   owner_player_id: string | null;
   owner_house_name?: string | null;
   owner_house_crest?: CrestDto | null;
-  faction: "OWN" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
+  owner_alliance_tag?: string | null;
+  faction: "OWN" | "ALLY" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
   wall_level: number;
   garrison_total?: number | null;
   is_mother?: boolean;
@@ -174,7 +175,39 @@ export type MarchDto = {
   player_id: string;
   hostile: boolean;
   intel: IntelDto | null;
+  // logistics (Bible §13): caravans / interceptors share the march shape
+  cargo?: Partial<Resources> | null;
+  caravans_assigned?: number | null;
+  capacity?: number | null;
+  delivered?: Partial<Resources> | null;
+  target_caravan_id?: string | null;
+  caravan?: DetectedCaravan | null; // client-side: a detected foreign caravan rendered as a hostile marker
 };
+
+export type DetectedCaravan = { caravan_id: string; house_name: string | null; house_crest: CrestDto | null; position: [number, number]; heading: string | null; escorted: boolean; escort_band: [number, number] | null; cargo_band: [number, number] | null; arrival_at: string; remaining_path: [number, number][]; intel_score: number };
+export type CaravanInfo = { unlocked: boolean; research_unlock_key: string; caravanserai_level: number; caravans_per_march: number; capacity_per_caravan: number; max_capacity: number; unescorted_speed_tph: number; max_outgoing: number; interception_unlocked: boolean; search_radius: number; destinations: { settlement_id: string; name: string; x: number; y: number; level: number }[]; resources: Resources };
+
+export function useCaravanInfo(worldId?: string | null, sid?: string | null) {
+  return useQuery<CaravanInfo>({ queryKey: ["caravan-info", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/caravans/info`), enabled: !!worldId && !!sid });
+}
+
+export function useCaravanSearch(worldId?: string | null, sid?: string | null) {
+  return useQuery<{ radius: number; interception_unlocked: boolean; caravans: DetectedCaravan[] }>({ queryKey: ["caravan-search", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/caravans/search`), enabled: !!worldId && !!sid, refetchInterval: 30000 });
+}
+
+export function useCaravanMutations(worldId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: qk.marches(worldId) });
+    qc.invalidateQueries({ queryKey: ["caravan-info"] });
+    qc.invalidateQueries({ queryKey: ["caravan-search"] });
+    qc.invalidateQueries({ queryKey: ["army"] });
+    qc.invalidateQueries({ queryKey: qk.me(worldId) });
+  };
+  const send = useMutation({ mutationFn: (body: { origin_settlement_id: string; target_settlement_id: string; cargo: Record<string, number>; caravans_assigned: number; escort: Record<string, number>; idempotency_key: string }) => post<MarchDto>(`/worlds/${worldId}/caravans`, body), onSuccess: invalidate });
+  const intercept = useMutation({ mutationFn: (body: { origin_settlement_id: string; caravan_id: string; units: Record<string, number>; idempotency_key: string }) => post<MarchDto>(`/worlds/${worldId}/caravans/intercept`, body), onSuccess: invalidate });
+  return { send, intercept };
+}
 
 export type ChunkDto = {
   cx: number;
@@ -183,7 +216,7 @@ export type ChunkDto = {
   terrain_b64: string;
   settlements: SettlementPublic[];
   sentinels: SentinelDto[];
-  territory: { x: number; y: number; faction: "OWN" | "ENEMY" | "RESERVED" }[];
+  territory: { x: number; y: number; faction: "OWN" | "ALLY" | "ENEMY" | "RESERVED" }[];
   server_time: string;
 };
 
@@ -210,8 +243,9 @@ export type SettlementPublic = {
   owner_player_id: string | null;
   owner_house_name?: string | null;
   owner_house_crest?: CrestDto | null;
+  owner_alliance_tag?: string | null;
   skin?: string | null; // castle skin id (see src/map3d/castle.ts CASTLE_SKINS); null → default
-  faction: "OWN" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
+  faction: "OWN" | "ALLY" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
   wall_level: number;
   garrison_total?: number | null;
   garrison?: Record<string, number>;
@@ -386,6 +420,34 @@ export function useSetSkin(worldId: string, sid: string) {
   });
 }
 
+// ---------------------------------------------------------------------------------------------- missions / progress
+export type MissionCatalogEntry = { key: string; name: string; kind: string; duration_hours: number; requirements: Record<string, any>; reward: Record<string, any>; cooldown_hours: number; cooldown_until: string | null; active_mission_id: string | null };
+export type MissionDto = { mission_id: string; key: string; name: string; origin_settlement_id: string; origin_xy: [number, number] | null; units: Record<string, number>; status: "ACTIVE" | "COMPLETED"; started_at: string | null; ends_at: string | null; completed_at: string | null; reward_result: Record<string, any> | null };
+export type ProgressTrack = { track: string; value: number; tier: number; thresholds: number[]; next_threshold: number | null; decoration: string };
+export type ProgressDto = { prestige: number; titles: string[]; cosmetics: string[]; tracks: ProgressTrack[]; history: { at: string; kind: string; reason?: string; points?: number; track?: string; tier?: number; decoration?: string }[] };
+export type MissionsOverview = { catalog: MissionCatalogEntry[]; active: MissionDto[]; slots_left: number; max_simultaneous: number; history: MissionDto[]; progress: ProgressDto; server_time: string };
+export type ChronicleEntry = { chronicle_id: string; kind: string; params: Record<string, any>; actors: string[]; at: string };
+
+export function useMissions(worldId?: string | null) {
+  return useQuery<MissionsOverview>({ queryKey: ["missions", worldId || ""], queryFn: () => get(`/worlds/${worldId}/missions`), enabled: !!worldId, refetchInterval: 15000 });
+}
+
+export function useStartMission(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { key: string; origin_settlement_id: string; units: Record<string, number>; idempotency_key: string }) => post<MissionDto>(`/worlds/${worldId}/missions`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["missions", worldId] });
+      qc.invalidateQueries({ queryKey: ["army"] });
+      qc.invalidateQueries({ queryKey: qk.me(worldId) });
+    },
+  });
+}
+
+export function useChronicle(worldId?: string | null) {
+  return useQuery<{ entries: ChronicleEntry[]; house_names: Record<string, string>; records: Record<string, any> }>({ queryKey: ["chronicle", worldId || ""], queryFn: () => get(`/worlds/${worldId}/chronicle`), enabled: !!worldId, staleTime: 30000 });
+}
+
 /** Last battles involving a settlement (as target or as origin of the viewer's marches). */
 export function useSettlementBattles(worldId?: string | null, sid?: string | null, limit = 5) {
   return useQuery<{ battles: BattleDto[] }>({ queryKey: ["settlement-battles", worldId || "", sid || "", limit], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/battles?limit=${limit}`), enabled: !!worldId && !!sid, staleTime: 15000 });
@@ -395,7 +457,7 @@ export function useCatalog() {
   return useQuery({ queryKey: qk.catalog, queryFn: () => get("/spec/catalog"), staleTime: Infinity });
 }
 
-function idem() {
+export function idem() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -438,4 +500,66 @@ export function useInboxMutations(worldId: string) {
   const readAll = useMutation({ mutationFn: () => post(`/worlds/${worldId}/inbox/read-all`, {}), onSettled: () => qc.invalidateQueries({ queryKey: qk.inbox(worldId) }) });
   const read = useMutation({ mutationFn: (id: string) => post(`/worlds/${worldId}/inbox/${id}/read`, {}), onSettled: () => qc.invalidateQueries({ queryKey: qk.inbox(worldId) }) });
   return { readAll, read };
+}
+
+// ---------------------------------------------------------------------------------------------- alliances (Bible §19 / §40)
+export type AllianceKind = "STRUCTURED" | "MERCENARY";
+export type AllianceRole = "LEADER" | "VICE" | "DIPLOMAT" | "MEMBER";
+export type AlliancePublic = { alliance_id: string; name: string; tag: string; kind: AllianceKind; description: string; member_count: number; cap: number; leader_house: string | null; mercenary_prestige: number; contracts_completed: number; created_at: string; relation?: string | null; members?: { house_name: string; role: AllianceRole }[] };
+export type AllianceMember = { player_id: string; house_name: string; house_crest: CrestDto | null; role: AllianceRole; joined_at: string; leaving_at: string | null; is_me: boolean };
+export type RelationDto = { relation_id: string; alliance_id: string | null; name: string | null; tag: string | null; kind: AllianceKind | null; state: "NEUTRAL" | "PNA" | "PNA_NOTICE" | "WAR" | "PEACE_PENDING"; since: string | null; until: string | null; war_reason: string | null; locked_by_contract_id: string | null; pna_proposal: { by: string; by_name: string | null; mine: boolean; at: string } | null; peace_proposal: { by: string; by_name: string | null; mine: boolean; expires_at: string } | null };
+export type VoteDto = { vote_id: string; target_alliance_id: string; target_name: string | null; target_tag: string | null; proposed_by_house: string | null; opened_at: string; closes_at: string; eligible: number; needed: number; yes: number; no: number; votes: Record<string, boolean>; status: "OPEN" | "PASSED" | "FAILED" };
+export type InviteDto = { invite_id: string; alliance_id: string; alliance_name: string | null; alliance_tag: string | null; alliance_kind: AllianceKind | null; player_id: string; house_name: string | null; sender_house: string | null; role: AllianceRole; status: string; expires_at: string };
+export type AllianceFull = Omit<AlliancePublic, "members"> & { my_role: AllianceRole | null; permissions: string[]; members: AllianceMember[]; emeralds: number | null; relations: RelationDto[]; open_votes: VoteDto[]; pending_invites: InviteDto[]; contracts_active: number; at_war: boolean; pyramid_eligible: boolean; war_vote_roles: AllianceRole[]; server_time: string };
+export type MyAllianceDto = { alliance: AllianceFull | null; invites: InviteDto[]; join_cooldown_until: string | null; server_time: string };
+export type ChatMessage = { message_id: string; player_id: string | null; house_name: string | null; role: AllianceRole | "SYSTEM"; text: string; at: string };
+export type ContractDto = { contract_id: string; client_alliance_id: string; client_name: string | null; client_tag: string | null; target_alliance_id: string; target_name: string | null; target_tag: string | null; provider_alliance_id: string | null; provider_name: string | null; provider_tag: string | null; emeralds: number; duration_hours: number; status: "OFFERED" | "ACTIVE" | "COMPLETED" | "FAILED" | "CANCELLED"; result: string | null; offered_at: string | null; accepted_at: string | null; ends_at: string | null; ended_at: string | null };
+export type MarketDto = { offers: ContractDto[]; contracts: ContractDto[]; durations_hours: number[]; escrow_min: number; escrow_max: number; max_active: number; bonuses: { single_march_capacity_pct: number; attack_pct: number } };
+export type TreasuryDto = { emeralds: number; entries: { ledger_id: string; amount: number; reason: string; ref: string | null; balance_after: number; at: string }[] };
+export type DiplomacyAction = "pna_propose" | "pna_accept" | "pna_decline" | "pna_terminate" | "war_propose" | "peace_propose" | "peace_accept";
+
+export function useMyAlliance(worldId?: string | null) {
+  return useQuery<MyAllianceDto>({ queryKey: ["alliance", worldId], queryFn: () => get(`/worlds/${worldId}/alliance`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+}
+export function useAlliances(worldId?: string | null) {
+  return useQuery<{ alliances: AlliancePublic[]; caps: Record<string, number> }>({ queryKey: ["alliances", worldId], queryFn: () => get(`/worlds/${worldId}/alliances`), enabled: !!worldId });
+}
+export function useAlliancePublic(worldId?: string | null, id?: string | null) {
+  return useQuery<AlliancePublic>({ queryKey: ["alliance-public", worldId, id], queryFn: () => get(`/worlds/${worldId}/alliances/${id}`), enabled: !!worldId && !!id });
+}
+export function useAllianceChat(worldId?: string | null, enabled = true) {
+  return useQuery<{ messages: ChatMessage[] }>({ queryKey: ["alliance-chat", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/chat?limit=100`), enabled: !!worldId && enabled, refetchInterval: 5000 });
+}
+export function useAllianceTreasury(worldId?: string | null, enabled = true) {
+  return useQuery<TreasuryDto>({ queryKey: ["alliance-treasury", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/treasury`), enabled: !!worldId && enabled });
+}
+export function useMercenaryMarket(worldId?: string | null, enabled = true) {
+  return useQuery<MarketDto>({ queryKey: ["alliance-market", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/mercenary`), enabled: !!worldId && enabled, refetchInterval: 20000 });
+}
+
+export function useAllianceMutations(worldId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    for (const k of ["alliance", "alliances", "alliance-public", "alliance-chat", "alliance-treasury", "alliance-market"]) qc.invalidateQueries({ queryKey: [k] });
+    qc.invalidateQueries({ queryKey: qk.me(worldId) });
+    qc.invalidateQueries({ queryKey: qk.inbox(worldId) });
+  };
+  const w = `/worlds/${worldId}`;
+  return {
+    create: useMutation({ mutationFn: (body: { name: string; tag: string; kind: AllianceKind; description?: string | null }) => post<AllianceFull>(`${w}/alliances`, body), onSuccess: invalidate }),
+    invite: useMutation({ mutationFn: (body: { house_name: string; role: AllianceRole }) => post<InviteDto>(`${w}/alliance/invites`, body), onSuccess: invalidate }),
+    respond: useMutation({ mutationFn: (v: { invite_id: string; accept: boolean }) => post(`${w}/alliance/invites/${v.invite_id}/respond`, { accept: v.accept }), onSuccess: invalidate }),
+    leave: useMutation({ mutationFn: () => post(`${w}/alliance/leave`), onSuccess: invalidate }),
+    cancelLeave: useMutation({ mutationFn: () => post(`${w}/alliance/leave/cancel`), onSuccess: invalidate }),
+    setRole: useMutation({ mutationFn: (v: { player_id: string; role: AllianceRole }) => post(`${w}/alliance/members/${v.player_id}/role`, { role: v.role }), onSuccess: invalidate }),
+    kick: useMutation({ mutationFn: (player_id: string) => api(`${w}/alliance/members/${player_id}`, { method: "DELETE" }), onSuccess: invalidate }),
+    settings: useMutation({ mutationFn: (body: { description: string }) => put(`${w}/alliance/settings`, body), onSuccess: invalidate }),
+    dissolve: useMutation({ mutationFn: () => post(`${w}/alliance/dissolve`), onSuccess: invalidate }),
+    diplomacy: useMutation({ mutationFn: (v: { other_id: string; action: DiplomacyAction }) => post<RelationDto | VoteDto>(`${w}/alliance/diplomacy/${v.other_id}/${v.action}`), onSuccess: invalidate }),
+    vote: useMutation({ mutationFn: (v: { vote_id: string; yes: boolean }) => post<VoteDto>(`${w}/alliance/votes/${v.vote_id}`, { yes: v.yes }), onSuccess: invalidate }),
+    chat: useMutation({ mutationFn: (text: string) => post<ChatMessage>(`${w}/alliance/chat`, { text }), onSuccess: () => qc.invalidateQueries({ queryKey: ["alliance-chat"] }) }),
+    offer: useMutation({ mutationFn: (body: { target_alliance_id: string; emeralds: number; duration_hours: number }) => post<ContractDto>(`${w}/alliance/mercenary/offers`, body), onSuccess: invalidate }),
+    acceptOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/accept`), onSuccess: invalidate }),
+    withdrawOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/withdraw`), onSuccess: invalidate }),
+  };
 }

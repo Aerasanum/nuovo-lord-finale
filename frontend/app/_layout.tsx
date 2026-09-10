@@ -57,6 +57,7 @@ export default function RootLayout() {
                       <Stack.Screen name="building/[name]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
                       <Stack.Screen name="target/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
                       <Stack.Screen name="march/new" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+                      <Stack.Screen name="mission/new" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
                       <Stack.Screen name="battle/[id]" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="auth/callback" />
                     </Stack>

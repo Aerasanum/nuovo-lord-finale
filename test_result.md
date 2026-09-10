@@ -481,3 +481,98 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Iteration 7: test skins endpoints (owner-only 403/404 for a foreign settlement, lock/unlock rules), settlement battles endpoint, skins screen flow (demo L3: classic current; royal shows locked button text), battle history rows + navigation to report, map regression (no black map, no console errors, march card still works). Demo has one OUTBOUND ATTACK march (mar_6015cbcf298047f1, 1 Fanteria, ETA ~20h) left by the previous testing run — do not recall it. Do NOT restart the backend unnecessarily; QA clock offset now persists anyway."
+
+# ---- iteration 8 (main agent) — Missioni personali + Prestigio + Achievement + Cronaca (Bible §20/§22/§39, spec.missions/achievements/house) ----
+backend:
+  - task: "Missions: GET /worlds/{w}/missions (catalog with cooldown_until/active_mission_id, active, slots_left, history, progress), POST /worlds/{w}/missions {key, origin_settlement_id, units, idempotency_key} (201; validations: UNKNOWN_MISSION 400, MISSION_UNITS_NOT_ALLOWED 400, MISSION_MIN_UNITS 400, MISSION_MIXED_UNITS 400, MISSION_NEEDS_FALCO 400, MISSION_RESEARCH_REQUIRED 409, MISSION_COOLDOWN 409, MISSION_SLOTS_FULL 409 (max 2), MISSION_TYPE_ACTIVE 409, INSUFFICIENT_UNITS 409); troops removed from garrison at start, returned at completion; reward = production snapshot × hours clamped to warehouse (overflow in reward_result.overflow) + prestige; cooldown from completion; MISSION_COMPLETE scheduled event (priority 60); MISSION_COMPLETED inbox notification."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/missions.py, routes_game.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manually verified patrol_local start → +1h QA advance → COMPLETED, troops back, +10 prestige, cooldown 2h."
+  - task: "Progress ledger: prestige events (pvp_defense_win 10, pvp_battle_win 2, pvp conquest 25, neutral conquest 5, missions), achievement tracks (kills/successful_defenses/conquests/supports/territory_tiles/caravans_intercepted) with tier unlocks + notification, World Chronicle (SETTLEMENT_CONQUERED, LARGEST_BATTLE record, PATH_OF_CONQUERORS, FIRST_METROPOLIS), one-shots Prima Bandiera (crest ≥3 layers changed → +20 prestige), Guardiani del Confine window, Via dei Conquistatori, Prima Metropoli. GET /worlds/{w}/progress, GET /worlds/{w}/chronicle."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/progress.py, marches.py (_persist_battle hook), conquest.py, construction.py, house.py, territory.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Largest-battle record already recorded from the earlier PvP fixture battle."
+frontend:
+  - task: "Tab 'Missioni' (tab-missions) with segments missions-seg-missions / -house / -chronicle: active missions (slots dots, countdown, progress bar), catalogue cards mission-card-<key> with status pill (Disponibile/In corso/Ricarica), requirements/rewards, Avvia → /mission/new composer (mission-unit-<U>-minus/input/plus/max, mission-new-total, mission-new-blocker, mission-new-submit); Casata segment (progress-prestige, progress-titles, track-<track> rows, house history); Cronaca segment (records-panel, chronicle-<id> rows). Inbox: MISSION_COMPLETED rendering + deep link to missions."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/missions.tsx, frontend/app/mission/new.tsx, frontend/src/game/missions.ts, frontend/app/(tabs)/_layout.tsx, inbox.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots OK for all segments and the composer."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 8: test the missions API rules (see task) and the UI flow: start a mission from the tab (demo settlement has Fanteria/Arciere granted; use commercial_escort with 500 units if available else patrol_local after cooldown), verify it appears under Missioni attive with countdown and the slot dot fills; QA advance clock past duration → history entry + prestige increases in Casata segment + inbox MISSION_COMPLETED. Also GET /chronicle & /progress shapes. Demo units: check GET .../settlements/stl_0484bd7cfcbd40dd/army first; grant more via /qa/grant if needed."
+
+# ---- iteration 9 (main agent) — Carovane: hub UI, mappa, inbox, regola eccedenza (Bible §13 / §34.9) ----
+backend:
+  - task: "Caravan delivery overflow rule fixed per Bible §13: only free Warehouse space is credited; the excess STAYS on the convoy (cargo = overflow) and returns to the sender (result DELIVERED_PARTIAL, status RETURNING, credited at home on return). Battle DTO exposes target_caravan_id. Verified by /app/backend/tests/test_caravans_e2e.py (5/5: info shape, validation errors, send→deliver→overflow-return, detect→intercept→battle→loot→residue returns, UI fixture)."
+    implemented: true
+    working: true
+    file: "backend/app/domain/caravans.py, routes_game.py, tests/test_caravans_e2e.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_caravans_e2e.py -o addopts='' → 5 passed. Rival account rival@empirelords.com / Rival12345! owns Neutrale 9,181 (origin, Caravanserraglio L3) and 1,203; a rival caravan is left OUTBOUND and detectable from the demo home."
+frontend:
+  - task: "Caravans hub /caravans (settlement-caravans-button in Città quick row): caravans-info (slots/capacity/speed/radius, caravans-send-button → /caravan/new), 'Le mie carovane' (MarchListCard with cargo/delivered/overflow lines, recall), caravans-detected panel (detected-caravan-<id> rows, countdown, detected-caravan-<id>-intercept → /caravan/intercept?caravan=). Map: detected foreign caravans rendered as hostile markers (caravanAsMarch) → tap → DetectedCaravanCard (map-selection-caravan, map-selection-intercept). Inbox: CARAVAN_STATE rows (OUTBOUND/DELIVERED/INTERCEPTED) + deep link caravans → /caravans. /marches now uses the shared MarchListCard (missionLabel, cargo lines)."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/caravans.tsx, frontend/src/game/caravans.ts, frontend/src/components/MarchCard.tsx, frontend/app/(tabs)/map.tsx, settlement.tsx, inbox.tsx, frontend/app/marches.tsx, frontend/app/caravan/new.tsx, intercept.tsx, src/i18n/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshot OK: hub shows Caravanserraglio L3, 2 slots, 6844/caravan, detected 'Casa Rivale' caravan with Intercetta button."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 9: FRONTEND focus (backend already covered by pytest tests/test_caravans_e2e.py — you may re-run it once as regression, it advances the QA clock a few hours and leaves a fresh detectable rival caravan). Test as demo: Città → Carovane hub; Invia carovana composer (dest chip stl_84e946900a4745b6, cargo input + MAX clamps to capacity, escort toggle, submit → toast + back to hub where the caravan appears under 'Le mie carovane' with cargo line and countdown; a second send from the same settlement must fail with CARAVAN_OUTGOING_MAX toast); detected rival caravan row → Intercetta → intercept screen (only ATK units listed: Fanteria/Arciere/Cavalleria, not Falco; +10/MAX; submit → toast, back; hub now lists an 'Intercettazione' card); Map tab: hostile caravan marker near 6,188 (red, label 'Carovana') tap → card with cargo estimate/escort/arrival + Intercetta button; Inbox shows CARAVAN STATE rows and tapping opens /caravans; /marches list still renders (shared card) with recall for OUTBOUND. Regression: Missioni tab, map selection card for settlements, battle report."
+  - agent: "main"
+    message: "Iteration 9 post-test fixes: (1) inbox BATTLE_RESOLVED row localized (missionLabel · winner · loot) + tap opens /battle/<id> (also generic deep_link 'battle/…'); (2) detected caravan marker on the map was projected on the SERVER timeline with a CLIENT detection timestamp (QA clock +15d → progress clamped to 1 → marker at route end, off-screen). caravanAsMarch now stamps detection with serverNow(). Verified: red 'Carovana 7h39m' marker/label at 9,184, tap → DetectedCaravanCard → Intercetta → intercept screen."
+
+# ---- iteration 10 (main agent) — Alleanze (Bible §19 / §34.7 / §40): Strutturate vs Mercenarie ----
+backend:
+  - task: "alliances domain + routes_alliance.py: create (kind STRUCTURED cap 100 / MERCENARY cap 5, unique name/tag), directory, invites (72h, roles), accept/decline, leave (12h delay, cooldown 24h/72h if at war, succession Vice→member, auto-dissolve when empty), kick/roles/transfer/settings/dissolve; diplomacy relations per pair (PNA propose/accept/decline/terminate with 12h notice; war vote 12h among Leader/Vice/Diplomat with mathematical majority, mercenary alliances cannot vote wars; peace proposal 24h → accept (Leader/Vice) → PEACE_PENDING 12h → NEUTRAL; peace locked while a mercenary contract is active); hostile-launch gate (CANNOT_ATTACK_ALLY / DIPLOMACY_BLOCKS_ATTACK) in marches.launch + caravans.intercept; REINFORCE + caravans to allied settlements; ally tiles get the 0.90 path factor; chat (500 msgs, SYSTEM heralds); Emerald treasury (append-only ledger, Leader/Vice visibility, sources: pvp defense +10 with 24h pair cooldown, pvp conquest +25, first mission/day +5 STRUCTURED only cap 500/day); mercenary contracts (escrow 1000–1M, durations 72/96/120/168h, max 3 active, accept → auto-war + lock, expiry/target dissolution = success → escrow to provider + 10 mercenary prestige to alliance & members, provider dissolution = fail → refund); provider members get +5% cap / +3% ATK vs contract target (snapshot `bonuses` on the march, applied in combat). Map DTOs: faction ALLY + owner_alliance_tag. QA: POST /qa/alliance/emeralds."
+    implemented: true
+    working: true
+    file: "backend/app/domain/alliances.py, backend/app/api/routes_alliance.py, marches.py, caravans.py, combat.py, progress.py, missions.py, conquest.py, settlements.py, territory.py, worlds.py, routes_game.py, routes_qa.py, core/db.py, core/clock.py, tests/test_alliances_e2e.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_alliances_e2e.py -o addopts='' → 8 passed (membership, roles, chat, leave/cancel, PNA + hostile gate + notice expiry, war vote → WAR → peace → PEACE_PENDING → NEUTRAL, mercenary lifecycle incl. bonuses/escrow/prestige, UI fixture). Regression suites: 69 passed, 2 pre-existing state-dependent failures (Fattoria cap on live demo L3; fleet test passes alone)."
+frontend:
+  - task: "Alliance UI: 4th segment 'Alleanza' in the Missioni tab (missions-seg-alliance) → AllianceSummary (lone wolf: invites accept/decline, create/browse; member: dashboard tiles + nav buttons). Screens: /alliance/create (kind cards, name/tag/description), /alliance/browse (directory), /alliance/[id] (public page + diplomacy actions: PNA propose/accept/decline/terminate, war propose, peace propose/accept, hire), /alliance/members (roles, invite form, leave/cancel, dissolve confirm), /alliance/diplomacy (relations + war votes with yes/no), /alliance/chat (bubbles + sticky composer), /alliance/treasury (balance + ledger, Leader/Vice), /alliance/mercenary (offers to accept for MERC, hire form with target/escrow/duration, contracts history). Inbox: new alliance events + deep links. Map: ALLY faction colour/legend/label tag, REINFORCE-only composer for allied targets."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/alliance/*.tsx, frontend/src/components/alliance/*.tsx, frontend/src/game/alliances.ts, frontend/app/(tabs)/missions.tsx, inbox.tsx, map.tsx, app/march/new.tsx, app/target/[id].tsx, src/api/hooks.ts, src/i18n/index.tsx, src/map3d/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK: dashboard [DEMO] Lords Demo Leader 5005 Smeraldi, diplomacy screen, mercenary market with hire form + 3 contracts."
+agent_communication:
+  - agent: "main"
+    message: "Iteration 10: FRONTEND focus for alliances. Fixture accounts in /app/memory/test_credentials.md (demo LEADER [DEMO] STRUCTURED, ally VICE [DEMO], rival LEADER [MERC] MERCENARY, third LEADER [TRZ] STRUCTURED; an ACTIVE contract MERC vs TRZ hired by DEMO). Backend covered by pytest; do NOT re-run test_alliances_e2e.py (it dissolves and recreates the alliances). Please test UI flows as described in the task."
+  - agent: "main"
+    message: "Iteration 10/11 results: pass 1 (demo single account) all PASS — 'map legend missing' was a false alarm (legend toggles with map-legend-button). Pass 2 (iteration_11.json) multi-account A–H all PASS: PNA accept/terminate, war vote (demo proposes, ally VICE passes it), peace propose/accept → PEACE_PENDING, hire → rival MERC accepts → auto-war + peace lock, lone-wolf register/create MERC/dissolve/cooldown, invite → decline. Minor observation (by design): alliance-public-war-blocked note only renders while not at war. Frontend alliances → working: true."

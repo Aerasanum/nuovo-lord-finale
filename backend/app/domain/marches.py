@@ -9,7 +9,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import combat, conquest, economy, intel, navy, notifications, scheduler, sentinels, territory
+from app.domain import alliances, combat, conquest, progress, economy, intel, navy, notifications, scheduler, sentinels, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import astar, load_terrain
 from app.domain.settlements import catch_up_neutral, new_id
@@ -20,6 +20,12 @@ OFFENSIVE = ("ATTACK", "RAID", "CONQUEST")
 
 def dto(m: dict) -> dict:
     return {
+        "cargo": m.get("cargo") or None,
+        "caravans_assigned": m.get("caravans_assigned"),
+        "capacity": m.get("capacity"),
+        "delivered": m.get("delivered"),
+        "target_caravan_id": m.get("target_caravan_id"),
+        "bonuses": m.get("bonuses"),
         "march_id": m["_id"],
         "world_id": m["world_id"],
         "player_id": m["player_id"],
@@ -160,8 +166,6 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     research = dict(origin.get("research", {}))
     wh = int(origin["buildings"].get("Sala di Guerra", 0))
     cap = F.war_hall_cap(wh, research, mission, spec)
-    if _weighted_count(units, research) > cap:
-        raise ApiError("MARCH_CAPACITY_EXCEEDED", "Formation exceeds War Hall capacity", 409, {"cap": cap})
 
     # ---- target resolution + revalidation at launch ----
     target_doc = None
@@ -178,6 +182,8 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
             raise ApiError("INVALID_MISSION", "Sentinels accept ATTACK or GARRISON_SENTINEL only", 400)
         if mission == "ATTACK" and sentinel_doc["owner_player_id"] == player["_id"]:
             raise ApiError("CANNOT_ATTACK_OWN", "Cannot attack your own sentinel", 409)
+        if mission == "ATTACK":
+            await alliances.check_hostile_launch(world["_id"], player, sentinel_doc.get("owner_player_id"))
         target_name = f"Sentinella {sentinel_doc['direction']}"
     else:
         target_doc = await db().settlements.find_one({"_id": target_settlement_id, "world_id": world["_id"]})
@@ -192,8 +198,8 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         target_name = target_doc.get("name") or "Neutrale"
         if mission == "GARRISON_SENTINEL":
             raise ApiError("INVALID_MISSION", "GARRISON_SENTINEL needs a sentinel target", 400)
-        if mission == "REINFORCE" and target_doc.get("owner_player_id") != player["_id"]:
-            raise ApiError("INVALID_TARGET", "REINFORCE targets own settlements (alliances not in this slice)", 409)
+        if mission == "REINFORCE" and target_doc.get("owner_player_id") != player["_id"] and not await alliances.is_ally(player, target_doc.get("owner_player_id")):
+            raise ApiError("INVALID_TARGET", "REINFORCE targets own or allied settlements", 409)
         if mission in OFFENSIVE:
             if target_doc.get("owner_player_id") == player["_id"]:
                 raise ApiError("CANNOT_ATTACK_OWN", "Cannot attack your own settlement", 409)
@@ -201,6 +207,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
                 other = await db().players.find_one({"_id": target_doc["owner_player_id"]})
                 if conquest.shield_active(player) or (other and conquest.shield_active(other)):
                     raise ApiError("PVP_SHIELD_ACTIVE", "Both players must be unshielded for PvP", 409)
+                await alliances.check_hostile_launch(world["_id"], player, target_doc.get("owner_player_id"))
                 if mission == "CONQUEST" and units.get("Carro di Conquista", 0) < 1:
                     raise ApiError("CONQUEST_CART_REQUIRED", "PvP conquest requires a Conquest Cart", 409)
         if naval:
@@ -211,6 +218,14 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
             capacity = ships * navy.port_capacity_per_ship(int(origin["level"]), research)
             if sum(units.values()) > capacity:
                 raise ApiError("FLEET_CAPACITY_EXCEEDED", "Fleet capacity exceeded", 409, {"capacity": capacity})
+
+    # ---- War Hall cap (mercenary contract: +5% single-march cap vs the contract target, snapshot now — Bible §19.1) ----
+    defender_id = (target_doc or {}).get("owner_player_id") if target_doc else (sentinel_doc or {}).get("owner_player_id")
+    bonuses = await alliances.contract_bonuses(player, defender_id) if mission in OFFENSIVE else None
+    if bonuses:
+        cap = int(math.floor(cap * (1 + bonuses["single_march_capacity_pct"] / 100.0)))
+    if _weighted_count(units, research) > cap:
+        raise ApiError("MARCH_CAPACITY_EXCEEDED", "Formation exceeds War Hall capacity", 409, {"cap": cap})
 
     # ---- path & ETA snapshot ----
     grid = await load_terrain(world["_id"])
@@ -226,7 +241,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         path = [(origin["x"], origin["y"])] + path + [(tx, ty)]
         speed = navy.fleet_speed_tph(research)
     else:
-        own_tiles = await territory.player_tiles(world["_id"], player["_id"])
+        own_tiles = await territory.player_tiles(world["_id"], player["_id"], await alliances.ally_player_ids(player))
         result = astar(grid, (origin["x"], origin["y"]), (tx, ty), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]))
         if result is None:
             raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
@@ -287,6 +302,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "status": "OUTBOUND",
         "research_snapshot": research,
         "specialization": player.get("specialization"),
+        "bonuses": bonuses,
         "reservation": reserved,
         "idempotency_key": idempotency_key,
         "spec_version": spec.version,
@@ -294,7 +310,6 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     await db().marches.insert_one(march)
     await scheduler.schedule(world["_id"], "BATTLE_OR_FLEET_ARRIVAL", arrival, march["_id"], f"march_arrival:{march['_id']}", {"march_id": march["_id"]})
     # PvP: the defender's surveillance detects the march when it crosses its territory border (Bible §34.10 entry tile)
-    defender_id = (target_doc or {}).get("owner_player_id") if target_doc else (sentinel_doc or {}).get("owner_player_id")
     if mission in OFFENSIVE and defender_id and defender_id != player["_id"]:
         tiles, _, _ = await _defender_context(world["_id"], defender_id)
         idx = intel.entry_index(march["path"], tiles)
@@ -358,6 +373,18 @@ async def on_arrival(evt: dict) -> None:
     mission = march["mission"]
     units = {u: int(c) for u, c in march["units"].items() if int(c) > 0}
 
+    # ---- logistics (Bible §13): caravans and interceptors live in this collection but resolve in their own domain ----
+    if mission == "CARAVAN":
+        from app.domain import caravans
+
+        await caravans.on_arrival(march)
+        return
+    if mission == "INTERCEPT":
+        from app.domain import caravans
+
+        await caravans.on_intercept_arrival(march)
+        return
+
     # ---- sentinel targets ----
     if march.get("target_sentinel_id"):
         s = await db().sentinels.find_one({"_id": march["target_sentinel_id"]})
@@ -378,7 +405,7 @@ async def on_arrival(evt: dict) -> None:
             await _start_return(march, units, "PVP_SHIELD_ACTIVE")
             return
         home = await db().settlements.find_one({"_id": s["settlement_id"]})
-        report = combat.resolve_battle(f"btl_{march['_id']}", "ATTACK", units, march.get("research_snapshot", {}), march.get("specialization"), dict(s.get("garrison") or {}), (home or {}).get("research", {}), (defender_owner or {}).get("specialization"), march.get("target_terrain", "plain"), None, defender_kind="SENTINEL")
+        report = combat.resolve_battle(f"btl_{march['_id']}", "ATTACK", units, march.get("research_snapshot", {}), march.get("specialization"), dict(s.get("garrison") or {}), (home or {}).get("research", {}), (defender_owner or {}).get("specialization"), march.get("target_terrain", "plain"), None, defender_kind="SENTINEL", attacker_bonus_atk_pct=float((march.get("bonuses") or {}).get("attack_pct", 0)))
         await _persist_battle(march, report, None, s)
         if report["winner"] == "ATTACKER":
             await sentinels.remove_garrison(s["_id"], None, "GARRISON_ANNIHILATED")
@@ -431,7 +458,7 @@ async def on_arrival(evt: dict) -> None:
     if existing:
         report = existing["report"]
     else:
-        report = combat.resolve_battle(battle_id, mission, units, march.get("research_snapshot", {}), march.get("specialization"), {u: int(c) for u, c in (target.get("army") or {}).items()}, target.get("research", {}), (defender_owner or {}).get("specialization"), target["terrain"], dict(target.get("wall") or {}) or None, defender_kind="SETTLEMENT")
+        report = combat.resolve_battle(battle_id, mission, units, march.get("research_snapshot", {}), march.get("specialization"), {u: int(c) for u, c in (target.get("army") or {}).items()}, target.get("research", {}), (defender_owner or {}).get("specialization"), target["terrain"], dict(target.get("wall") or {}) or None, defender_kind="SETTLEMENT", attacker_bonus_atk_pct=float((march.get("bonuses") or {}).get("attack_pct", 0)))
     # apply defender casualties + wall state (idempotent via applied_effects)
     def_inc = {f"army.{u}": -int(c) for u, c in report["defender_losses"].items() if int(c) > 0}
     upd: dict = {"$push": {"applied_effects": {"$each": [battle_id], "$slice": -500}}}
@@ -540,6 +567,7 @@ async def _persist_battle(march: dict, report: dict, target: dict | None, sentin
     except Exception:
         await db().battles.update_one({"_id": doc["_id"]}, {"$set": {"loot": loot, "ownership_result": doc["ownership_result"], "loyalty": loyalty}})
     await db().marches.update_one({"_id": march["_id"]}, {"$set": {"battle_id": report["battle_id"]}})
+    await progress.on_battle(doc)  # kills / defenses / prestige / world record (idempotent per battle_id)
     for pid in participants:
         await notifications.notify(march["world_id"], pid, "BATTLE_REPORT_READY", {"battle_id": report["battle_id"], "seed": report["seed"], "winner": report["winner"], "mission": march["mission"], "target_name": march.get("target_name"), "losses": report["attacker_losses"] if pid == march["player_id"] else report["defender_losses"], "survivors": report["attacker_survivors"] if pid == march["player_id"] else report["defender_survivors"], "counter_summary": None, "loot": loot, "ownership_changed": (ownership or {}).get("changed", False)}, dedupe_key=f"battle_ready:{report['battle_id']}:{pid}", deep_link="battle-reports")
 
@@ -571,6 +599,10 @@ async def on_return(evt: dict) -> None:
             if not already:
                 await db().audit.insert_one({"world_id": march["world_id"], "type": "loot_credit", "march_id": march["_id"], "at": clock.now()})
                 await economy.credit(dest["_id"], loot, "raid_loot")
+        if march.get("mission") == "CARAVAN":
+            from app.domain import caravans
+
+            await caravans.on_returned(march, dest)
     await _complete(march, march.get("result") or "RETURNED")
     await notifications.notify(march["world_id"], march["player_id"], "MARCH_RETURNED", {"march_id": march["_id"], "eta_or_completed": "COMPLETED", "destination": (dest or {}).get("_id"), "units": units, "loot": march.get("loot")}, dedupe_key=f"returned:{march['_id']}", deep_link="map/march")
 

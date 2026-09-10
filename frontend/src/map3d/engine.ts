@@ -834,7 +834,7 @@ export class MapEngine {
       data.territory,
       { x0: ox, y0: oz, x1: ox + CHUNK, y1: oz + CHUNK },
       (x, y) => cornerHeight(this.sampler, x, y),
-      (f) => (f === "OWN" ? this.palette.own : f === "ENEMY" ? this.palette.enemy : this.palette.neutral),
+      (f) => (f === "OWN" ? this.palette.own : f === "ENEMY" ? this.palette.enemy : f === "ALLY" ? this.palette.ally : this.palette.neutral),
       this.mats.territory,
     );
     for (const t of territory) group.add(t);

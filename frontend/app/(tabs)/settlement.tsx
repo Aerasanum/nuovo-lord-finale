@@ -195,6 +195,7 @@ export default function SettlementScreen() {
           <View style={s.quick}>
             <Button title={t("research")} icon="flask" variant="secondary" style={{ flex: 1 }} onPress={() => router.push("/research")} testID="settlement-research-button" />
             <Button title={t("sentinels")} icon="tower-fire" variant="secondary" style={{ flex: 1 }} onPress={() => router.push("/sentinels")} testID="settlement-sentinels-button" />
+            <Button title={t("caravans")} icon="truck-delivery" variant="secondary" style={{ flex: 1 }} onPress={() => router.push("/caravans")} testID="settlement-caravans-button" />
           </View>
 
           {/* buildings grid */}

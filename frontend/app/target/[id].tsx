@@ -30,7 +30,7 @@ export default function TargetDetail() {
   const d = q.data;
   const me = settlement.data;
   const dist = d && me ? Math.max(Math.abs(d.x - me.x), Math.abs(d.y - me.y)) : null;
-  const factionLabel = (f?: string) => (f === "OWN" ? t("own") : f === "ENEMY" ? t("enemy") : f === "RESERVED_SLOT" ? t("reservedSlot") : t("neutral"));
+  const factionLabel = (f?: string) => (f === "OWN" ? t("own") : f === "ALLY" ? t("ally") : f === "ENEMY" ? t("enemy") : f === "RESERVED_SLOT" ? t("reservedSlot") : t("neutral"));
 
   return (
     <Screen
@@ -49,7 +49,7 @@ export default function TargetDetail() {
           <Panel testID="target-summary">
             <Row style={{ justifyContent: "space-between" }}>
               <Row>
-                <Icon name={d.kind === "NEUTRAL" ? "home-group" : "castle"} size={22} color={d.faction === "ENEMY" ? colors.factionEnemy : d.faction === "OWN" ? colors.factionOwn : colors.factionNeutral} />
+                <Icon name={d.kind === "NEUTRAL" ? "home-group" : "castle"} size={22} color={d.faction === "ENEMY" ? colors.factionEnemy : d.faction === "OWN" ? colors.factionOwn : d.faction === "ALLY" ? colors.factionAlly : colors.factionNeutral} />
                 <View>
                   <T v="heading">
                     {factionLabel(d.faction)} · L{d.level}
@@ -130,7 +130,7 @@ export default function TargetDetail() {
           ) : null}
 
           {d.faction !== "OWN" && d.kind !== "PLAYER_SLOT" ? (
-            <Button title={t("composeMarch")} icon="sword" onPress={() => router.push({ pathname: "/march/new", params: { target: d.settlement_id } })} testID="target-march-button" />
+            <Button title={d.faction === "ALLY" ? t("missionReinforce") : t("composeMarch")} icon={d.faction === "ALLY" ? "shield-plus" : "sword"} onPress={() => router.push({ pathname: "/march/new", params: { target: d.settlement_id } })} testID="target-march-button" />
           ) : null}
         </ScrollView>
       )}

@@ -113,6 +113,7 @@ def resolve_battle(
     terrain: str,
     wall: dict | None,
     defender_kind: str = "SETTLEMENT",
+    attacker_bonus_atk_pct: float = 0.0,
 ) -> dict:
     spec = get_spec()
     cr = spec.combat_resolution
@@ -174,7 +175,9 @@ def resolve_battle(
         return _finish(report, "DEFENDER", att, dfn, 0.0, 0.0, att_rng, def_rng, wall_losses, {u: 0 for u in dict(dfn)}, attacker_research, defender_research, reason=cr["after_wall_phase_no_attackers"])
 
     # ---- 3) power ----
-    spec_att = 1.05 if attacker_specialization == "ATTACCANTE" else 1.0
+    # specialization slot of the frozen attacker order also carries the mercenary-contract target bonus (+3% ATK,
+    # Bible §19.1): same category → percentages add first, then multiply
+    spec_att = 1.0 + (0.05 if attacker_specialization == "ATTACCANTE" else 0.0) + max(0.0, float(attacker_bonus_atk_pct)) / 100.0
     spec_def = 1.05 if defender_specialization == "DIFENSORE" else 1.0
     terrain_bonus = float(spec.terrain[terrain]["defender_bonus_pct"]) / 100.0
     wall_def = 0.0
@@ -230,6 +233,7 @@ def resolve_battle(
     def_power = sum(stack_power(u, c, att, False) for u, c in dfn) * def_rng
     report["modifiers"] = {
         "attacker_specialization": spec_att,
+        "attacker_contract_bonus_pct": float(attacker_bonus_atk_pct),
         "defender_specialization": spec_def,
         "terrain_bonus": terrain_bonus,
         "wall_def_bonus_effective": round(wall_def, 4),

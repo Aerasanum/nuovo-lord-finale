@@ -8,7 +8,7 @@ import { fonts, radius, useTheme } from "@/src/theme";
 import type { MapLabel } from "./engine";
 
 export function missionLabel(mission: string, t: (k: any) => string): string {
-  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison" } as Record<string, string>)[mission];
+  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison", CARAVAN: "missionCaravan", INTERCEPT: "missionIntercept" } as Record<string, string>)[mission];
   return key ? t(key) : mission;
 }
 
@@ -22,7 +22,7 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
   return (
     <View style={styles.layer} testID="map-labels" onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {labels.map((l) => {
-        const accent = l.faction === "OWN" ? colors.factionOwn : l.faction === "ENEMY" ? colors.factionEnemy : colors.factionNeutral;
+        const accent = l.faction === "OWN" ? colors.factionOwn : l.faction === "ENEMY" ? colors.factionEnemy : l.faction === "ALLY" ? colors.factionAlly : colors.factionNeutral;
         if (l.kind === "MARCH") {
           const returning = l.status === "RETURNING";
           return (

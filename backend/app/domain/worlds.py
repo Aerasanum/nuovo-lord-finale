@@ -195,6 +195,9 @@ def player_dto(p: dict) -> dict:
         "specialization": p.get("specialization"),
         "status": p.get("status", "ACTIVE"),
         "created_at": clock.iso(created),
+        "alliance": {"alliance_id": p["alliance_id"], "tag": p.get("alliance_tag"), "name": p.get("alliance_name"), "kind": p.get("alliance_kind"), "role": p.get("alliance_role")} if p.get("alliance_id") else None,
+        "alliance_join_cooldown_until": clock.iso(p.get("alliance_join_cooldown_until")),
+        "war_involved_until": clock.iso(p.get("war_involved_until")),
     }
 
 

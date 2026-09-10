@@ -84,3 +84,43 @@ async def grant(body: GrantIn):
         if res.matched_count == 0:
             raise ApiError("SETTLEMENT_NOT_FOUND", "Settlement not found", 404)
     return {"ok": True, "set": sets, "pvp_shield_ended": body.end_pvp_shield}
+
+
+class ConquerIn(BaseModel):
+    settlement_id: str
+    player_id: str
+
+
+@router.post("/conquer")
+async def qa_conquer(body: ConquerIn):
+    """Test fixture: hand a NEUTRAL settlement to a player through the real ownership state machine (cap20, retention, territory)."""
+    _gate()
+    from app.domain import conquest
+
+    target = await db().settlements.find_one({"_id": body.settlement_id})
+    player = await db().players.find_one({"_id": body.player_id})
+    if not target or not player:
+        raise ApiError("NOT_FOUND", "Settlement or player not found", 404)
+    if not await conquest.reserve_slot(player["_id"]):
+        raise ApiError("CAP20_REACHED", "Player already owns 20 settlements", 409)
+    res = await conquest.transfer_ownership(target, player, {}, f"qa_{clock.now().timestamp():.0f}")
+    return {"ok": res.get("changed", False), **res}
+
+
+class EmeraldsIn(BaseModel):
+    alliance_id: str
+    amount: int = Field(gt=0, le=10_000_000)
+
+
+@router.post("/alliance/emeralds")
+async def qa_emeralds(body: EmeraldsIn):
+    """Test fixture: credit an alliance treasury through the real append-only ledger (mercenary escrow needs ≥1.000)."""
+    _gate()
+    from app.domain import alliances
+
+    a = await db().alliances.find_one({"_id": body.alliance_id, "status": "ACTIVE"})
+    if not a:
+        raise ApiError("ALLIANCE_NOT_FOUND", "Alliance not found", 404)
+    ok = await alliances.credit_emeralds(a["world_id"], a["_id"], body.amount, "qa_grant", f"qa_{clock.now().timestamp():.3f}")
+    fresh = await db().alliances.find_one({"_id": a["_id"]}, {"emeralds": 1})
+    return {"ok": ok, "emeralds": int(fresh.get("emeralds", 0))}

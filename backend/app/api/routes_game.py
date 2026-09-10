@@ -12,7 +12,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import construction, economy, house, marches, navy, notifications, recruitment, research, scheduler, sentinels, skins, worlds
+from app.domain import alliances, caravans, construction, economy, house, marches, missions, navy, notifications, progress, recruitment, research, scheduler, sentinels, skins, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -104,7 +104,7 @@ async def me(c: Ctx = Depends(ctx)):
     settlements = []
     async for s in cur:
         s = await economy.accrue(s)
-        settlements.append({**public_dto(s, c.player["_id"]), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
+        settlements.append({**public_dto(s, c.player["_id"], c.player.get("alliance_id")), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
     unread = await db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None})
     return {"player": player_dto(c.player), "world": world_dto(c.world), "settlements": settlements, "unread_inbox": unread, "server_time": clock.iso(clock.now())}
 
@@ -247,13 +247,14 @@ async def map_chunk(world_id: str, cx: int, cy: int, c: Ctx = Depends(ctx)):
     async for s in db().settlements.find({"world_id": world_id, "chunk_cx": cx, "chunk_cy": cy}):
         if s["kind"] == "NEUTRAL":
             s = await catch_up_neutral(s, c.world)
-        ents.append(public_dto(s, c.player["_id"]))
+        ents.append(public_dto(s, c.player["_id"], c.player.get("alliance_id")))
     sents = [sentinels.dto(s) async for s in db().sentinels.find({"world_id": world_id, "x": {"$gte": cx * CHUNK, "$lt": (cx + 1) * CHUNK}, "y": {"$gte": cy * CHUNK, "$lt": (cy + 1) * CHUNK}, "state": {"$ne": "REMOVED"}})]
+    allies = set(await alliances.ally_player_ids(c.player)) - {c.player["_id"]}
     for s in sents:
-        s["faction"] = "OWN" if s["owner_player_id"] == c.player["_id"] else "ENEMY"
+        s["faction"] = "OWN" if s["owner_player_id"] == c.player["_id"] else ("ALLY" if s["owner_player_id"] in allies else "ENEMY")
         if s["faction"] != "OWN":
             s["garrison"] = {}
-    tiles = [{"x": t["x"], "y": t["y"], "faction": "OWN" if t.get("owner_player_id") == c.player["_id"] else ("RESERVED" if t.get("owner_player_id") is None else "ENEMY")} async for t in db().territory_tiles.find({"world_id": world_id, "chunk_cx": cx, "chunk_cy": cy})]
+    tiles = [{"x": t["x"], "y": t["y"], "faction": "OWN" if t.get("owner_player_id") == c.player["_id"] else ("RESERVED" if t.get("owner_player_id") is None else ("ALLY" if t.get("owner_player_id") in allies else "ENEMY"))} async for t in db().territory_tiles.find({"world_id": world_id, "chunk_cx": cx, "chunk_cy": cy})]
     return {
         "world_id": world_id,
         "cx": cx,
@@ -287,7 +288,7 @@ async def map_overview(world_id: str, c: Ctx = Depends(ctx)):
         _overview_cache[world_id] = counts.argmax(axis=-1).astype(np.uint8).tobytes()
     players = []
     async for s in db().settlements.find({"world_id": world_id, "kind": "PLAYER"}):
-        players.append(public_dto(s, c.player["_id"]))
+        players.append(public_dto(s, c.player["_id"], c.player.get("alliance_id")))
     return {
         "world_id": world_id,
         "factor": OVERVIEW_FACTOR,
@@ -309,6 +310,94 @@ async def map_marches(world_id: str, chunks: str = Query(default=""), c: Ctx = D
     if not parsed:
         return {"marches": await marches.active_for_player(world_id, c.player["_id"]), "server_time": clock.iso(clock.now())}
     return {"marches": await marches.visible_in_chunks(world_id, c.player["_id"], parsed), "server_time": clock.iso(clock.now())}
+
+
+class CaravanIn(BaseModel):
+    origin_settlement_id: str
+    target_settlement_id: str
+    cargo: dict[str, int]
+    caravans_assigned: int = Field(default=1, ge=1, le=20)
+    escort: dict[str, int] = Field(default_factory=dict)
+    idempotency_key: str | None = None
+
+
+class InterceptIn(BaseModel):
+    origin_settlement_id: str
+    caravan_id: str
+    units: dict[str, int]
+    idempotency_key: str | None = None
+
+
+@router.get("/worlds/{world_id}/settlements/{settlement_id}/caravans/info")
+async def caravan_info(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
+    """Composer data (unlock, slots, capacity, speed) + own settlements eligible as destinations."""
+    origin = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
+    owners = await alliances.ally_player_ids(c.player)
+    dests = [{"settlement_id": s["_id"], "name": s.get("name"), "x": s["x"], "y": s["y"], "level": s.get("level", 1), "allied": s["owner_player_id"] != c.player["_id"], "owner_house_name": s.get("owner_house_name")} async for s in db().settlements.find({"world_id": world_id, "owner_player_id": {"$in": owners}, "kind": "PLAYER", "_id": {"$ne": settlement_id}}).sort([("owner_player_id", 1), ("founded_at", 1)])]
+    return {**caravans.info(origin), "destinations": dests, "resources": (await economy.accrue(origin))["resources"]}
+
+
+@router.post("/worlds/{world_id}/caravans", status_code=201)
+async def caravan_send(world_id: str, body: CaravanIn, c: Ctx = Depends(ctx)):
+    origin = await get_owned_settlement(world_id, body.origin_settlement_id, c.player["_id"])
+    doc = await caravans.send(c.world, c.player, origin, body.target_settlement_id, body.cargo, body.caravans_assigned, body.escort, body.idempotency_key)
+    return marches.dto(doc)
+
+
+@router.get("/worlds/{world_id}/settlements/{settlement_id}/caravans/search")
+async def caravan_search(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
+    origin = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
+    return await caravans.search(world_id, origin, c.player)
+
+
+@router.post("/worlds/{world_id}/caravans/intercept", status_code=201)
+async def caravan_intercept(world_id: str, body: InterceptIn, c: Ctx = Depends(ctx)):
+    origin = await get_owned_settlement(world_id, body.origin_settlement_id, c.player["_id"])
+    doc = await caravans.intercept(c.world, c.player, origin, body.caravan_id, body.units, body.idempotency_key)
+    return marches.dto(doc)
+
+
+class MissionIn(BaseModel):
+    key: str = Field(min_length=1, max_length=40)
+    origin_settlement_id: str
+    units: dict[str, int]
+    idempotency_key: str | None = None
+
+
+@router.get("/worlds/{world_id}/missions")
+async def missions_overview(world_id: str, c: Ctx = Depends(ctx)):
+    """Catalogue with per-key availability, active missions, recent completions and the Player's progression."""
+    avail = await missions.availability(c.player, world_id)
+    return {**avail, "history": await missions.history(world_id, c.player["_id"]), "progress": progress.progress_dto(c.player), "server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/missions", status_code=201)
+async def missions_start(world_id: str, body: MissionIn, c: Ctx = Depends(ctx)):
+    origin = await get_owned_settlement(world_id, body.origin_settlement_id, c.player["_id"])
+    return await missions.start(c.player, origin, body.key, body.units, body.idempotency_key)
+
+
+@router.get("/worlds/{world_id}/missions/{mission_id}")
+async def mission_detail(world_id: str, mission_id: str, c: Ctx = Depends(ctx)):
+    m = await db().missions.find_one({"_id": mission_id, "world_id": world_id, "player_id": c.player["_id"]})
+    if not m:
+        raise not_found("mission", mission_id)
+    return missions.dto(m)
+
+
+@router.get("/worlds/{world_id}/progress")
+async def my_progress(world_id: str, c: Ctx = Depends(ctx)):
+    return progress.progress_dto(c.player)
+
+
+@router.get("/worlds/{world_id}/chronicle")
+async def world_chronicle(world_id: str, limit: int = Query(default=50, le=200), c: Ctx = Depends(ctx)):
+    cur = db().chronicle.find({"world_id": world_id}).sort("at", -1).limit(limit)
+    items = [progress.chronicle_dto(x) async for x in cur]
+    ids = {a for x in items for a in x["actors"]}
+    names = {p["_id"]: p["house_name"] async for p in db().players.find({"_id": {"$in": list(ids)}}, {"house_name": 1})} if ids else {}
+    w = await db().worlds.find_one({"_id": world_id}, {"records": 1})
+    return {"entries": items, "house_names": names, "records": (w or {}).get("records", {})}
 
 
 class SkinIn(BaseModel):
@@ -341,7 +430,7 @@ async def settlement_public(world_id: str, settlement_id: str, c: Ctx = Depends(
     if not doc:
         raise not_found("settlement", settlement_id)
     doc = await catch_up_neutral(doc, c.world)
-    d = public_dto(doc, c.player["_id"])
+    d = public_dto(doc, c.player["_id"], c.player.get("alliance_id"))
     if doc["kind"] == "NEUTRAL":
         d["garrison"] = {k: int(v) for k, v in doc.get("army", {}).items() if int(v) > 0}  # neutral composition is public (PvE)
         d["wall"] = doc.get("wall")
@@ -422,6 +511,7 @@ def _battle_dto(b: dict) -> dict:
         "defender_player_id": b.get("defender_player_id"),
         "target_settlement_id": b.get("target_settlement_id"),
         "target_sentinel_id": b.get("target_sentinel_id"),
+        "target_caravan_id": b.get("target_caravan_id"),
         "origin_settlement_id": b.get("origin_settlement_id"),
         "target_name": b.get("target_name"),
         "target_xy": b.get("target_xy"),

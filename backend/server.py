@@ -10,12 +10,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api import routes_auth, routes_game, routes_qa
+from app.api import routes_alliance, routes_auth, routes_game, routes_qa
 from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
-from app.domain import conquest, construction, marches, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
+from app.domain import conquest, construction, marches, missions, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
 from app.domain.research import validate_dag
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -75,6 +75,7 @@ async def unhandled_handler(_: Request, exc: Exception):
 
 app.include_router(routes_auth.router)
 app.include_router(routes_game.router)
+app.include_router(routes_alliance.router)
 app.include_router(routes_qa.router)
 
 

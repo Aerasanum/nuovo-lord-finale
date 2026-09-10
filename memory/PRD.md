@@ -89,14 +89,35 @@ frontend/
 - [x] Mappa viva: bandiere che ondeggiano (vertex shader `onBeforeCompile`, istanziate + banner marce), bagliore torce/bracieri pulsante (additivo), fumo stilizzato da camini, torce e bracieri presidiati (`SmokeSystem`, solo zoom < ×48)
 - [x] Orologio QA persistito in Mongo (`qa_state.clock`) — il restart del backend non azzera più i timer
 
+### Missioni personali, Prestigio, Achievement, Cronaca — iteration_8 (Bibbia §20/§22/§39)
+- [x] Tab "Missioni" (segmenti Missioni / Casata / Cronaca), composer `/mission/new`, catalogo 5 missioni TIMED con cooldown/slot (max 2), reward = snapshot produzione × ore (cap Magazzino) + Prestigio; ledger Prestigio, achievement a tier, Cronaca del mondo; `GET/POST /worlds/{w}/missions`, `GET .../progress`, `GET .../chronicle`
+
+### Carovane — iteration_9 (Bibbia §13 / §34.9, spec.caravans) — testing agent frontend OK + pytest `tests/test_caravans_e2e.py` 5/5
+- [x] Backend: slot logistici astratti (Caravanserraglio: 1 + ceil((L-1)/5) carovane/marcia, cap 5000×1,17^(L-1) × bonus ricerca), velocità 3 tile/h (scorta = unità più lenta), max 1 carovana in uscita/insediamento (conta nelle 5), consegna con cap Magazzino: **l'eccedenza resta sul convoglio e torna al mittente** (`DELIVERED_PARTIAL` → RETURNING), ricerca carovane straniere per raggio Chebyshev (5 + bonus ricerca, max 12) con disclosure intel, intercettazione (primo waypoint raggiungibile scelto dal server, combattimento normale, loot cap cargo sopravvissuti, residuo torna al mittente), notifiche `CARAVAN_STATE`, achievement `caravans_intercepted`
+- [x] Endpoint: `GET .../settlements/{s}/caravans/info`, `POST /worlds/{w}/caravans`, `GET .../settlements/{s}/caravans/search`, `POST /worlds/{w}/caravans/intercept`
+- [x] Frontend: hub `/caravans` (pulsante in Città), composer `/caravan/new` (destinazione tra i propri insediamenti, slot, carico con clamp capacità, scorta opzionale), `/caravan/intercept` (solo unità ATK>0), carovane straniere rilevate come marker ostili sulla mappa 3D (`caravanAsMarch`, orologio server) con scheda + Intercetta, inbox CARAVAN_STATE/BATTLE_RESOLVED con deep link, `MarchListCard` condiviso (marce + carovane con righe carico/consegnato/eccedenza)
+- Fixture QA: account rivale `rival@empirelords.com` (vedi test_credentials.md)
+
+### Alleanze — iteration_10/11 (Bibbia §19 / §34.7 / §40) — pytest `tests/test_alliances_e2e.py` 8/8 + testing agent UI (2 pass, 4 account) OK
+- [x] **Strutturate** (cap 100, Piramide, ruoli Leader/Vice/Diplomatico/Membro con permessi da spec, chat, tesoreria Smeraldi, PNA, guerre con voto 12h a maggioranza matematica, assedio condiviso) **vs Mercenarie** (cap 5, fuori Piramide, nessun voto di guerra: guerre solo come effetto dei contratti accettati) — separazione rigida (regola utente)
+- [x] Membership: creazione (nome/sigla unici), elenco pubblico, inviti 72h con ruolo, accetta/rifiuta, uscita con ritardo 12h + cooldown 24h (72h se in guerra + war_involved), successione Leader (Vice più anziano → membro), scioglimento (rimborsi/esiti contratti), kick/ruoli/trasferimento
+- [x] Diplomazia per coppia: PNA proponi/accetta/rifiuta/termina (preavviso 12h), voto di guerra, pace (proposta 24h, accettazione Leader/Vice → PEACE_PENDING 12h → NEUTRAL), pace bloccata durante contratto mercenario; **gate lanci ostili** (CANNOT_ATTACK_ALLY / DIPLOMACY_BLOCKS_ATTACK) su marce e intercettazioni; RINFORZO e Carovane verso alleati; tile alleati con fattore 0,90
+- [x] Tesoreria Smeraldi: registro append-only, visibile a Leader/Vice; fonti: difesa PvP +10 (cooldown coppia 24h), conquista PvP +25, prima missione/giorno +5 (solo Strutturate, cap 500/giorno)
+- [x] Contratti mercenari: escrow 1000–1M, durate 72/96/120/168h, max 3 attivi, accettazione → guerra automatica + lock pace, scadenza/scioglimento bersaglio = successo (escrow al fornitore, +10 prestigio mercenario alleanza e membri), scioglimento fornitore = fallimento (rimborso); bonus fornitore vs bersaglio +5% cap marcia / +3% ATK (snapshot `bonuses` sulla marcia)
+- [x] Frontend: segmento **Alleanza** nel tab Missioni (dashboard / lupo solitario con inviti), `/alliance/create`, `/alliance/browse`, `/alliance/[id]` (azioni diplomatiche), `/alliance/members`, `/alliance/diplomacy` (relazioni + voti), `/alliance/chat`, `/alliance/treasury`, `/alliance/mercenary`; inbox eventi alleanza con deep link; mappa: fazione ALLEATO (colore, legenda, tag `[SIGLA]`), composer solo RINFORZO verso alleati
+- Fixture QA: account ally/third (vedi test_credentials.md), `POST /qa/alliance/emeralds`
+
 ### Prossimi (P1)
+- [ ] **Rubini (§23)** — completamento istantaneo costruzione/ricerca/reclutamento a costo proporzionale (catalogo Play Billing vuoto)
 - [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)
 - [ ] Verifica Google Auth con flusso reale su dispositivo (Expo Go / build)
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)
 
-### Backlog (P2)
+### Backlog (P2/P3)
+- [ ] Evento Piramide al centro mappa (§21) — apre/chiude su timer, NON termina il server
+- [ ] Specializzazione giocatore, eliminazione per 120 giorni di inattività, cap Leggendario
+- [ ] Santuario Mitico + Unicorno (§12), cinematiche d'attacco skippabili (draghi/falchi)
 - [ ] Metadata Google Play / Android App Bundle
-- [ ] PvP (marce contro giocatori), alleanze, chat (fuori dallo slice)
 
 ## Credenziali test
 Vedi `/app/memory/test_credentials.md` (demo@empirelords.com / Demo12345!, admin key in backend/.env).

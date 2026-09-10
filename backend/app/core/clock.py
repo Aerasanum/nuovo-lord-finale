@@ -50,3 +50,8 @@ def aware(dt: datetime | None) -> datetime | None:
 def iso(dt: datetime | None) -> str | None:
     dt = aware(dt)
     return dt.isoformat().replace("+00:00", "Z") if dt else None
+
+
+def parse(s: str) -> datetime:
+    """Inverse of iso(): accepts '...Z' or an explicit offset; naive input is taken as UTC."""
+    return aware(datetime.fromisoformat(s.replace("Z", "+00:00")))  # type: ignore[return-value]

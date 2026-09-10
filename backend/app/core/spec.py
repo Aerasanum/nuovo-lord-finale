@@ -120,6 +120,21 @@ class Spec:
         self.notification_event_catalog = raw["notification_event_catalog"]
         self.wall_repair = raw["wall_repair"]
         self.development_score = raw["development_score"]
+        # progression systems (Bible §20 / §22 / §39)
+        self.missions = raw["missions"]
+        self.achievements = raw["achievements"]
+        self.house = raw["house"]
+        self.caravans = raw["caravans"]
+        self.premium = raw["premium"]
+        self.alliance_policy = raw["alliance_policy"]
+        self.emeralds = raw["emeralds"]
+        self.diplomacy = raw["diplomacy"]
+        self.mercenary_contract = raw["mercenary_contract"]
+        self.pyramid = raw["pyramid"]
+        self.player_specialization = raw["player_specialization"]
+        self.inactivity_transition = raw["inactivity_transition"]
+        self.mother_transition = raw["mother_transition"]
+        self.mythic = raw["mythic"]
 
         self._validate_counts()
 

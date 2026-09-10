@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 11 ALLIANCES multi-account pass 2 (390x844 mobile viewport, localStorage cleared between logins). All 8 flows A-H from review-request executed end-to-end and PASS. Backend not touched (pytest not re-run per review-request). NO deprecated Expo packages, NO React Native red screens, only expected WebGL performance warnings in console. Detailed per-flow verification: (A) third accepted PNA from DEMO ('PNA proposto da Lords Demo' → alliance-public-pna-accept → relation='Patto di non aggressione' + alliance-public-pna-terminate button + hostile warning 'Nessun lancio ostile durante PNA, preavviso PNA o pace in attesa.'); terminated PNA → 'PNA in scadenza' with 11h countdown; alliance-diplomacy row for [DEMO] shows 'PNA in scadenza' + countdown 11h. (B) demo proposed war on TRZ from public page (button visible during PNA_EXPIRING state) → toast 'Voto di guerra aperto', diplomacy shows vote-wv_8f05de17b2c6 with tally '✓ 1 · ✗ 0 · 2 necessari · Casa Demo', 'Hai votato: ✓', countdown 11h 59m; NO vote-yes/no buttons for demo (voter already recorded). (C) ally (role Vice, dashboard emeralds=5005 visible per treasury perm) saw vote-wv_8f05de17b2c6-yes/-no buttons; pressed yes → toast 'Guerra dichiarata', vote disappeared from open-votes list (0 remaining), relation to TRZ became 'Guerra (guerra da voto)'. (D) third-> alliance-public-peace-propose on DEMO → 'Proposta di pace in sospeso · 23h 59m'; demo-> TRZ public shows 'Pace proposta da Terza Via · 23h 58m', alliance-public-peace-accept present → toast 'Pace accettata — attesa 12h', relation 'Pace in attesa' + countdown 11h 59m; alliance-public-peace-locked correctly NOT visible for STRUCTURED. (E) demo mercenary-hire target=[TRZ] escrow=1000 duration=72h → toast 'Offerta pubblicata'; new contract ctr_307f988fb657 status='Offerto' with contract-*-withdraw button. Treasury 5005 was sufficient — no QA topup needed. (F) rival (Mercenaria alliance, dashboard shows 'Esclusa dalla Piramide' and '1 / 5' members) mercenary-offers listed the offer with contract-ctr_307f988fb657-accept → pressed → toast 'Contratto attivo — guerra dichiarata al bersaglio', contract now status='Attivo' + countdown '2g 23h'. Rival diplomacy: relation-aln_32fc27f99274-state='Guerra (guerra da contratto)' + 'Pace bloccata da un contratto mercenario' + alliance-votes-mercenary='Le compagnie Mercenarie non votano guerre: combattono tramite contratti.'. Rival on [TRZ] public page: NO war-propose button, alliance-public-peace-locked='Pace bloccata da un contratto mercenario' visible. (G) Fresh registration lonewolf_534203@empirelords.com / 'Casa Lupo 534203' via login-mode-register → world_1 join → Missioni/Alleanza shows alliance-none + 'Sei un Lupo Solitario' + alliance-invites-empty + alliance-create-button + alliance-browse-button. alliance-create-screen: submit initially aria-disabled=true; kind-MERCENARY + name='Lupi Test' + tag='LUPI' → submit → alliance-dashboard [LUPI] kind='Mercenaria', role='Leader', members='1 / 5', 'Esclusa dalla Piramide'. Members screen alliance-dissolve → alliance-dissolve-confirm → back to alliance-none with alliance-cooldown='Cooldown ingresso fino a 23h 59m' and alliance-create-button aria-disabled=true. (H) demo alliance-invite-input='Casa Lupo 534203' + alliance-invite-role-DIPLOMAT + alliance-invite-submit → toast 'Invito inviato'; lone wolf invite-inv_66a4c6e12930 shows '[DEMO] Lords Demo · Ruolo: Diplomatico · invitato da Casa Demo · 2g 23h' with invite-*-accept aria-disabled=true (cooldown 24h) → invite-*-decline → invite removed; Inbox shows 'ALLIANCE INVITE · Invito in [DEMO] Lords Demo · Strutturata · Ruolo: Diplomatico · invitato da Casa Demo'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "alliance-public-war-blocked (mercenary vs WAR state)",
+        "issue": "Review-request expects alliance-public-war-blocked text to be visible on the TRZ public page when a MERCENARY alliance ([MERC]) views a target it is already at WAR with. In /app/frontend/app/alliance/[id].tsx line 111 the war-blocked <T> only renders when `state === 'NEUTRAL' && !can('war_vote')`. Because state=WAR here (contract active), no war button is shown but the explanatory war-blocked text is also hidden. peace-locked correctly shows 'Pace bloccata da un contratto mercenario'. Consider rendering war-blocked whenever a MERCENARY cannot propose war (any state), or the review-request should be treated as satisfied by the absence of the war button. Reference: /app/frontend/app/alliance/[id].tsx:111-114.",
+        "testID": "alliance-public-war-blocked",
+        "priority": "MINOR"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter11_A1.jpg",
+    "/app/test_reports/screens/iter11_A2.jpg",
+    "/app/test_reports/screens/iter11_A3.jpg",
+    "/app/test_reports/screens/iter11_B1_after_war_prop.jpg",
+    "/app/test_reports/screens/iter11_B2_votes.jpg",
+    "/app/test_reports/screens/iter11_C1.jpg",
+    "/app/test_reports/screens/iter11_D1.jpg",
+    "/app/test_reports/screens/iter11_D2.jpg",
+    "/app/test_reports/screens/iter11_E1_offer.jpg",
+    "/app/test_reports/screens/iter11_F1_accept.jpg",
+    "/app/test_reports/screens/iter11_F2_diplo.jpg",
+    "/app/test_reports/screens/iter11_F3_trz.jpg",
+    "/app/test_reports/screens/iter11_G1_lw_none.jpg",
+    "/app/test_reports/screens/iter11_G2_lupi.jpg",
+    "/app/test_reports/screens/iter11_G3_dissolved.jpg",
+    "/app/test_reports/screens/iter11_H1_invited.jpg",
+    "/app/test_reports/screens/iter11_H2_lw_invite.jpg",
+    "/app/test_reports/screens/iter11_H3_inbox.jpg"
+  ],
+  "action_items": [
+    "MINOR (F): Decide whether alliance-public-war-blocked text should also render when a MERCENARY alliance is already at WAR with the viewed target (current code only renders during NEUTRAL). If yes, extend the render condition in /app/frontend/app/alliance/[id].tsx:111 to include the WAR case for MERCENARY viewers.",
+    "INFO: Iteration-11 seed changes — new mercenary contract ctr_307f988fb657 (DEMO->TRZ via MERC, 1000 escrow, 72h) is now ACTIVE; DEMO<->TRZ relation is 'Pace in attesa' (12h), TRZ<->MERC relation is 'Guerra (guerra da contratto)'; a spent PNA (DEMO<->TRZ) went through NEUTRAL→PNA→PNA_EXPIRING before being superseded by the war-vote and mercenary contract. If clean-slate needed, run tests/test_alliances_e2e.py."
+  ],
+  "critical_code_review_comments": [
+    "alliance-public-* buttons correctly gate on relation state (NEUTRAL/PNA/PNA_EXPIRING/WAR/PEACE_PENDING) and viewer role — verified across four different accounts.",
+    "hire-submit disable gate correctly permits target=[TRZ] + escrow=1000 + duration=72h with treasury=5005.",
+    "alliance-invites accept button correctly aria-disabled during 24h ingress cooldown; decline still enabled — verified on lone wolf right after dissolve.",
+    "alliance-cooldown surface uses the same join_cooldown_until value as the create-button disable — consistent UX.",
+    "Vote tally testID vote-<id>-tally includes the voter house name ('Casa Demo') — richer than the review-request literal string but backward-compatible."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not re-run (pytest 8/8 passing per pass 1)", "frontend": "100% (8/8 review-request flows A-H verified across 4 real accounts + 1 fresh lone-wolf registration)"},
+  "seed_data_creation": "Fresh lone-wolf account registered: lonewolf_534203@empirelords.com / Lone12345! (house 'Casa Lupo 534203'), currently in 24h ingress cooldown after dissolving [LUPI]. New active mercenary contract ctr_307f988fb657 (DEMO client, MERC company, TRZ target, escrow 1000, 72h — counting down 2g 23h). Relations state at end: DEMO<->TRZ = PEACE_PENDING (12h), MERC<->TRZ = WAR (contract-driven). Vote wv_8f05de17b2c6 was closed by ally's YES and no longer appears in open-votes. Alliance treasury balances unchanged from view: DEMO=5005 (visible to Vice), MERC=2000.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The 4 alliance test accounts + 1 lone-wolf now have varied state (peace-pending, contract-active war, cooldown). If more iterations of alliance testing are planned, run tests/test_alliances_e2e.py to reset. All alliance testIDs used: alliance-{dashboard,none,tag,name,kind,my-role,members-count,emeralds,contracts-count,war-state,cooldown}, alliance-nav-{members,diplomacy,chat,treasury,mercenary,browse}, alliance-{create,browse}-button, alliance-invites{,-empty}, invite-<id>{,-accept,-decline}, alliance-public-{screen,pna-proposal,pna-accept,pna-terminate,pna-withdraw,peace-proposal,peace-propose,peace-accept,peace-locked,war-propose,war-blocked,hire,relation,diplomacy,members}, relation-<aid>{,-state,-until}, vote-<vid>{,-tally,-mine,-yes,-no,-closes}, mercenary-{offers,hire,contracts}, contract-<cid>{,-status,-ends,-accept,-withdraw}, hire-{target-<aid>,escrow-input,duration-<h>,submit}, alliance-invite-{panel,input,role-<R>,submit}, alliance-dissolve{,-confirm,-cancel}. Note the war-blocked text is only rendered during NEUTRAL state in the current build (see frontend_issues).",
+  "rca_of_issue": "F: alliance-public-war-blocked text absent on TRZ public page (rival viewer) — RCA: /app/frontend/app/alliance/[id].tsx line 111 gates the text on `state === 'NEUTRAL'`. During iteration 11 the mercenary contract was accepted, moving the relation directly to WAR, and code therefore hides both the war button AND the war-blocked explanatory text. Impact: cosmetic — user still understands mercenaries can't vote war because alliance-votes-mercenary text on Diplomazia screen explicitly says 'Le compagnie Mercenarie non votano guerre'. Recommended fix: extend condition to `(state === 'NEUTRAL' || (isMerc && state === 'WAR')) && !can('war_vote')`."
+}

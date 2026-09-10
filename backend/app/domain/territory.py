@@ -26,11 +26,16 @@ async def claim_tiles(world_id: str, tiles: list[tuple[int, int]], owner: str, s
         return 0
     try:
         res = await db().territory_tiles.insert_many(docs, ordered=False)
-        return len(res.inserted_ids)
+        n = len(res.inserted_ids)
     except BulkWriteError as e:
-        return int(e.details.get("nInserted", 0))
+        n = int(e.details.get("nInserted", 0))
     except DuplicateKeyError:
-        return 0
+        n = 0
+    if n:
+        from app.domain import progress  # local import: progress → notifications only, but keep territory dependency-light
+
+        await progress.refresh_territory_track(world_id, owner)
+    return n
 
 
 async def claim_base(world_id: str, settlement: dict) -> int:
@@ -65,6 +70,8 @@ async def owner_of_tile(world_id: str, x: int, y: int) -> str | None:
     return t["owner_player_id"] if t else None
 
 
-async def player_tiles(world_id: str, player_id: str) -> set[tuple[int, int]]:
-    cur = db().territory_tiles.find({"world_id": world_id, "owner_player_id": player_id}, {"x": 1, "y": 1})
+async def player_tiles(world_id: str, player_id: str, ally_ids: list[str] | None = None) -> set[tuple[int, int]]:
+    """Own (or own + allied) tiles — the ×0.90 path factor applies to 'territorio proprio/alleato' (Bible §13)."""
+    owners = list({player_id, *(ally_ids or [])})
+    cur = db().territory_tiles.find({"world_id": world_id, "owner_player_id": {"$in": owners} if len(owners) > 1 else player_id}, {"x": 1, "y": 1})
     return {(t["x"], t["y"]) async for t in cur}

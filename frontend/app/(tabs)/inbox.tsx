@@ -7,7 +7,10 @@ import type { BattleDto, InboxItem } from "@/src/api/hooks";
 import { useBattles, useInbox, useInboxMutations } from "@/src/api/hooks";
 import { Screen } from "@/src/components/overlay";
 import { Button, Chip, chipRowStyles, Empty, Icon, Loading, Row, T, type IconName } from "@/src/components/ui";
-import { useI18n } from "@/src/i18n";
+import { diplomacyStateLabel } from "@/src/game/alliances";
+import { cargoLine, cargoTotal } from "@/src/game/caravans";
+import { formatNumber, useI18n } from "@/src/i18n";
+import { missionLabel } from "@/src/map3d/MapLabels";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -31,6 +34,15 @@ const EVENT_ICON: Record<string, IconName> = {
   SENTINEL_LOST: "tower-fire",
   LOYALTY_CHANGED: "heart-broken",
   HOSTILE_MARCH_DETECTED: "alert-octagon",
+  MISSION_COMPLETED: "compass-outline",
+  CARAVAN_STATE: "truck-delivery",
+  BATTLE_RESOLVED: "sword-cross",
+  ALLIANCE_INVITE: "shield-plus",
+  DIPLOMACY_STATE_CHANGED: "handshake",
+  MERCENARY_OFFER: "sword",
+  MERCENARY_CONTRACT_ACTIVE: "sword-cross",
+  MERCENARY_CONTRACT_ENDED: "trophy",
+  EMERALD_TREASURY_MOVEMENT: "diamond-stone",
 };
 
 export default function InboxScreen() {
@@ -66,6 +78,8 @@ export default function InboxScreen() {
         return `${t("returning")} · ${Object.entries(p.units || {}).map(([u, c]) => `${u} ${c}`).join(", ") || "—"}`;
       case "BATTLE_REPORT_READY":
         return `${p.mission} · ${p.target_name} · ${t("winner")}: ${p.winner}`;
+      case "BATTLE_RESOLVED":
+        return `${missionLabel(p.mission ?? "", t)} · ${t("winner")}: ${p.winner === "ATTACKER" ? t("attacker") : t("defender")}${cargoTotal(p.loot) > 0 ? ` · ${t("loot")} ${cargoLine(p.loot, lang)}` : ""}`;
       case "OWNERSHIP_CHANGED":
         return p.lost ? `${t("enemy")} · ${p.x},${p.y}` : `${t("conquered")} · ${p.x},${p.y} · L${p.new_level}`;
       case "SENTINEL_LOST":
@@ -74,6 +88,28 @@ export default function InboxScreen() {
         const it = p.intel_disclosure || {};
         return `${t("hostileMarchDetected")} → ${p.target_name ?? ""} · ${t("heading")} ${p.heading ?? t("unknown")} · ${t("entryTile")} ${p.entry_tile ? `${p.entry_tile[0]},${p.entry_tile[1]}` : t("unknown")} · ${t("intelScore")} ${it.intel_score ?? 0}`;
       }
+      case "MISSION_COMPLETED": {
+        const r = p.reward || {};
+        const bits = [p.name ?? p.mission_key, r.prestige ? `+${r.prestige} ★` : null, r.title ? r.title : null, r.cosmetic_unlock ?? r.heraldic_unlock ?? null].filter(Boolean);
+        return bits.join(" · ");
+      }
+      case "ALLIANCE_INVITE":
+        return `${t("inviteEvent")} [${p.tag}] ${p.alliance_name} · ${p.kind === "MERCENARY" ? t("kindMercenary") : t("kindStructured")} · ${t("role")}: ${t(`role${p.role}` as any)} · ${t("invitedBy")} ${p.sender_house}`;
+      case "DIPLOMACY_STATE_CHANGED":
+        return `${diplomacyStateLabel(t, p.state)}${p.other_name ? ` · [${p.other_tag}] ${p.other_name}` : p.alliance_name ? ` · ${p.alliance_name}` : ""}`;
+      case "MERCENARY_OFFER":
+        return `${t("offerEvent")}: ${p.client_name} → ${t("contractTarget")} ${p.target_name} · ${formatNumber(p.emerald_offer)} ${t("emeralds")} · ${p.duration_hours}${t("hours")}`;
+      case "MERCENARY_CONTRACT_ACTIVE":
+        return `${t("contractActiveEvent")}: ${p.provider_name} vs ${p.target_name} (${t("client")} ${p.client_name}) · ${formatNumber(p.escrow)} ${t("emeralds")} · ${p.duration_hours}${t("hours")}`;
+      case "MERCENARY_CONTRACT_ENDED":
+        return `${t("contractEndedEvent")}: ${p.result} · ${formatNumber(p.escrow)} ${t("emeralds")}${p.prestige_delta ? ` · +${p.prestige_delta} ★` : ""}`;
+      case "EMERALD_TREASURY_MOVEMENT":
+        return `${t("treasuryEvent")}: ${p.amount > 0 ? "+" : ""}${formatNumber(p.amount)} ${t("emeralds")} · ${String(p.reason).replace(/_/g, " ")} · ${formatNumber(p.balance_after)}`;
+      case "CARAVAN_STATE": {
+        if (p.state === "DELIVERED") return `${t("caravanDelivered")} → ${p.target_name ?? ""} · ${cargoLine(p.delivered, lang) || "—"}${cargoTotal(p.overflow) > 0 ? ` · ${t("overflowReturning")} ${formatNumber(cargoTotal(p.overflow))}` : ""}`;
+        if (p.state === "INTERCEPTED") return `${t("caravanIntercepted")} · ${t("losses")} ${formatNumber(cargoTotal(p.lost))}${cargoTotal(p.returning) > 0 ? ` · ${t("caravanReturning")} ${formatNumber(cargoTotal(p.returning))}` : ""}`;
+        return `${t("caravan")} → ${p.target_name ?? ""} · ${cargoLine(p.cargo, lang) || "—"}`;
+      }
       default:
         return JSON.stringify(p).slice(0, 80);
     }
@@ -81,11 +117,18 @@ export default function InboxScreen() {
 
   const open = (n: InboxItem) => {
     if (!n.read_at) mut.read.mutate(n.notification_id);
-    if (n.event === "BATTLE_REPORT_READY" && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
+    if ((n.event === "BATTLE_REPORT_READY" || n.event === "BATTLE_RESOLVED") && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
+    else if (n.deep_link?.startsWith("battle/")) router.push({ pathname: "/battle/[id]", params: { id: n.deep_link.slice("battle/".length) } });
     else if (n.deep_link?.startsWith("research")) router.push("/research");
+    else if (n.deep_link?.startsWith("caravans")) router.push("/caravans");
+    else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");
+    else if (n.deep_link === "alliance/treasury") router.push("/alliance/treasury");
+    else if (n.deep_link === "alliance/mercenary") router.push("/alliance/mercenary");
+    else if (n.deep_link?.startsWith("alliance")) router.push({ pathname: "/(tabs)/missions", params: { seg: "alliance" } });
     else if (n.deep_link?.startsWith("map")) router.push("/marches");
     else if (n.deep_link?.startsWith("army")) router.push("/(tabs)/army");
     else if (n.deep_link?.startsWith("settlement")) router.push("/(tabs)/settlement");
+    else if (n.deep_link?.startsWith("missions")) router.push("/(tabs)/missions");
   };
 
   return (

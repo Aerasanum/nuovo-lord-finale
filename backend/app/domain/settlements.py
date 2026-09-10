@@ -364,7 +364,7 @@ def unit_catalog(doc: dict, jobs: list[dict]) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- DTOs
-def public_dto(doc: dict, viewer_player_id: str | None) -> dict:
+def public_dto(doc: dict, viewer_player_id: str | None, viewer_alliance_id: str | None = None) -> dict:
     spec = get_spec()
     owner = doc.get("owner_player_id")
     if doc["kind"] == "NEUTRAL":
@@ -373,6 +373,8 @@ def public_dto(doc: dict, viewer_player_id: str | None) -> dict:
         faction = "RESERVED_SLOT"
     elif owner == viewer_player_id:
         faction = "OWN"
+    elif viewer_alliance_id and doc.get("owner_alliance_id") == viewer_alliance_id:
+        faction = "ALLY"
     else:
         faction = "ENEMY"
     return {
@@ -390,6 +392,8 @@ def public_dto(doc: dict, viewer_player_id: str | None) -> dict:
         "owner_player_id": owner,
         "owner_house_name": doc.get("owner_house_name"),
         "owner_house_crest": doc.get("owner_house_crest"),
+        "owner_alliance_tag": doc.get("owner_alliance_tag"),
+        "owner_alliance_id": doc.get("owner_alliance_id"),
         "skin": doc.get("skin"),
         "faction": faction,
         "wall_level": int((doc.get("wall") or {}).get("level", 0)),
@@ -409,7 +413,7 @@ async def owner_dto(doc: dict, player: dict) -> dict:
     wh = int(doc["buildings"].get("Sala di Guerra", 0))
     out_marches = await db().marches.count_documents({"origin_settlement_id": doc["_id"], "status": {"$in": ["OUTBOUND", "RETURNING", "ARRIVED"]}})
     return {
-        **public_dto(doc, player["_id"]),
+        **public_dto(doc, player["_id"], player.get("alliance_id")),
         "is_mother": bool(doc.get("is_mother")),
         "resources": {r: int(doc["resources"].get(r, 0)) for r in F.RES},
         "production_per_h": {r: round(v, 3) for r, v in rates["production_per_h"].items()},

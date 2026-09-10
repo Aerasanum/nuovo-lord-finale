@@ -9,7 +9,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.spec import get_spec
 from app.domain import formulas as F
-from app.domain import notifications, scheduler, territory
+from app.domain import notifications, progress, scheduler, territory
 
 
 async def reserve_slot(player_id: str) -> bool:
@@ -123,6 +123,8 @@ async def transfer_ownership(target: dict, new_player: dict, survivors: dict[str
                 "kind": "PLAYER",
                 "owner_player_id": new_player["_id"],
                 "owner_house_name": new_player["house_name"],
+                "owner_alliance_id": new_player.get("alliance_id"),
+                "owner_alliance_tag": new_player.get("alliance_tag"),
                 "name": f"{new_player['house_name']} · {target['x']},{target['y']}",
                 "army": {k: int(v) for k, v in survivors.items() if int(v) > 0},
                 "is_mother": False,
@@ -164,6 +166,7 @@ async def transfer_ownership(target: dict, new_player: dict, survivors: dict[str
     await notifications.notify(target["world_id"], new_player["_id"], "OWNERSHIP_CHANGED", {"settlement_id": target["_id"], "x": target["x"], "y": target["y"], "new_owner": new_player["_id"], "retention_pct": spec.retention["pct"], "new_level": ret["level"]}, dedupe_key=f"own:{battle_id}:{new_player['_id']}", deep_link="settlement")
     if old_owner:
         await notifications.notify(target["world_id"], old_owner, "OWNERSHIP_CHANGED", {"settlement_id": target["_id"], "x": target["x"], "y": target["y"], "new_owner": new_player["_id"], "lost": True}, dedupe_key=f"own:{battle_id}:{old_owner}", deep_link="settlement")
+    await progress.on_conquest(target["world_id"], new_player["_id"], old_owner, target, battle_id)
     return {"changed": True, "reason": "OK", "new_level": ret["level"]}
 
 

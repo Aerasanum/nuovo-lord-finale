@@ -4,7 +4,7 @@
  */
 import * as THREE from "three";
 
-type Tile = { x: number; y: number; faction: "OWN" | "ENEMY" | "RESERVED" };
+type Tile = { x: number; y: number; faction: "OWN" | "ALLY" | "ENEMY" | "RESERVED" };
 type CornerH = (x: number, y: number) => number;
 
 export type TerritoryMaterials = { fill: THREE.MeshBasicMaterial; fillFaint: THREE.MeshBasicMaterial; border: THREE.MeshBasicMaterial; borderFaint: THREE.MeshBasicMaterial };
