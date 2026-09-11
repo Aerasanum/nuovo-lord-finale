@@ -4,11 +4,11 @@ import { Pressable, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type CrestDto, useHouse, useHouseMutations, usePremiumMutations } from "@/src/api/hooks";
+import { type CrestDto, type MarchSkin, useHouse, useHouseMutations, usePremiumMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Chip, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
+import { Button, Chip, Icon, type IconName, Loading, Panel, Row, T } from "@/src/components/ui";
+import { fmt, formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -19,9 +19,11 @@ const useStyles = makeStyles((c) => ({
   section: { marginTop: spacing.md, gap: spacing.xs },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   preview: { alignItems: "center", paddingVertical: spacing.md },
+  skin: { minWidth: 96, flexGrow: 1, alignItems: "center", gap: 4, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1.5 },
 }));
 
 const LAYER_LABEL: Record<string, StringKey> = { none: "none" };
+const SKIN_ICON: Record<MarchSkin, IconName> = { classic: "flag-variant", dragon: "fire", elephant: "elephant", falcon: "bird" };
 
 /** Casata panel (Bible §20 / §40.4): name, motto, prestige and the layered crest editor with live preview. */
 export default function HouseScreen() {
@@ -165,6 +167,46 @@ export default function HouseScreen() {
             />
             <Button title={t("specialization")} icon="account-star" variant="ghost" style={{ marginTop: spacing.xs }} onPress={() => router.push("/specialization")} testID="house-specialization-button" />
             <Button title={t("cinGalleryTitle")} icon="movie-open-play" variant="ghost" onPress={() => router.push("/cinematics")} testID="house-cinematics-button" />
+          </Panel>
+
+          <Panel style={{ marginTop: spacing.md }} testID="house-march-skin-panel">
+            <Row>
+              <Icon name="flag-checkered" size={18} color={colors.brandPrimary} />
+              <T v="heading">{t("marchSkin")}</T>
+            </Row>
+            <T v="caption">{t("marchSkinHint")}</T>
+            <View style={[s.chips, { marginTop: spacing.sm }]}>
+              {(cat?.march_skins ?? []).map((sk) => {
+                const unlocked = q.data?.march_skin_unlocks?.[sk.key] ?? sk.requires_unit === null;
+                const selected = q.data?.house.march_skin === sk.key;
+                return (
+                  <Pressable
+                    key={sk.key}
+                    disabled={!unlocked || mut.isPending}
+                    onPress={() =>
+                      mut
+                        .mutateAsync({ march_skin: sk.key })
+                        .then(() => show(t("saved"), "success"))
+                        .catch(showError)
+                    }
+                    style={[s.skin, { borderColor: selected ? colors.brandPrimary : colors.border, backgroundColor: selected ? colors.brandTertiary : colors.surfaceTertiary, opacity: unlocked ? 1 : 0.55 }]}
+                    testID={`house-march-skin-${sk.key}`}
+                    accessibilityState={{ selected, disabled: !unlocked }}
+                  >
+                    <Icon name={SKIN_ICON[sk.key]} size={22} color={selected ? colors.brandPrimary : colors.onSurface} />
+                    <T v="label" style={{ color: selected ? colors.onBrandTertiary : colors.onSurface }}>
+                      {t(`marchSkin_${sk.key}` as StringKey)}
+                    </T>
+                    {!unlocked ? (
+                      <Row style={{ gap: 2 }}>
+                        <Icon name="lock" size={11} color={colors.muted} />
+                        <T v="caption">{fmt(t("marchSkinRequires"), { unit: sk.requires_unit ?? "" })}</T>
+                      </Row>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
           </Panel>
 
           <Panel style={{ marginTop: spacing.md }}>

@@ -114,16 +114,26 @@ class HouseIn(BaseModel):
     motto: str | None = None
     crest: dict | None = None
     description: str | None = None
+    march_skin: str | None = None
 
 
 @router.get("/worlds/{world_id}/house")
 async def house_get(c: Ctx = Depends(ctx)):
-    return {"house": house.dto(c.player), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
+    return {"house": house.dto(c.player), "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player)), "server_time": clock.iso(clock.now())}
 
 
 @router.put("/worlds/{world_id}/house")
 async def house_update(body: HouseIn, c: Ctx = Depends(ctx)):
-    return {"house": await house.update(c.player, body.motto, body.crest, body.description), "catalog": house.catalog(), "server_time": clock.iso(clock.now())}
+    updated = await house.update(c.player, body.motto, body.crest, body.description, body.march_skin)
+    return {"house": updated, "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player)), "server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/intro/seen")
+async def intro_seen(c: Ctx = Depends(ctx)):
+    """Intro cinematic (spec.cinematics.intro) watched or skipped once for this Player/World — never shown automatically again."""
+    if not c.player.get("intro_seen_at"):
+        await db().players.update_one({"_id": c.player["_id"]}, {"$set": {"intro_seen_at": clock.now()}})
+    return {"intro_seen": True, "server_time": clock.iso(clock.now())}
 
 
 # --------------------------------------------------------------------------- settlements

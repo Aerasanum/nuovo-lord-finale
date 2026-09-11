@@ -125,8 +125,9 @@ export type CrestDto = {
   colors: { base: string; primary: string; secondary: string; border: string };
 };
 
-export type HouseDto = { house_name: string; motto: string | null; description: string | null; crest: CrestDto; prestige: number; history: unknown[] };
-export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[] };
+export type MarchSkin = "classic" | "dragon" | "elephant" | "falcon";
+export type HouseDto = { house_name: string; motto: string | null; description: string | null; crest: CrestDto; march_skin: MarchSkin; prestige: number; history: unknown[] };
+export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[]; march_skins: { key: MarchSkin; requires_unit: string | null }[] };
 
 /** Bible §34.10 disclosure — only the fields the intel tier reveals are non-null. */
 export type IntelDto = {
@@ -152,6 +153,7 @@ export type MarchDto = {
   march_id: string;
   house_name?: string | null;
   house_crest?: CrestDto | null;
+  skin?: MarchSkin;
   origin_settlement_id: string | null;
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
@@ -380,18 +382,30 @@ export function useMarches(worldId?: string | null) {
 }
 
 export function useHouse(worldId?: string | null) {
-  return useQuery<{ house: HouseDto; catalog: CrestCatalog }>({ queryKey: qk.house(worldId || ""), queryFn: () => get(`/worlds/${worldId}/house`), enabled: !!worldId });
+  return useQuery<{ house: HouseDto; catalog: CrestCatalog; march_skin_unlocks: Record<MarchSkin, boolean> }>({ queryKey: qk.house(worldId || ""), queryFn: () => get(`/worlds/${worldId}/house`), enabled: !!worldId });
 }
 
 export function useHouseMutations(worldId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { motto?: string | null; crest?: CrestDto; description?: string | null }) => put<{ house: HouseDto }>(`/worlds/${worldId}/house`, body),
+    mutationFn: (body: { motto?: string | null; crest?: CrestDto; description?: string | null; march_skin?: MarchSkin }) => put<{ house: HouseDto }>(`/worlds/${worldId}/house`, body),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.house(worldId) });
       qc.invalidateQueries({ queryKey: qk.me(worldId) });
       qc.invalidateQueries({ queryKey: qk.marches(worldId) });
     },
+  });
+}
+
+/** Intro cinematic watched/skipped once for this Player/World (spec.cinematics.intro): optimistic on /me. */
+export function useIntroSeen(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => post<{ intro_seen: boolean }>(`/worlds/${worldId}/intro/seen`, {}),
+    onMutate: () => {
+      qc.setQueryData(qk.me(worldId), (d: any) => (d?.player ? { ...d, player: { ...d.player, intro_seen: true } } : d));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.me(worldId) }),
   });
 }
 

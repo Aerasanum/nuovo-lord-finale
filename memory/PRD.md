@@ -144,6 +144,12 @@ frontend/
 - [x] Alberi: conifere a 4 livelli con bordi irregolari e AO cotta nei vertex color, latifoglie a 5 blob con tronco biforcuto, cespugli/massi jitterati, **vento** (vertex shader seedato per istanza)
 - [x] **Piramide** rifatta (`map3d/pyramid.ts`): 7 livelli in muratura, bande dorate sui bordi, scalinata monumentale con balaustre e bracieri, 4 obelischi con pyramidion, tempio sommitale con colonne + capstone d'oro, pilastro di luce con alone rotante; stati/fazioni invariati (API `setLook/tick`), `PYRAMID_TOP` 10,6
 
+### Intro 24 s + Notte/Giorno del Regno + Skin marce — iteration_17 (richiesta utente) — testing agent 12/12 OK
+- [x] **Intro cinematica** (spec.cinematics.intro: 24 s, skip dopo 2 s, non blocca i timer): 6 illustrazioni AI (`assets/cinematics/intro_0..5.jpg`) con didascalie narrative IT/EN (regni divisi → Casate → Drago → Piramide → Alleanze → "la Casata {house} entra nel Regno"), taglio ogni 4 s. Auto-play alla **prima entrata** Player/World (`IntroGate` in `(tabs)/_layout`, flag server `players.intro_seen_at` via `POST /worlds/{w}/intro/seen`, `/me → player.intro_seen`); rivedibile da **Missioni → Cronaca → "Rivedi l'intro"** e dalla galleria `/cinematics`
+- [x] **Notte e giorno del Regno** (`map3d/daylight.ts`): un solo orologio per tutti = ora server **UTC+1**; keyframe notte 0-5 → alba 6:30 → giorno 8:30-17 → tramonto 18:30 → notte 20:30; interpolazione smoothstep di sole (colore/intensità/direzione), emisfero, orizzonte/fog, esposizione, uniform terreno/acqua; notte **leggibile** (blue hour), torce/bracieri ×2.3 e finestre dei castelli illuminate. Chip HUD `map-realm-clock` "HH:MM · Alba/Giorno/Tramonto/Notte"
+- [x] **Skin marce** (Casata → "Skin delle marce"): classica / Drago / Elefante / Falco, **sbloccate possedendo davvero la creatura** (≥1 unità in guarnigione o in marcia; `house.MARCH_SKINS`, `PUT /house {march_skin}` → 409 `MARCH_SKIN_LOCKED`), salvataggio immediato, aggiornamento delle marce in volo; snapshot `skin` sulle nuove marce (DTO). Sulla mappa il marker mostra il rig low-poly (`map3d/markerSkins.ts`): Drago in volo sopra la colonna con battito d'ali e bagliore di fuoco, Elefante da Guerra in testa con howdah nel colore di fazione, Falco che volteggia
+- [x] Ombre: shadow map ridotta a 1024 (performance su GPU deboli / preview software)
+
 ### Prossimi (P2)
 - [ ] Eliminazione per 120 giorni di inattività, cap Leggendario
 - [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)

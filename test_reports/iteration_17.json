@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 17 — Intro cinematic + Realm day/night clock + March skins verified end-to-end. BACKEND (pytest /app/backend/tests/test_iteration_17.py): 6/6 passed in 2.87s. GET /api/worlds/world_1/house returns house.march_skin + march_skin_unlocks {classic:true, dragon:true, elephant:false, falcon:true} + catalog.march_skins (4 entries with requires_unit); PUT {march_skin:'falcon'}→200; {march_skin:'elephant'}→409 MARCH_SKIN_LOCKED; {march_skin:'unicorn'}→400 INVALID_MARCH_SKIN; {march_skin:'dragon'}→200 and persisted (verified via GET). GET /api/worlds/world_1/map/marches — no own in-flight marches at test time so skin propagation was pytest-skipped (PUT still writes update_many for future marches; verified in code /app/backend/app/domain/house.py:116). Ally intro flow tested: /me.player.intro_seen is boolean; POST /worlds/world_1/intro/seen → {intro_seen:true}; GET /me confirms true. FRONTEND (Playwright mobile viewport 390x844): (1) INTRO AUTO-PLAY: after resetting demo intro_seen_at in Mongo, login+world_1 enter → cinematic-overlay appears at ~1.9s (well under 5s), title 'Empire Lords Dragon', subtitle 'Regno 1', cinematic-crest, cinematic-alliance-banner '[DEMO]', cinematic-intro marker, all 6 captions cycle correctly (caption-0 'In un'epoca di regni divisi...' → caption-5 'Ora la Casata Casa Demo entra nel Regno...'). Salta button appears within the intro window (screenshot iter17_intro_mid.jpg shows it clearly). After skip + navigation Città→Mappa, intro DOES NOT auto-play again (intro_seen persisted server-side + IntroGate.fired ref). map-realm-clock chip shows '15:07 · Giorno' on the map HUD. (2) CHRONICLE REPLAY: Missioni tab → Cronaca segment → chronicle-intro-replay button present and tappable → intro overlay reappears with cinematic-intro marker. (3) GALLERY REPLAY: Città → settlement-house-button → house-cinematics-button → cinematic-play-intro row present, 24s badge visible, tap → intro overlay plays again. (4) MARCH SKIN UI: house-march-skin-panel with 4 tiles (classic/dragon/elephant/falcon); elephant shows 'Richiede Elefante da Guerra' lock text; tap falcon → 'Salvato' toast; tap dragon → selected. API verifies march_skin='dragon' persisted. (5) ATTACK CINEMATIC REGRESSION: cinematic-play-dragon → cinematic-variant-dragon marker present, skip closes overlay. (6) MAP: renders correctly with 3D castles, forests, alert banner, HUD chips including day/night clock, no black screen. Screenshots iter17_intro_mid.jpg / iter17_intro_10s.jpg / iter17_map_after_intro.jpg / iter17_chronicle_replay.jpg / iter17_gallery.jpg / iter17_skin_falcon.jpg / iter17_skin_dragon.jpg / iter17_map_final.jpg. No React Native red screens, no console errors beyond the whitelisted deprecation/GPU warnings.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_17.py",
+    "/app/test_reports/pytest/iter17.xml",
+    "/app/test_reports/screens/iter17_intro_mid.jpg",
+    "/app/test_reports/screens/iter17_intro_10s.jpg",
+    "/app/test_reports/screens/iter17_map_after_intro.jpg",
+    "/app/test_reports/screens/iter17_chronicle_replay.jpg",
+    "/app/test_reports/screens/iter17_gallery.jpg",
+    "/app/test_reports/screens/iter17_skin_falcon.jpg",
+    "/app/test_reports/screens/iter17_skin_dragon.jpg",
+    "/app/test_reports/screens/iter17_map_final.jpg"
+  ],
+  "action_items": [
+    "INFO: no defects observed this iteration. Intro cinematic (24s, 6 captions, skip-after-2s), replay from Missioni→Cronaca AND from /cinematics gallery, and the persisted intro_seen flag all work as specified. Realm day/night chip (map-realm-clock) shows 'HH:MM · <phase>' on the map HUD. March skins UI (Casata panel with 4 tiles + elephant lock text + Salvato toast) and API (GET/PUT house.march_skin + unlocks + 4-entry catalog + 400/409 error codes) are correct.",
+    "INFO: demo intro flag was reset once during testing (db.players.$unset intro_seen_at on player 'Casa Demo' in world_1) to reproduce the first-enter auto-play; after the frontend test the flag is naturally set back to true by IntroGate → POST /intro/seen. No other seed changes.",
+    "TESTING-NOTE (for future agents): the /missions Cronaca segment chip currently has NO stable testID (missions-segment-chronicle / chronicle-segment / missions-chronicle-chip all missing). This iteration used page.get_by_text('Cronaca', exact=True).first.click() successfully but a testID would make the test more robust — nice-to-have not a bug."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/app/domain/house.py:57 catalog.march_skins returns list[{key, requires_unit}] — matches spec + frontend consumer.",
+    "/app/backend/app/domain/house.py:77-78 skin_unlocks correctly returns classic:True always (requires_unit=None) and locked skins iff totals[unit] > 0. Uses aggregated garrison + in-flight totals via owned_units (line 65-74) — cheap and accurate.",
+    "/app/backend/app/domain/house.py:96-101 PUT validation branches: unknown skin → 400 INVALID_MARCH_SKIN with catalog hint; locked (no unit owned) → 409 MARCH_SKIN_LOCKED with requires_unit. Ordering good (validate key before checking ownership).",
+    "/app/backend/app/domain/house.py:115-116 after skin write, update_many pushes 'skin' onto every OUTBOUND/RESOLVING/RETURNING march of the player — matches the review-request 'in-flight marches are updated' clause. Verified in code (no marches in flight at test time so pytest skipped the map/marches assertion; the update path is exercised on every PUT).",
+    "/app/backend/app/api/routes_game.py:131-136 POST /worlds/{id}/intro/seen is idempotent: only sets intro_seen_at if missing. Returns {intro_seen:true, server_time}. GET /me maps intro_seen_at → intro_seen boolean via worlds.py:196 dto.",
+    "/app/frontend/src/components/cinematic/IntroGate.tsx:16-28 — gates on player.intro_seen + a fired-ref to prevent re-fire on remount within the same world; calls cinematic.play + seen.mutate atomically. Simple, correct.",
+    "/app/frontend/src/components/cinematic/Cinematic.tsx:96-113 cinematicPlan correctly maps kind='INTRO' → duration 24000ms, variant 'intro', skipAfterMs 2000. Cinematic HUD hides the composition chips for INTRO (line 344) and shows targetName as the subtitle (line 337) — screenshot confirms 'Regno 1'.",
+    "/app/frontend/src/components/cinematic/Cinematic.tsx:192-201 6 intro captions (cinIntro1..6) with i18n substitution for the house name in cinIntro6 (verified: caption-5 read 'Ora la Casata Casa Demo entra nel Regno. Costruisci. Ricerca. Conquista.').",
+    "No deprecated Expo packages spotted (no expo-av, expo-barcode-scanner, expo-background-fetch). Cinematics remain image-based (bundled JPEGs + Reanimated Ken-Burns). No SafeAreaView misuse observed in reviewed files."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_17.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6 pytest)", "frontend": "100% — 6/6 review-request flows verified end-to-end"},
+  "seed_data_creation": "None. Only unset the intro_seen_at field on demo player (world_1) via a direct Mongo update to reproduce the first-enter auto-play; the flag was naturally re-set to true by IntroGate → POST /intro/seen during the frontend test. Backend intro-seen test uses ally player per review-request guidance (does NOT touch demo).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 17 features are all green. Key testIDs added this iteration: cinematic-intro, cinematic-caption-0..5, cinematic-play-intro (with 24s badge), chronicle-intro-replay (in the Missioni→Cronaca segment), map-realm-clock (on the Mappa HUD), house-march-skin-panel + house-march-skin-{classic,dragon,elephant,falcon}. Backend errors codes to remember: MARCH_SKIN_LOCKED (409) + INVALID_MARCH_SKIN (400). To reproduce the intro auto-play on demo, unset players.intro_seen_at via Mongo (there is no QA endpoint for it). The Cronaca segment chip has NO stable testID yet — use page.get_by_text('Cronaca', exact=True).first.click() or ask main agent to add missions-segment-chronicle testID. Pytest test file (/app/backend/tests/test_iteration_17.py) reads BASE from EXPO_BACKEND_URL or EXPO_PUBLIC_BACKEND_URL; export one of them or run via 'EXPO_PUBLIC_BACKEND_URL=https://empire-lords-dragon.preview.emergentagent.com pytest ... -o addopts=\"\"' — the pytest.ini defaults include the world-mutating suites, always pass -o addopts=''.",
+  "rca_of_issue": "No functional issues found. During my first playwright run the intro overlay did NOT appear because demo's intro_seen_at was already true (my very first attempt fired IntroGate → seen.mutate before I set up the poll cadence — a race with page load timing). After manually unsetting intro_seen_at in Mongo, the second run showed the overlay within 1.9s of world_enter — well within the spec's ~5s budget — confirming both the auto-play path and the persistence path work as designed."
+}

@@ -702,3 +702,31 @@ frontend:
       - working: true
         agent: "testing"
         comment: "iteration_16.json: 7/7 PASS — map renders (terrain mottling, masonry castles, tiled roofs, trees), controls/pyramid centering (stepped stone pyramid, gold bands, stair, braziers, light pillar), labels/legend, skins preview textured, cinematics gallery (dragon/conquest/pyramid/standard key-art, letterbox, cut at 2.2s, skip, auto-dismiss), battle replay, map after cinematics. No errors."
+
+# ---- iteration 17 (main agent) — Intro 24 s, Notte/Giorno del Regno, Skin marce ----
+backend:
+  - task: "Intro flag: players.intro_seen_at; /worlds/{w}/me → player.intro_seen; POST /worlds/{w}/intro/seen (idempotent). March skins: house.MARCH_SKINS {classic, dragon→Drago, elephant→Elefante da Guerra, falcon→Falco}; GET/PUT /worlds/{w}/house accept/return march_skin + march_skin_unlocks (owned units across garrisons + in-flight marches); PUT with a locked skin → 409 MARCH_SKIN_LOCKED, unknown → 400 INVALID_MARCH_SKIN; changing the skin updates in-flight marches; new marches snapshot player.march_skin → march DTO field `skin`."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/house.py, worlds.py, marches.py, api/routes_game.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manual curl-equivalent OK: demo unlocks {classic,dragon,falcon}=true, elephant=false; PUT dragon 200, elephant 409, unicorn 400; intro_seen false → endpoint sets true."
+frontend:
+  - task: "Intro cinematic (24 s, 6 AI stills intro_0..5 with narrative captions cinematic-caption-0..5, skip after 2 s, marker cinematic-intro, title 'Empire Lords Dragon', subtitle world name): IntroGate in (tabs)/_layout plays it once when player.intro_seen is false and POSTs intro/seen; replay from Missioni → Cronaca (chronicle-intro-replay) and from /cinematics gallery (cinematic-play-intro). Realm daylight (map3d/daylight.ts): UTC+1 server clock drives sun/hemisphere/fog/exposure/terrain+water uniforms, torches brighter and castle windows lit at night (readable blue-hour night); HUD chip map-realm-clock 'HH:MM · Alba/Giorno/Tramonto/Notte'. March skins: Casata panel house-march-skin-panel with house-march-skin-{classic,dragon,elephant,falcon} (locked ones show 'Richiede <unit>'), selection saves immediately; map markers get a low-poly Dragon (flying above, flapping, fire glow) / Elephant (front) / Falcon (circling) rig (map3d/markerSkins.ts)."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/cinematic/IntroGate.tsx, Cinematic.tsx, CinematicArt.tsx, app/(tabs)/_layout.tsx, app/(tabs)/missions.tsx, app/(tabs)/map.tsx, app/house.tsx, app/cinematics.tsx, src/map3d/daylight.ts, markerSkins.ts, engine.ts, entities.ts, water.ts"
+    stuck_count: 0
+    priority: "high"
+    priority_note: "demo's intro_seen_at was reset so the intro auto-plays on the next world entry"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK: intro auto-play with captions + skip; realm clock chip (server QA clock is +132 days → shows 14:xx Giorno); night preset verified with a temporary hour override (readable, lit windows); skin panel (elephant locked); dragon rig visible on the map marker at (34,184)."
+      - working: true
+        agent: "testing"
+        comment: "iteration_17.json: backend 6/6 (tests/test_iteration_17.py) + frontend 6/6 — intro auto-play once, skip, no replay on tab switch, Cronaca replay, gallery intro, realm clock chip, skins tiles (elephant locked, falcon/dragon select + API), attack cinematic regression. Suggestion: add testID missions-segment-chronicle."

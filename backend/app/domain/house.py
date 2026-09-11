@@ -54,7 +54,28 @@ def validate_crest(c: dict) -> dict:
 
 
 def catalog() -> dict:
-    return {"shield_bases": SHIELD_BASES, "symbols": SYMBOLS, "marks": MARKS, "borders": BORDERS, "palette": PALETTE}
+    return {"shield_bases": SHIELD_BASES, "symbols": SYMBOLS, "marks": MARKS, "borders": BORDERS, "palette": PALETTE, "march_skins": [{"key": k, "requires_unit": u} for k, u in MARCH_SKINS.items()]}
+
+
+# March skins (Bible §41.3 cosmetics): the marker of every own march on the map. Unlocked by really owning the creature
+# (≥1 unit in any garrison or in flight) — the skin shows true strength, never a purchase.
+MARCH_SKINS: dict[str, str | None] = {"classic": None, "dragon": "Drago", "elephant": "Elefante da Guerra", "falcon": "Falco"}
+
+
+async def owned_units(player: dict) -> dict[str, int]:
+    """Total army of a Player across garrisons and in-flight marches (cheap aggregation, cosmetic gating only)."""
+    totals: dict[str, int] = {}
+    async for s in db().settlements.find({"owner_player_id": player["_id"]}, {"army": 1}):
+        for u, c in (s.get("army") or {}).items():
+            totals[u] = totals.get(u, 0) + int(c)
+    async for m in db().marches.find({"player_id": player["_id"], "status": {"$in": ["OUTBOUND", "RESOLVING", "RETURNING"]}}, {"units": 1}):
+        for u, c in (m.get("units") or {}).items():
+            totals[u] = totals.get(u, 0) + int(c)
+    return totals
+
+
+def skin_unlocks(totals: dict[str, int]) -> dict[str, bool]:
+    return {k: (u is None or totals.get(u, 0) > 0) for k, u in MARCH_SKINS.items()}
 
 
 def dto(p: dict) -> dict:
@@ -63,13 +84,21 @@ def dto(p: dict) -> dict:
         "motto": p.get("house_motto"),
         "description": p.get("house_description"),
         "crest": p.get("house_crest") or default_crest(p["house_name"]),
+        "march_skin": p.get("march_skin") or "classic",
         "prestige": int(p.get("prestige", 0)),
         "history": [{**h, "at": clock.iso(h.get("at"))} for h in (p.get("house_history") or [])[-30:]][::-1],
     }
 
 
-async def update(player: dict, motto: str | None, crest: dict | None, description: str | None = None) -> dict:
+async def update(player: dict, motto: str | None, crest: dict | None, description: str | None = None, march_skin: str | None = None) -> dict:
     sets: dict = {"house_updated_at": clock.now()}
+    if march_skin is not None:
+        if march_skin not in MARCH_SKINS:
+            raise ApiError("INVALID_MARCH_SKIN", "Unknown march skin", 400, {"skins": list(MARCH_SKINS)})
+        need = MARCH_SKINS[march_skin]
+        if need and (await owned_units(player)).get(need, 0) <= 0:
+            raise ApiError("MARCH_SKIN_LOCKED", f"This skin requires owning at least one {need}", 409, {"requires_unit": need})
+        sets["march_skin"] = march_skin
     if motto is not None:
         motto = motto.strip()
         if len(motto) > 60:
@@ -83,6 +112,8 @@ async def update(player: dict, motto: str | None, crest: dict | None, descriptio
     if crest is not None:
         sets["house_crest"] = validate_crest(crest)
     await db().players.update_one({"_id": player["_id"]}, {"$set": sets})
+    if march_skin is not None:
+        await db().marches.update_many({"player_id": player["_id"], "status": {"$in": ["OUTBOUND", "RESOLVING", "RETURNING"]}}, {"$set": {"skin": march_skin}})
     if crest is not None:
         # denormalised copies used by public map DTOs and in-flight marches
         await db().settlements.update_many({"owner_player_id": player["_id"]}, {"$set": {"owner_house_crest": sets["house_crest"]}})

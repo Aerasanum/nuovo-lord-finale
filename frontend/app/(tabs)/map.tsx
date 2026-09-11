@@ -1,17 +1,19 @@
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { serverNow } from "@/src/api/client";
 import { useCaravanSearch, useMarches, useMarchMutations, usePyramid, useSettlementBattles } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
 import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
-import { Button, CostRow, Icon, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Icon, type IconName, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
-import { formatNumber, useI18n } from "@/src/i18n";
+import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
+import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
 import { MapView3D } from "@/src/map3d/MapView";
 import { MiniMapFrame } from "@/src/map3d/MiniMap";
@@ -19,9 +21,12 @@ import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
+const TOD_ICON: Record<TimeOfDay, IconName> = { dawn: "weather-sunset-up", day: "weather-sunny", dusk: "weather-sunset-down", night: "weather-night" };
+
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   hud: { position: "absolute", left: spacing.sm, right: spacing.sm },
+  clock: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm },
   resBar: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flex: 1, flexWrap: "wrap" },
   iconBtn: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center" },
@@ -54,6 +59,15 @@ export default function MapScreen() {
   const engineRef = useRef<MapEngine | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [legend, setLegend] = useState(false);
+  // realm clock (UTC+1, shared by every player) — drives the map daylight, refreshed twice a minute
+  const [realmNow, setRealmNow] = useState(() => serverNow());
+  useEffect(() => {
+    const iv = setInterval(() => setRealmNow(serverNow()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const hour = realmHour(realmNow);
+  const tod = timeOfDay(hour);
+  const clockLabel = `${String(Math.floor(hour)).padStart(2, "0")}:${String(Math.floor((hour % 1) * 60)).padStart(2, "0")}`;
   const [labelsOn, setLabelsOn] = useState(true);
   const [cam, setCam] = useState({ tx: 200, tz: 200, dist: 38 });
   const active = settlement.data;
@@ -110,6 +124,12 @@ export default function MapScreen() {
         <T v="caption" testID="map-camera-coords">
           {Math.round(cam.tx)},{Math.round(cam.tz)} · ×{Math.round(cam.dist)}
         </T>
+        <View style={s.clock} testID="map-realm-clock" accessibilityLabel={t("realmTime")}>
+          <Icon name={TOD_ICON[tod]} size={13} color={colors.brandPrimary} />
+          <T v="caption">
+            {clockLabel} · {t(`tod_${tod}` as StringKey)}
+          </T>
+        </View>
       </View>
 
       {/* right controls */}

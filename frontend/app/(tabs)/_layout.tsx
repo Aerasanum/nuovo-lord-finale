@@ -3,13 +3,15 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
 import { Platform, View } from "react-native";
 
+import { IntroGate } from "@/src/components/cinematic/IntroGate";
 import { Icon } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { fonts, useTheme } from "@/src/theme";
 
-const isIOS26 = Platform.OS === "ios" && parseInt(String(Platform.Version), 10) >= 26;
+const isIOS26 =
+  Platform.OS === "ios" && parseInt(String(Platform.Version), 10) >= 26;
 
 export default function TabsLayout() {
   const { colors } = useTheme();
@@ -22,65 +24,136 @@ export default function TabsLayout() {
 
   if (isIOS26) {
     return (
-      <NativeTabs>
-        <NativeTabs.Trigger name="map">
-          <NativeTabs.Trigger.Icon sf="map.fill" />
-          <NativeTabs.Trigger.Label>{t("tabMap")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="settlement">
-          <NativeTabs.Trigger.Icon sf="building.columns.fill" />
-          <NativeTabs.Trigger.Label>{t("tabCity")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="army">
-          <NativeTabs.Trigger.Icon sf="shield.fill" />
-          <NativeTabs.Trigger.Label>{t("tabArmy")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="alliance">
-          <NativeTabs.Trigger.Icon sf="person.3.fill" />
-          <NativeTabs.Trigger.Label>{t("tabAlliance")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="missions">
-          <NativeTabs.Trigger.Icon sf="scroll.fill" />
-          <NativeTabs.Trigger.Label>{t("tabMissions")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="inbox">
-          <NativeTabs.Trigger.Icon sf="tray.fill" />
-          <NativeTabs.Trigger.Label>{t("tabInbox")}</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-      </NativeTabs>
+      <>
+        <IntroGate />
+        <NativeTabs>
+          <NativeTabs.Trigger name="map">
+            <NativeTabs.Trigger.Icon sf="map.fill" />
+            <NativeTabs.Trigger.Label>{t("tabMap")}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="settlement">
+            <NativeTabs.Trigger.Icon sf="building.columns.fill" />
+            <NativeTabs.Trigger.Label>{t("tabCity")}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="army">
+            <NativeTabs.Trigger.Icon sf="shield.fill" />
+            <NativeTabs.Trigger.Label>{t("tabArmy")}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="alliance">
+            <NativeTabs.Trigger.Icon sf="person.3.fill" />
+            <NativeTabs.Trigger.Label>
+              {t("tabAlliance")}
+            </NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="missions">
+            <NativeTabs.Trigger.Icon sf="scroll.fill" />
+            <NativeTabs.Trigger.Label>
+              {t("tabMissions")}
+            </NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="inbox">
+            <NativeTabs.Trigger.Icon sf="tray.fill" />
+            <NativeTabs.Trigger.Label>{t("tabInbox")}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+        </NativeTabs>
+      </>
     );
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.brandPrimary,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.surfaceSecondary, borderTopColor: colors.border, ...(Platform.OS === "web" ? { height: 64 } : {}) },
-        tabBarItemStyle: { alignSelf: "center" },
-        tabBarLabelStyle: { fontFamily: fonts.body, fontSize: 10 },
-        sceneStyle: { backgroundColor: colors.surface },
-      }}
-    >
-      <Tabs.Screen name="map" options={{ title: t("tabMap"), tabBarIcon: ({ color, size }) => <Icon name="map" size={size} color={String(color)} />, tabBarButtonTestID: "tab-map" }} />
-      <Tabs.Screen name="settlement" options={{ title: t("tabCity"), tabBarIcon: ({ color, size }) => <Icon name="castle" size={size} color={String(color)} />, tabBarButtonTestID: "tab-settlement" }} />
-      <Tabs.Screen name="army" options={{ title: t("tabArmy"), tabBarIcon: ({ color, size }) => <Icon name="sword-cross" size={size} color={String(color)} />, tabBarButtonTestID: "tab-army" }} />
-      <Tabs.Screen name="alliance" options={{ title: t("tabAlliance"), tabBarIcon: ({ color, size }) => <Icon name="shield-crown" size={size} color={String(color)} />, tabBarButtonTestID: "tab-alliance" }} />
-      <Tabs.Screen name="missions" options={{ title: t("tabMissions"), tabBarIcon: ({ color, size }) => <Icon name="compass-outline" size={size} color={String(color)} />, tabBarButtonTestID: "tab-missions" }} />
-      <Tabs.Screen
-        name="inbox"
-        options={{
-          title: t("tabInbox"),
-          tabBarButtonTestID: "tab-inbox",
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <Icon name="email-outline" size={size} color={String(color)} />
-              {unread > 0 ? <View style={{ position: "absolute", right: -4, top: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.error }} /> : null}
-            </View>
-          ),
+    <>
+      <IntroGate />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.brandPrimary,
+          tabBarInactiveTintColor: colors.muted,
+          tabBarStyle: {
+            backgroundColor: colors.surfaceSecondary,
+            borderTopColor: colors.border,
+            ...(Platform.OS === "web" ? { height: 64 } : {}),
+          },
+          tabBarItemStyle: { alignSelf: "center" },
+          tabBarLabelStyle: { fontFamily: fonts.body, fontSize: 10 },
+          sceneStyle: { backgroundColor: colors.surface },
         }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="map"
+          options={{
+            title: t("tabMap"),
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="map" size={size} color={String(color)} />
+            ),
+            tabBarButtonTestID: "tab-map",
+          }}
+        />
+        <Tabs.Screen
+          name="settlement"
+          options={{
+            title: t("tabCity"),
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="castle" size={size} color={String(color)} />
+            ),
+            tabBarButtonTestID: "tab-settlement",
+          }}
+        />
+        <Tabs.Screen
+          name="army"
+          options={{
+            title: t("tabArmy"),
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="sword-cross" size={size} color={String(color)} />
+            ),
+            tabBarButtonTestID: "tab-army",
+          }}
+        />
+        <Tabs.Screen
+          name="alliance"
+          options={{
+            title: t("tabAlliance"),
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="shield-crown" size={size} color={String(color)} />
+            ),
+            tabBarButtonTestID: "tab-alliance",
+          }}
+        />
+        <Tabs.Screen
+          name="missions"
+          options={{
+            title: t("tabMissions"),
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="compass-outline" size={size} color={String(color)} />
+            ),
+            tabBarButtonTestID: "tab-missions",
+          }}
+        />
+        <Tabs.Screen
+          name="inbox"
+          options={{
+            title: t("tabInbox"),
+            tabBarButtonTestID: "tab-inbox",
+            tabBarIcon: ({ color, size }) => (
+              <View>
+                <Icon name="email-outline" size={size} color={String(color)} />
+                {unread > 0 ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      right: -4,
+                      top: -2,
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: colors.error,
+                    }}
+                  />
+                ) : null}
+              </View>
+            ),
+          }}
+        />
+      </Tabs>
+    </>
   );
 }

@@ -16,7 +16,9 @@ import type { ChunkDto, MarchDto, OverviewDto, PyramidDto, SentinelDto, Settleme
 import type { ThemeColors } from "@/src/theme";
 
 import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlementScale } from "./entities";
+import { daylightAt, realmHour } from "./daylight";
 import { FloraFactory } from "./flora";
+import { animateSkin, buildSkin } from "./markerSkins";
 import { PYRAMID_HALF, PYRAMID_TOP, PyramidMonument } from "./pyramid";
 import { type SmokeEmitter, SmokeSystem } from "./smoke";
 import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
@@ -152,6 +154,8 @@ export class MapEngine {
   private sun: THREE.DirectionalLight;
   private sunDir: THREE.Vector3;
   private shadowRadius = 0;
+  private hemi: THREE.HemisphereLight;
+  private daylightMinute = -1;
   private sampler: Sampler = (x, y) => this.tileAt(x, y);
   private ovSampler: Sampler = (x, y) => this.overviewTileAt(x, y);
 
@@ -206,10 +210,11 @@ export class MapEngine {
     const sunDir = new THREE.Vector3(0.68, 0.78, 0.3).normalize();
     const hemi = new THREE.HemisphereLight(skyColor, groundColor, 0.85);
     this.scene.add(hemi);
+    this.hemi = hemi;
     const sun = new THREE.DirectionalLight(sunColor, 1.7);
     sun.position.copy(sunDir).multiplyScalar(150);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.bias = -0.0003;
     sun.shadow.normalBias = 0.35;
     sun.shadow.camera.near = 20;
@@ -475,6 +480,8 @@ export class MapEngine {
       // Casata crest on the banner (own marches carry the full crest; a detected hostile shows its house crest too —
       // the crest is public identity, never intel)
       marker.add(this.factory.buildBanner(march.house_crest ?? null, color, returning));
+      const skin = buildSkin(march.skin, color);
+      if (skin) marker.add(skin);
       if (march.hostile) {
         const halo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 24), new THREE.MeshBasicMaterial({ color: this.palette.enemy, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false }));
         halo.rotation.x = -Math.PI / 2;
@@ -658,6 +665,34 @@ export class MapEngine {
   }
 
   // ------------------------------------------------------------------------------------------ internals
+  /** Realm daylight (UTC+1, shared by every player): re-applied once per realm minute, cheap uniform/material writes. */
+  private applyDaylight(serverNowMs: number) {
+    const minute = Math.floor(serverNowMs / 60000);
+    if (minute === this.daylightMinute) return;
+    this.daylightMinute = minute;
+    const d = daylightAt(realmHour(serverNowMs));
+    this.sunDir.copy(d.sunDir);
+    this.sun.color.copy(d.sunColor);
+    this.sun.intensity = d.sunIntensity;
+    this.sun.position.copy(this.sunDir).multiplyScalar(160).add(this.sun.target.position);
+    this.hemi.color.copy(d.skyColor);
+    this.hemi.groundColor.copy(d.groundColor);
+    this.hemi.intensity = d.hemiIntensity;
+    this.renderer.toneMappingExposure = d.exposure;
+    const horizon = this.palette.horizon.clone().lerp(d.horizonTint, d.horizonMix);
+    (this.scene.fog as THREE.Fog).color.copy(horizon);
+    this.renderer.setClearColor(horizon, 1);
+    for (const m of [this.mats.terrain, this.mats.overview]) {
+      (m.uniforms.uSunDir.value as THREE.Vector3).copy(this.sunDir);
+      (m.uniforms.uSunColor.value as THREE.Color).copy(d.sunColor).multiplyScalar(1.2 * (d.sunIntensity / 1.7));
+      (m.uniforms.uSkyColor.value as THREE.Color).copy(d.skyColor).multiplyScalar(0.58 * (d.hemiIntensity / 0.85));
+      (m.uniforms.uGroundColor.value as THREE.Color).copy(d.groundColor).multiplyScalar(0.55);
+    }
+    this.water.setLight(this.sunDir, d.sunColor, horizon.clone().lerp(d.skyColor, 0.5));
+    this.factory.setNight(d.night);
+    this.dirty = true;
+  }
+
   private updateCamera() {
     const { tx, tz, yaw, pitch, dist } = this.cam;
     const cp = Math.cos(pitch);
@@ -1111,6 +1146,8 @@ export class MapEngine {
         const halo = marker.getObjectByName("halo");
         if (halo) halo.scale.setScalar(1 + 0.25 * (0.5 + 0.5 * Math.sin(now / 250)));
       }
+      const skin = marker.getObjectByName("skin");
+      if (skin) animateSkin(skin, now);
       if (this.selected?.march?.march_id === march.march_id) this.selectionRing.position.set(x, marker.position.y + 0.02, z);
     }
     this.labelsDirty = true;
@@ -1142,6 +1179,7 @@ export class MapEngine {
       this.pan(vx * dt, vy * dt);
     }
     this.stream(now);
+    this.applyDaylight(now + serverOffset());
     // a full-screen show (cinematic) is on top: keep the loop alive but skip drawing, redraw on release
     if (_renderHold) {
       this.dirty = true;

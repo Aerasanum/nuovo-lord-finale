@@ -58,6 +58,7 @@ type Part = { geo: THREE.BufferGeometry; mat: THREE.Material };
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 export const CREST_SYMBOLS: CrestDto["primary_symbol"][] = ["circle", "diamond", "cross", "star", "chevron", "tower", "crescent", "triangle"];
 const WINDOW_COLOR = new THREE.Color("#15110E");
+const WINDOW_LIT = new THREE.Color("#FFC46A"); // candle-lit windows after dusk
 
 /** Flat symbol geometry in flag-local units (centred, ~0.16 tall) — mirrors the SVG crest so 2D and 3D agree. */
 function symbolGeometry(kind: CrestDto["primary_symbol"]): THREE.BufferGeometry {
@@ -190,12 +191,20 @@ export class EntityFactory {
     }
   }
 
+  private night = 0;
+
+  /** 0 by day → 1 at night: fire glows stronger and the windows light up (daylight.ts drives it). */
+  setNight(k: number) {
+    this.night = Math.max(0, Math.min(1, k));
+    (this.parts.windows.mat as THREE.MeshBasicMaterial).color.copy(WINDOW_COLOR).lerp(WINDOW_LIT, this.night);
+  }
+
   /** Per-frame fire flicker (shared materials → one write per frame). */
   tick(t: number) {
     ENTITY_TIME.value = t;
-    const flicker = 0.24 + 0.14 * (0.5 + 0.5 * Math.sin(t * 9.1)) * 0.6 + 0.08 * Math.sin(t * 23.3);
-    (this.parts.torchGlow.mat as THREE.MeshBasicMaterial).opacity = flicker;
-    (this.parts.senGlow.mat as THREE.MeshBasicMaterial).opacity = flicker * 1.1;
+    const flicker = (0.24 + 0.14 * (0.5 + 0.5 * Math.sin(t * 9.1)) * 0.6 + 0.08 * Math.sin(t * 23.3)) * (1 + 1.3 * this.night);
+    (this.parts.torchGlow.mat as THREE.MeshBasicMaterial).opacity = Math.min(0.95, flicker);
+    (this.parts.senGlow.mat as THREE.MeshBasicMaterial).opacity = Math.min(0.95, flicker * 1.1);
   }
 
   factionColor(f?: string): THREE.Color {

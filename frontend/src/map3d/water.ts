@@ -80,7 +80,7 @@ void main() {
   #include <fog_fragment>
 }`;
 
-export function createWater(world: number, deep: THREE.Color, shallow: THREE.Color, sky: THREE.Color, sunDir: THREE.Vector3, sunColor: THREE.Color): { mesh: THREE.Mesh; update: (tSeconds: number) => void } {
+export function createWater(world: number, deep: THREE.Color, shallow: THREE.Color, sky: THREE.Color, sunDir: THREE.Vector3, sunColor: THREE.Color): { mesh: THREE.Mesh; update: (tSeconds: number) => void; setLight: (sunDir: THREE.Vector3, sunColor: THREE.Color, sky: THREE.Color) => void } {
   const pad = 120;
   const geo = new THREE.PlaneGeometry(world + pad * 2, world + pad * 2, 48, 48);
   geo.rotateX(-Math.PI / 2);
@@ -101,6 +101,11 @@ export function createWater(world: number, deep: THREE.Color, shallow: THREE.Col
     mesh,
     update: (t) => {
       mat.uniforms.uTime.value = t;
+    },
+    setLight: (dir, sun, skyColor) => {
+      (mat.uniforms.uSunDir.value as THREE.Vector3).copy(dir).normalize();
+      (mat.uniforms.uSunColor.value as THREE.Color).copy(sun);
+      (mat.uniforms.uSky.value as THREE.Color).copy(skyColor);
     },
   };
 }

@@ -27,10 +27,11 @@ export default function CinematicsScreen() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { player } = useGame();
+  const { player, world } = useGame();
   const cinematic = useCinematic();
 
   const entries: Entry[] = [
+    { id: "intro", icon: "movie-open-play", title: t("cinIntroTitle"), subtitle: t("cinGalleryIntro"), seconds: 24, spec: { kind: "INTRO", units: {}, targetName: world?.name ?? null } },
     { id: "standard", icon: "shield-sword", title: t("cinDeparture"), subtitle: t("cinGalleryStandard"), seconds: 4, spec: { kind: "DEPARTURE", units: { Fanteria: 1200, Arciere: 600, Cavalleria: 300 }, missionLabel: t("missionAttack"), targetName: "Neutrale 12,180", etaSeconds: 3600 } },
     { id: "falcon", icon: "bird", title: t("cinFalcon"), subtitle: t("cinGalleryFalcon"), seconds: 4, spec: { kind: "DEPARTURE", units: { Cavalleria: 800, Falco: 40, Lupo: 120 }, missionLabel: t("missionRaid"), targetName: "Neutrale 9,181", etaSeconds: 2700 } },
     { id: "major", icon: "sword-cross", title: t("cinMajor"), subtitle: t("cinGalleryMajor"), seconds: 6, spec: { kind: "DEPARTURE", units: { Fanteria: 14000, Arciere: 8000, Cavalleria: 4000, Catapulta: 300, "Elefante da Guerra": 60 }, missionLabel: t("missionAttack"), targetName: "Casa Rivale", etaSeconds: 5400 } },

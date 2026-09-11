@@ -193,6 +193,7 @@ def player_dto(p: dict) -> dict:
         "shield_until": clock.iso(shield_until) if not p.get("shield_ended_at") else None,
         "shield_ended_at": clock.iso(p.get("shield_ended_at")),
         "specialization": p.get("specialization"),
+        "intro_seen": bool(p.get("intro_seen_at")),
         "status": p.get("status", "ACTIVE"),
         "created_at": clock.iso(created),
         "alliance": {"alliance_id": p["alliance_id"], "tag": p.get("alliance_tag"), "name": p.get("alliance_name"), "kind": p.get("alliance_kind"), "role": p.get("alliance_role")} if p.get("alliance_id") else None,

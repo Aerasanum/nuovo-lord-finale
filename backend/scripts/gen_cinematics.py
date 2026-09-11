@@ -29,6 +29,14 @@ STYLE = (
 )
 
 SHOTS: dict[str, list[str]] = {
+    "intro": [
+        "A vast fantasy realm seen from a high ridge at dawn: rivers, forests, snowy mountains and many small medieval castles on hills, distant armies marching with banners, golden mist.",
+        "Rival medieval houses raising a great stone castle and its walls on a hill at dusk, masons and knights, heraldic banners with crests, warm torchlight.",
+        "A colossal dragon descending from stormy mountains, breathing fire over a night battlefield, knights fleeing, embers filling the sky.",
+        "A colossal ancient stepped pyramid awakening in the heart of a fantasy realm, a pillar of golden light rising from its apex, braziers igniting, dawn clouds.",
+        "Several medieval armies with different heraldic banners converging on a great pyramid across a plain at sunset, alliance war council with lords on horseback.",
+        "A lone armored lord holding a banner on a hilltop at sunrise, overlooking a fantasy realm with a castle, forests and a distant pyramid, heroic, hopeful golden light.",
+    ],
     "standard": [
         "A vast medieval army marching in a long column through a moonlit valley at night, hundreds of torches glowing, banners and spears, distant snowy mountains, low fog over the ground.",
         "Close-up of armored medieval knights marching at night, faces lit by torchlight, determined expressions, spears and round shields, embers drifting in the air.",

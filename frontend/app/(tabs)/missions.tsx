@@ -4,6 +4,8 @@ import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ChronicleEntry, type MissionCatalogEntry, type MissionDto, type ProgressTrack, useChronicle, useHouse, useMissions } from "@/src/api/hooks";
+import { useCinematic } from "@/src/components/cinematic/Cinematic";
+import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
 import { Screen } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
@@ -33,7 +35,8 @@ export default function MissionsScreen() {
   const { t, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { worldId, player } = useGame();
+  const { worldId, player, world } = useGame();
+  const cinematic = useCinematic();
   const q = useMissions(worldId);
   const chr = useChronicle(worldId);
   const house = useHouse(worldId);
@@ -218,9 +221,10 @@ export default function MissionsScreen() {
           </View>
         </Panel>
         <Panel testID="chronicle-panel">
-          <T v="heading" style={{ marginBottom: 4 }}>
-            {t("chronicle")}
-          </T>
+          <Row style={{ justifyContent: "space-between", marginBottom: 4 }}>
+            <T v="heading">{t("chronicle")}</T>
+            <Button title={t("cinIntroReplay")} icon="movie-open-play" variant="ghost" onPress={() => cinematic.play(introSpec(player, world?.name ?? null))} testID="chronicle-intro-replay" />
+          </Row>
           {chr.data.entries.length === 0 ? <Empty icon="book-open-variant" title={t("chronicleEmpty")} testID="chronicle-empty" /> : null}
           {chr.data.entries.map((e) => (
             <View key={e.chronicle_id} style={s.chrRow} testID={`chronicle-${e.chronicle_id}`}>
