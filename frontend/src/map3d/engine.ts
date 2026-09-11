@@ -1107,6 +1107,11 @@ export class MapEngine {
       this.pan(vx * dt, vy * dt);
     }
     this.stream(now);
+    // a full-screen show (cinematic) is on top: keep the loop alive but skip drawing, redraw on release
+    if (_renderHold) {
+      this.dirty = true;
+      return;
+    }
     // canvas hidden/collapsed (0×0) or resized behind our back: resync, and skip drawing while there is no buffer
     if (!this.syncDrawingBuffer()) return;
     if (this.labelsDirty && now - this.lastLabels > 90) this.emitLabels(now);
@@ -1139,6 +1144,12 @@ export function setEngineServerOffset(ms: number) {
 }
 function serverOffset() {
   return _serverOffset;
+}
+
+let _renderHold = false;
+/** Pause map drawing while a full-screen GL show (cinematic) is on top; the loop keeps ticking and resumes instantly. */
+export function setMapRenderHold(hold: boolean) {
+  _renderHold = hold;
 }
 
 function base64ToBytes(b64: string): Uint8Array {

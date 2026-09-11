@@ -660,3 +660,19 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Iteration 14. world_1 state: Pyramid HELD by [DEMO] (demo+ally are owners), one [TRZ] attack in flight (ETA ~1.5 days) → alert banner visible for demo/ally. demo mother has Drago 2, Falco 5 (QA grant) to trigger the dragon/falcon cinematic variants. Max 1 legendary per march (LEGENDARY_LIMIT 409). Do NOT run pytest test_pyramid_e2e.py (resets the cycle). Any march launched for testing should be recalled afterwards (/marches → march card → recall)."
+
+# ---- iteration 15 (main agent) — Cinematiche 3D (three.js su expo-gl) + galleria /cinematics ----
+frontend:
+  - task: "3D cinematics: CinematicGL (expo-gl host) renders scene3d (night departure: army/banner/torch/dragon/falcon; dawn conquest: castle or pyramid, banner swap, sparks, survivors). Show clock starts only after the GPU finished the first frame (1-px readPixels sync) — fixes the 'overlay vanishes immediately' bug in software-GL environments. Map engine drawing is held while the overlay is up (setMapRenderHold) and resumes after. New gallery screen /cinematics (Casata → 'Cinematiche' button, testIDs cinematic-play-{standard,falcon,major,dragon,angel,demon,conquest,pyramid}) replays every variant with the player's crest/alliance tag. HUD scrims (LinearGradient) for legibility."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/cinematic/CinematicGL.tsx, Cinematic.tsx, scene3d/*.ts, src/map3d/engine.ts, app/cinematics.tsx, app/house.tsx, src/i18n/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK: dragon departure (dragon hovering + fire, marching column, banner), conquest (castle, banner fall/rise, sparks, survivors), pyramid conquest, falcon variant; Salta removes overlay; auto-unmount at end; map redraws after the show. NOTE for testing: in this headless/software-GL environment the first GL frame takes ~8s (shader JIT) — the overlay is visible (with HUD) and the 'Salta' button appears ~9s after play; wait up to 40s for cinematic-skip."
+      - working: true
+        agent: "testing"
+        comment: "iteration_15.json: 6/8 PASS (gallery rows, dragon 3D night scene not black + auto-dismiss, conquest dawn castle, pyramid replay from battle report, skip, no console errors). Found: cold-start play before /me hydration → no crest/tag (fixed by main: rows disabled until player loaded). Suggestion applied by main: Salta shown 1s after mount regardless of GL. Not exercised: real march launch (covered in iter14), map-after-cinematic (main verified by screenshot)."

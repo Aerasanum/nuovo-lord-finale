@@ -588,6 +588,14 @@ const it = {
   cinReplay: "Rivedi cinematica",
   cinReplayDeparture: "Rivedi la partenza",
   cinUnitsTotal: "{n} unità in marcia",
+  cinGalleryTitle: "Cinematiche",
+  cinGalleryHint: "Rivedi le cinematiche degli attacchi con il tuo stemma e il banner della tua Alleanza. Tocca per riprodurre; \"Salta\" è disponibile dopo un secondo.",
+  cinGalleryStandard: "Partenza standard: la formazione reale marcia nella notte sotto lo stemma di Casata",
+  cinGalleryFalcon: "Con i Falchi in marcia: passate di ricognizione davanti alla colonna",
+  cinGalleryMajor: "Grande offensiva (≥25.000 unità): elefanti e catapulte in coda, inquadrature più lunghe",
+  cinGalleryLegendary: "Il Leggendario scende dal cielo, sbatte le ali e avanza con l'esercito sputando fuoco",
+  cinGalleryConquest: "Il vessillo nemico cade, lo stemma sale tra le scintille, i superstiti esultano all'alba",
+  cinGalleryPyramid: "Variante Piramide: il monumento cambia colore e il Drago compie il giro d'onore",
 };
 
 const en: typeof it = {
@@ -1172,6 +1180,14 @@ const en: typeof it = {
   cinReplay: "Replay cinematic",
   cinReplayDeparture: "Replay the departure",
   cinUnitsTotal: "{n} units marching",
+  cinGalleryTitle: "Cinematics",
+  cinGalleryHint: "Replay the attack cinematics with your crest and your Alliance banner. Tap to play; \"Skip\" is available after one second.",
+  cinGalleryStandard: "Standard departure: the real formation marches into the night under the house crest",
+  cinGalleryFalcon: "With Falcons in the march: scouting sweeps ahead of the column",
+  cinGalleryMajor: "Major offensive (≥25,000 units): elephants and catapults at the rear, longer shots",
+  cinGalleryLegendary: "The Legendary descends from the sky, beats its wings and advances with the army breathing fire",
+  cinGalleryConquest: "The enemy banner falls, the crest rises among sparks, survivors cheer at dawn",
+  cinGalleryPyramid: "Pyramid variant: the monument changes colour and the Dragon flies a lap of honour",
 };
 
 export type StringKey = keyof typeof it;

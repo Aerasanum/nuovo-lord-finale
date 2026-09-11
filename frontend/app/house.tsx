@@ -164,6 +164,7 @@ export default function HouseScreen() {
               testID="house-rename-button"
             />
             <Button title={t("specialization")} icon="account-star" variant="ghost" style={{ marginTop: spacing.xs }} onPress={() => router.push("/specialization")} testID="house-specialization-button" />
+            <Button title={t("cinGalleryTitle")} icon="movie-open-play" variant="ghost" onPress={() => router.push("/cinematics")} testID="house-cinematics-button" />
           </Panel>
 
           <Panel style={{ marginTop: spacing.md }}>
