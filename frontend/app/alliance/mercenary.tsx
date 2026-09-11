@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type ContractDto, useAllianceMutations, useAlliances, useMercenaryMarket, useMyAlliance } from "@/src/api/hooks";
+import { type ContractDto, useAllianceMutations, useAlliances, useMercenaryDirectory, useMercenaryMarket, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, KindBadge, TagChip, useAllianceStyles } from "@/src/components/alliance/common";
+import { openChat } from "@/src/components/chat/ChatDock";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { contractStatusLabel } from "@/src/game/alliances";
@@ -38,6 +39,8 @@ export default function MercenaryMarketScreen() {
   const mm = useAllianceMutations(worldId ?? "");
   const { show, showError } = useToast();
   const [target, setTarget] = useState<string | null>(presetTarget ?? null);
+  const [provider, setProvider] = useState<string | null>(null); // directed offer → only this Mercenary alliance sees it
+  const mercs = useMercenaryDirectory(worldId, !!a);
   const [escrow, setEscrow] = useState("1000");
   const [duration, setDuration] = useState<number | null>(null);
   if (mine.data && !a) {
@@ -55,10 +58,11 @@ export default function MercenaryMarketScreen() {
 
   const hire = () =>
     mm.offer
-      .mutateAsync({ target_alliance_id: target!, emeralds: escrowN, duration_hours: dur })
+      .mutateAsync({ target_alliance_id: target!, emeralds: escrowN, duration_hours: dur, provider_alliance_id: provider })
       .then(() => {
         show(t("offerSent"), "success");
         setTarget(null);
+        setProvider(null);
       })
       .catch(showError);
 
@@ -82,6 +86,11 @@ export default function MercenaryMarketScreen() {
           {t("hours")}
           {c.result ? ` · ${c.result}` : ""}
         </T>
+        {c.directed_to_tag && c.status === "OFFERED" ? (
+          <T v="caption" style={{ color: colors.brandPrimary }} testID={`contract-${c.contract_id}-directed`}>
+            {t("hireDirectedTo")} [{c.directed_to_tag}]
+          </T>
+        ) : null}
         {c.status === "ACTIVE" && c.ends_at ? <Countdown endsAt={c.ends_at} testID={`contract-${c.contract_id}-ends`} /> : null}
       </Row>
       {offer && isMerc && can ? <Button title={t("acceptContract")} icon="sword" variant="danger" onPress={() => mm.acceptOffer.mutateAsync(c.contract_id).then(() => show(t("contractAccepted"), "success")).catch(showError)} testID={`contract-${c.contract_id}-accept`} /> : null}
@@ -126,9 +135,61 @@ export default function MercenaryMarketScreen() {
           </Panel>
         ) : null}
 
+        {!isMerc ? (
+          <Panel testID="mercenary-directory">
+            <Row>
+              <Icon name="account-cash" size={18} color={colors.brandPrimary} />
+              <T v="heading" style={{ flex: 1 }}>
+                {t("mercDirectory")} ({mercs.data?.mercenaries.length ?? 0})
+              </T>
+            </Row>
+            <T v="caption" style={{ marginTop: 4 }}>
+              {t("mercDirectoryHint")}
+            </T>
+            {mercs.data?.mercenaries.length === 0 ? (
+              <T v="caption" style={{ marginTop: 6 }} testID="mercenary-directory-empty">
+                {t("mercDirectoryEmpty")}
+              </T>
+            ) : null}
+            {(mercs.data?.mercenaries ?? []).map((x) => (
+              <View key={x.alliance_id} style={[s.contract, provider === x.alliance_id && { borderColor: colors.brandPrimary }]} testID={`merc-${x.alliance_id}`}>
+                <Row>
+                  <TagChip tag={x.tag} />
+                  <T v="label" style={{ flex: 1 }} numberOfLines={1}>
+                    {x.name}
+                  </T>
+                  <View style={[s.pill, { backgroundColor: x.available ? colors.success : colors.warning }]} testID={`merc-${x.alliance_id}-availability`}>
+                    <T v="caption" style={{ color: x.available ? colors.onSuccess : colors.onWarning, fontWeight: "700" }}>
+                      {x.available ? t("mercAvailable") : t("mercBusy")}
+                    </T>
+                  </View>
+                </Row>
+                <T v="caption" style={{ marginTop: 2 }}>
+                  {t("mercPrestige")} {x.mercenary_prestige} · {x.contracts_completed} {t("contractsCompleted")} · {x.contracts_failed} {t("contractsFailed")} · {x.active_contracts}/{x.max_active} {t("contractsActive")} · {x.member_count} {t("members")}
+                </T>
+                <Row style={{ marginTop: 6, gap: spacing.xs, flexWrap: "wrap" }}>
+                  {can ? <Button title={provider === x.alliance_id ? t("mercProposeSelected") : t("mercPropose")} icon="handshake" variant={provider === x.alliance_id ? "primary" : "secondary"} onPress={() => setProvider(provider === x.alliance_id ? null : x.alliance_id)} testID={`merc-${x.alliance_id}-propose`} /> : null}
+                  <Button title={t("chatOpen")} icon="forum-outline" variant="ghost" onPress={() => openChat({ kind: "nego", allianceId: x.alliance_id, label: `[${x.tag}] ${x.name}` })} testID={`merc-${x.alliance_id}-chat`} />
+                </Row>
+              </View>
+            ))}
+          </Panel>
+        ) : null}
+
         {can ? (
           <Panel testID="mercenary-hire">
             <T v="heading">{t("hireMercenaries")}</T>
+            {provider ? (
+              <Row style={{ marginTop: 4 }}>
+                <Icon name="handshake" size={14} color={colors.brandPrimary} />
+                <T v="caption" style={{ flex: 1 }} testID="hire-directed-note">
+                  {t("hireDirectedTo")} {(() => { const p = mercs.data?.mercenaries.find((x) => x.alliance_id === provider); return p ? `[${p.tag}] ${p.name}` : ""; })()}
+                </T>
+                <Pressable onPress={() => setProvider(null)} testID="hire-directed-clear" accessibilityRole="button" hitSlop={8}>
+                  <Icon name="close" size={16} color={colors.muted} />
+                </Pressable>
+              </Row>
+            ) : null}
             <T v="caption" style={{ marginTop: 4 }}>
               {t("hireHint")}
             </T>

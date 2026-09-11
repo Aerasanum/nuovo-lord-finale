@@ -1,9 +1,12 @@
+import { BottomTabBar } from "expo-router/build/react-navigation/bottom-tabs";
 import { Redirect, Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
 import { Platform, View } from "react-native";
 
+import { ChatDock } from "@/src/components/chat/ChatDock";
 import { IntroGate } from "@/src/components/cinematic/IntroGate";
+import { DailyGate } from "@/src/components/daily/DailyGate";
 import { Icon } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -26,6 +29,8 @@ export default function TabsLayout() {
     return (
       <>
         <IntroGate />
+        <DailyGate />
+        <ChatDock floating />
         <NativeTabs>
           <NativeTabs.Trigger name="map">
             <NativeTabs.Trigger.Icon sf="map.fill" />
@@ -63,7 +68,14 @@ export default function TabsLayout() {
   return (
     <>
       <IntroGate />
+      <DailyGate />
       <Tabs
+        tabBar={(props) => (
+          <View>
+            <ChatDock />
+            <BottomTabBar {...props} />
+          </View>
+        )}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.brandPrimary,

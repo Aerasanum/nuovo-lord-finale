@@ -9,6 +9,7 @@ import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Icon, type IconName, Loading, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, type StringKey, useI18n } from "@/src/i18n";
+import { MarchSkinPreview } from "@/src/map3d/MarchSkinPreview";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -41,6 +42,7 @@ export default function HouseScreen() {
   const [description, setDescription] = useState("");
   const [newName, setNewName] = useState("");
   const [crest, setCrest] = useState<CrestDto | null>(null);
+  const [previewSkin, setPreviewSkin] = useState<MarchSkin | null>(null); // tapped skin (locked ones preview only)
   const RENAME_PRICE = 500;
 
   useEffect(() => {
@@ -175,21 +177,28 @@ export default function HouseScreen() {
               <T v="heading">{t("marchSkin")}</T>
             </Row>
             <T v="caption">{t("marchSkinHint")}</T>
+            <MarchSkinPreview skin={previewSkin ?? q.data.house.march_skin} crest={crest} style={{ marginTop: spacing.sm }} testID="house-march-skin-preview" />
+            <T v="caption" style={{ marginTop: 4 }} testID="house-march-skin-preview-label">
+              {t("marchSkinPreview")} · {t(`marchSkin_${previewSkin ?? q.data.house.march_skin}` as StringKey)} — {t("marchSkinPreviewHint")}
+            </T>
             <View style={[s.chips, { marginTop: spacing.sm }]}>
               {(cat?.march_skins ?? []).map((sk) => {
                 const unlocked = q.data?.march_skin_unlocks?.[sk.key] ?? sk.requires_unit === null;
                 const selected = q.data?.house.march_skin === sk.key;
+                const previewing = (previewSkin ?? q.data?.house.march_skin) === sk.key;
                 return (
                   <Pressable
                     key={sk.key}
-                    disabled={!unlocked || mut.isPending}
-                    onPress={() =>
+                    disabled={mut.isPending}
+                    onPress={() => {
+                      setPreviewSkin(sk.key);
+                      if (!unlocked || selected) return;
                       mut
                         .mutateAsync({ march_skin: sk.key })
                         .then(() => show(t("saved"), "success"))
-                        .catch(showError)
-                    }
-                    style={[s.skin, { borderColor: selected ? colors.brandPrimary : colors.border, backgroundColor: selected ? colors.brandTertiary : colors.surfaceTertiary, opacity: unlocked ? 1 : 0.55 }]}
+                        .catch(showError);
+                    }}
+                    style={[s.skin, { borderColor: selected ? colors.brandPrimary : previewing ? colors.borderStrong : colors.border, backgroundColor: selected ? colors.brandTertiary : colors.surfaceTertiary, opacity: unlocked ? 1 : 0.55 }]}
                     testID={`house-march-skin-${sk.key}`}
                     accessibilityState={{ selected, disabled: !unlocked }}
                   >

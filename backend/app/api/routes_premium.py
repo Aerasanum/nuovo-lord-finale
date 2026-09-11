@@ -8,7 +8,7 @@ from app.api.routes_game import Ctx, ctx
 from app.core.auth import CurrentAccount
 from app.core.db import db
 from app.core.errors import ApiError
-from app.domain import premium
+from app.domain import daily, premium
 
 router = APIRouter(prefix="/api", tags=["premium"])
 
@@ -60,3 +60,26 @@ async def specialization(world_id: str, c: Ctx = Depends(ctx)):
 @router.post("/worlds/{world_id}/specialization")
 async def set_specialization(world_id: str, body: SpecIn, c: Ctx = Depends(ctx)):
     return await premium.set_specialization(c.player, c.account_id, body.choice, body.idempotency_key)
+
+
+# ------------------------------------------------------------------------------------------------ daily login reward
+class SpeedupIn(BaseModel):
+    minutes: int = Field(ge=1, le=100000)
+
+
+@router.get("/worlds/{world_id}/daily")
+async def daily_status(world_id: str, c: Ctx = Depends(ctx)):
+    return await daily.status(c.player)
+
+
+@router.post("/worlds/{world_id}/daily/claim")
+async def daily_claim(world_id: str, c: Ctx = Depends(ctx)):
+    return await daily.claim(c.player)
+
+
+@router.post("/worlds/{world_id}/jobs/{job_id}/speedup")
+async def job_speedup(world_id: str, job_id: str, body: SpeedupIn, c: Ctx = Depends(ctx)):
+    job = await _job(world_id, job_id)
+    if job.get("player_id") != c.player["_id"]:
+        raise ApiError("FORBIDDEN", "Not your job", 403)
+    return await daily.speedup(c.player, job, body.minutes)

@@ -5,7 +5,7 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { serverNow } from "@/src/api/client";
-import { useCaravanSearch, useMarches, useMarchMutations, usePyramid, useSettlementBattles } from "@/src/api/hooks";
+import { useCaravanSearch, useDaily, useMarches, useMarchMutations, usePyramid, useSettlementBattles } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
@@ -34,7 +34,7 @@ const useStyles = makeStyles((c) => ({
   bottom: { position: "absolute", left: spacing.sm, right: spacing.sm },
   coord: { position: "absolute", left: spacing.sm, backgroundColor: c.glass, paddingHorizontal: 8, height: 24, borderRadius: radius.sm, justifyContent: "center", borderWidth: 1, borderColor: c.border },
   selName: { flex: 1 },
-  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" },
   legend: { gap: 4 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   swatch: { width: 12, height: 12, borderRadius: 3 },
@@ -54,6 +54,7 @@ export default function MapScreen() {
   const marches = useMarches(worldId);
   const caravanSearch = useCaravanSearch(worldId, settlementId);
   const pyramid = usePyramid(worldId);
+  const daily = useDaily(worldId);
   const marchMut = useMarchMutations(worldId ?? "");
   const { showError } = useToast();
   const engineRef = useRef<MapEngine | null>(null);
@@ -100,6 +101,10 @@ export default function MapScreen() {
           <View style={s.resBar}>
             {active ? <CostRow cost={active.resources} /> : <T v="caption">{t("loading")}</T>}
           </View>
+          <Pressable style={s.iconBtn} onPress={() => router.push("/daily")} testID="map-daily-button" accessibilityLabel={t("daily")}>
+            <Icon name={daily.data?.claimable ? "gift" : "gift-outline"} size={20} color={daily.data?.claimable ? colors.brandPrimary : colors.onSurface} />
+            {daily.data?.claimable ? <View style={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error }} testID="map-daily-dot" /> : null}
+          </Pressable>
           <Pressable style={s.iconBtn} onPress={() => router.push("/marches")} testID="map-marches-button">
             <Icon name="flag-checkered" size={20} color={colors.onSurface} />
             {marches.data?.marches?.length ? <View style={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brandPrimary }} /> : null}
@@ -242,6 +247,10 @@ export default function MapScreen() {
                     <Button title={selS.faction === "ALLY" ? t("missionReinforce") : t("march")} icon={selS.faction === "ALLY" ? "shield-plus" : "sword"} style={{ flex: 1 }} onPress={() => router.push({ pathname: "/march/new", params: { target: selS.settlement_id } })} testID="map-selection-march" />
                   </>
                 )}
+                {/* Caravans (Bible §13): resource convoys to own or allied settlements only — interceptable when detected */}
+                {(selS.faction === "OWN" && selS.settlement_id !== settlementId) || selS.faction === "ALLY" ? (
+                  <Button title={t("caravan")} icon="cart" variant={selS.faction === "OWN" ? "primary" : "secondary"} style={{ flex: 1 }} onPress={() => router.push({ pathname: "/caravan/new", params: { target: selS.settlement_id } })} testID="map-selection-caravan" />
+                ) : null}
               </View>
             ) : sel.sentinel ? (
               <View style={s.actions}>

@@ -7,6 +7,7 @@ import { type ChronicleEntry, type MissionCatalogEntry, type MissionDto, type Pr
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
+import { hasMissionArt, MissionBanner } from "@/src/components/MissionArt";
 import { Screen } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
@@ -77,19 +78,27 @@ export default function MissionsScreen() {
         {data.catalog.map((m) => {
           const st = statusOf(m);
           const desc = missionDesc(t, m.key);
+          const withArt = hasMissionArt(m.key);
+          const statusPill = (
+            <View style={[s.pill, { backgroundColor: st.color }]} testID={`mission-card-${m.key}-status`}>
+              <T v="caption" style={{ color: colors.surface }}>
+                {st.label}
+              </T>
+            </View>
+          );
           return (
             <Panel key={m.key} testID={`mission-card-${m.key}`}>
               <View style={s.card}>
-                <Row style={s.kv}>
-                  <T v="label" style={{ color: colors.onSurface }}>
-                    {missionName(t, m.key, m.name)}
-                  </T>
-                  <View style={[s.pill, { backgroundColor: st.color }]} testID={`mission-card-${m.key}-status`}>
-                    <T v="caption" style={{ color: colors.surface }}>
-                      {st.label}
+                {withArt ? (
+                  <MissionBanner missionKey={m.key} title={missionName(t, m.key, m.name)} right={statusPill} testID={`mission-card-${m.key}-art`} />
+                ) : (
+                  <Row style={s.kv}>
+                    <T v="label" style={{ color: colors.onSurface }}>
+                      {missionName(t, m.key, m.name)}
                     </T>
-                  </View>
-                </Row>
+                    {statusPill}
+                  </Row>
+                )}
                 {desc ? <T v="caption">{desc}</T> : null}
                 <Row style={{ flexWrap: "wrap" }}>
                   <Icon name="clock-outline" size={14} color={colors.muted} />

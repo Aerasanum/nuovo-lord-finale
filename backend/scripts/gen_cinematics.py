@@ -28,7 +28,22 @@ STYLE = (
     "No text, no letters, no logos, no watermark, no borders."
 )
 
+STYLE_LANDSCAPE = STYLE.replace("Vertical portrait orientation, 9:16 aspect ratio.", "Horizontal landscape orientation, 16:9 aspect ratio, wide banner composition.")
+LANDSCAPE_PREFIX = "mission_"
+
 SHOTS: dict[str, list[str]] = {
+    # personal mission key-art (Bible §22) — landscape banners for the mission cards
+    "mission_patrol_local": ["A small patrol of medieval foot soldiers with torches and spears walking a forest road at dusk near a stone castle, mist between the trees, watchful mood."],
+    "mission_commercial_escort": ["Armored medieval riders escorting a merchant caravan of covered ox wagons across a river ford at golden hour, banners, dust and mist, mountains behind."],
+    "mission_predator_hunt": ["Medieval knights and hunters with hounds ambushing bandits in a dark ravine at night, torchlight on wet rock, swords drawn, tense action."],
+    "mission_border_expedition": ["A medieval expedition column of cavalry and infantry crossing a snowy mountain pass at dawn, banners in the wind, a distant frontier watchtower on a cliff."],
+    "mission_distant_recon": ["Two medieval scouts on horseback on a high ridge at twilight looking down over a vast valley with distant enemy castles and campfires, a falcon overhead."],
+    "vault": [
+        "Interior of a medieval royal treasure vault lit by torches: stone arches, piles of gold coins and gems in the background, an empty stone pedestal in the center foreground with a soft golden glow above it, cinematic depth of field, warm dark atmosphere.",
+    ],
+    "council": [
+        "A medieval war council at night: lords in armor around a large map table lit by candles, banners on stone walls, a dragon skull trophy, dramatic warm light, cinematic wide shot, viewed slightly from above.",
+    ],
     "intro": [
         "A vast fantasy realm seen from a high ridge at dawn: rivers, forests, snowy mountains and many small medieval castles on hills, distant armies marching with banners, golden mist.",
         "Rival medieval houses raising a great stone castle and its walls on a hill at dusk, masons and knights, heraldic banners with crests, warm torchlight.",
@@ -75,8 +90,10 @@ SHOTS: dict[str, list[str]] = {
 def to_jpeg(png: bytes, path: Path) -> tuple[int, int]:
     im = Image.open(io.BytesIO(png)).convert("RGB")
     w, h = im.size
-    if h > 1080:
+    if h > 1080 and h >= w:
         im = im.resize((round(w * 1080 / h), 1080), Image.LANCZOS)
+    elif w > 1080 and w > h:
+        im = im.resize((1080, round(h * 1080 / w)), Image.LANCZOS)
     im.save(path, "JPEG", quality=85, optimize=True, progressive=True)
     return im.size
 
@@ -86,11 +103,12 @@ async def gen_one(variant: str, idx: int, prompt: str, force: bool) -> None:
     if path.exists() and not force:
         print(f"skip {path.name} (exists)")
         return
+    style = STYLE_LANDSCAPE if variant.startswith(LANDSCAPE_PREFIX) else STYLE
     chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"cin-{variant}-{idx}", system_message="You are a concept artist for an epic fantasy strategy game.")
     chat.with_model("gemini", MODEL).with_params(modalities=["image", "text"])
     for attempt in range(3):
         try:
-            _text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt + STYLE))
+            _text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt + style))
             if images:
                 size = to_jpeg(base64.b64decode(images[0]["data"]), path)
                 print(f"ok   {path.name} {size[0]}x{size[1]} {path.stat().st_size // 1024} KB")

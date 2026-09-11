@@ -149,6 +149,17 @@ async def list_public(world_id: str) -> list[dict]:
     return [public_dto(a) async for a in cur]
 
 
+async def list_mercenaries(world_id: str) -> list[dict]:
+    """Hire directory: every active Mercenary alliance with prestige, record and free contract slots (best first)."""
+    out = []
+    async for a in db().alliances.find({"world_id": world_id, "status": "ACTIVE", "kind": MERCENARY}):
+        active = await db().mercenary_contracts.count_documents({"provider_alliance_id": a["_id"], "status": "ACTIVE"})
+        failed = int(a.get("contracts_failed", 0))
+        out.append(public_dto(a) | {"active_contracts": active, "max_active": int(_merc()["max_active_contracts_per_mercenary_alliance"]), "contracts_failed": failed, "available": active < int(_merc()["max_active_contracts_per_mercenary_alliance"])})
+    out.sort(key=lambda x: (-x["mercenary_prestige"], -x["contracts_completed"], x["name"]))
+    return out
+
+
 async def invite(world: dict, a: dict, actor: dict, house_name: str, role: str) -> dict:
     require(a, actor["_id"], "invite")
     role = (role or "MEMBER").upper()
@@ -709,13 +720,21 @@ async def on_pvp_conquest(world_id: str, new_owner_id: str, battle_id: str) -> N
 
 
 # ------------------------------------------------------------------------------------------------ mercenary contracts
-async def offer_contract(world: dict, a: dict, actor: dict, target_alliance_id: str, emeralds: int, duration_hours: int) -> dict:
-    """Client alliance posts an offer: escrow debited atomically from its treasury (spec.mercenary_contract)."""
+async def offer_contract(world: dict, a: dict, actor: dict, target_alliance_id: str, emeralds: int, duration_hours: int, provider_alliance_id: str | None = None) -> dict:
+    """Client alliance posts an offer: escrow debited atomically from its treasury (spec.mercenary_contract).
+    `provider_alliance_id` makes it a **directed** offer: only that Mercenary alliance sees and can accept it."""
     require(a, actor["_id"], "mercenary")  # DIPLOMAT holds only mercenary_proposal_no_treasury_spend → cannot escrow
     mc = _merc()
     target = await get(world["_id"], target_alliance_id)
     if target["_id"] == a["_id"]:
         raise ApiError("INVALID_TARGET", "Cannot hire against yourself", 400)
+    provider = None
+    if provider_alliance_id:
+        provider = await get(world["_id"], provider_alliance_id)
+        if provider["kind"] != MERCENARY:
+            raise ApiError("NOT_MERCENARY", "Directed offers go to Mercenary alliances only", 400)
+        if provider["_id"] in (a["_id"], target["_id"]):
+            raise ApiError("INVALID_TARGET", "Provider cannot be the client or the target", 400)
     emeralds = int(emeralds)
     if not int(mc["escrow_offer_min_emeralds"]) <= emeralds <= int(mc["escrow_offer_max_emeralds"]):
         raise ApiError("INVALID_ESCROW", "Escrow out of range", 400, {"min": mc["escrow_offer_min_emeralds"], "max": mc["escrow_offer_max_emeralds"]})
@@ -724,10 +743,13 @@ async def offer_contract(world: dict, a: dict, actor: dict, target_alliance_id: 
     cid = f"ctr_{uuid.uuid4().hex[:12]}"
     await _debit_emeralds(world["_id"], a["_id"], emeralds, "mercenary_escrow", cid)
     now = clock.now()
-    doc = {"_id": cid, "world_id": world["_id"], "client_alliance_id": a["_id"], "client_name": a["name"], "client_tag": a["tag"], "target_alliance_id": target["_id"], "target_name": target["name"], "target_tag": target["tag"], "provider_alliance_id": None, "provider_name": None, "provider_tag": None, "emeralds": emeralds, "duration_hours": int(duration_hours), "status": "OFFERED", "offered_by": actor["_id"], "offered_at": now}
+    doc = {"_id": cid, "world_id": world["_id"], "client_alliance_id": a["_id"], "client_name": a["name"], "client_tag": a["tag"], "target_alliance_id": target["_id"], "target_name": target["name"], "target_tag": target["tag"], "provider_alliance_id": None, "provider_name": None, "provider_tag": None, "directed_to": provider["_id"] if provider else None, "directed_to_name": provider["name"] if provider else None, "directed_to_tag": provider["tag"] if provider else None, "emeralds": emeralds, "duration_hours": int(duration_hours), "status": "OFFERED", "offered_by": actor["_id"], "offered_at": now}
     await db().mercenary_contracts.insert_one(doc)
-    async for merc in db().alliances.find({"world_id": world["_id"], "status": "ACTIVE", "kind": MERCENARY, "_id": {"$ne": target["_id"]}}):
-        await _notify_alliance(merc, "MERCENARY_OFFER", {"contract_id": cid, "target_alliance_id": target["_id"], "target_name": target["name"], "client_name": a["name"], "emerald_offer": emeralds, "duration_hours": int(duration_hours)}, f"offer:{cid}", "alliance/mercenary", roles=["LEADER", "VICE", "DIPLOMAT"])
+    flt: dict = {"world_id": world["_id"], "status": "ACTIVE", "kind": MERCENARY, "_id": {"$ne": target["_id"]}}
+    if provider:
+        flt["_id"] = provider["_id"]
+    async for merc in db().alliances.find(flt):
+        await _notify_alliance(merc, "MERCENARY_OFFER", {"contract_id": cid, "target_alliance_id": target["_id"], "target_name": target["name"], "client_name": a["name"], "emerald_offer": emeralds, "duration_hours": int(duration_hours), "directed": bool(provider)}, f"offer:{cid}", "alliance/mercenary", roles=["LEADER", "VICE", "DIPLOMAT"])
     return contract_dto(doc)
 
 
@@ -759,6 +781,8 @@ async def accept_contract(world: dict, a: dict, actor: dict, contract_id: str) -
         raise ApiError("CONTRACT_STATE", "Offer no longer available", 409)
     if a["_id"] in (c["client_alliance_id"], c["target_alliance_id"]):
         raise ApiError("INVALID_TARGET", "Cannot accept a contract involving your own alliance", 409)
+    if c.get("directed_to") and c["directed_to"] != a["_id"]:
+        raise ApiError("NOT_ADDRESSED", "This offer is addressed to another Mercenary alliance", 409)
     target = await get(world["_id"], c["target_alliance_id"])
     now = clock.now()
     ends = now + timedelta(hours=float(c["duration_hours"]))
@@ -812,7 +836,7 @@ async def market(world_id: str, a: dict) -> dict:
     """Open offers (for Mercenary alliances, excluding contracts against themselves) + every contract involving `a`."""
     offers = []
     if a["kind"] == MERCENARY:
-        offers = [contract_dto(c) async for c in db().mercenary_contracts.find({"world_id": world_id, "status": "OFFERED", "target_alliance_id": {"$ne": a["_id"]}, "client_alliance_id": {"$ne": a["_id"]}}).sort("offered_at", -1)]
+        offers = [contract_dto(c) async for c in db().mercenary_contracts.find({"world_id": world_id, "status": "OFFERED", "target_alliance_id": {"$ne": a["_id"]}, "client_alliance_id": {"$ne": a["_id"]}, "$or": [{"directed_to": None}, {"directed_to": a["_id"]}]}).sort("offered_at", -1)]
     involved = [contract_dto(c) async for c in db().mercenary_contracts.find({"world_id": world_id, "$or": [{"client_alliance_id": a["_id"]}, {"provider_alliance_id": a["_id"]}, {"target_alliance_id": a["_id"], "status": {"$in": ["ACTIVE", "COMPLETED", "FAILED"]}}]}).sort("offered_at", -1).limit(30)]
     return {"offers": offers, "contracts": involved, "durations_hours": _merc()["durations_hours"], "escrow_min": _merc()["escrow_offer_min_emeralds"], "escrow_max": _merc()["escrow_offer_max_emeralds"], "max_active": _merc()["max_active_contracts_per_mercenary_alliance"], "bonuses": _merc()["target_only_bonuses"]}
 
@@ -859,7 +883,7 @@ def vote_dto(v: dict) -> dict:
 
 
 def contract_dto(c: dict) -> dict:
-    return {k: c.get(k) for k in ("client_alliance_id", "client_name", "client_tag", "target_alliance_id", "target_name", "target_tag", "provider_alliance_id", "provider_name", "provider_tag", "emeralds", "duration_hours", "status", "result")} | {"contract_id": c["_id"], "offered_at": clock.iso(c.get("offered_at")), "accepted_at": clock.iso(c.get("accepted_at")), "ends_at": clock.iso(c.get("ends_at")), "ended_at": clock.iso(c.get("ended_at"))}
+    return {k: c.get(k) for k in ("client_alliance_id", "client_name", "client_tag", "target_alliance_id", "target_name", "target_tag", "provider_alliance_id", "provider_name", "provider_tag", "directed_to", "directed_to_name", "directed_to_tag", "emeralds", "duration_hours", "status", "result")} | {"contract_id": c["_id"], "offered_at": clock.iso(c.get("offered_at")), "accepted_at": clock.iso(c.get("accepted_at")), "ends_at": clock.iso(c.get("ends_at")), "ended_at": clock.iso(c.get("ended_at"))}
 
 
 async def relation_dto(world_id: str, a: dict, r: dict) -> dict:

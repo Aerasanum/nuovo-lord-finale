@@ -730,3 +730,27 @@ frontend:
       - working: true
         agent: "testing"
         comment: "iteration_17.json: backend 6/6 (tests/test_iteration_17.py) + frontend 6/6 — intro auto-play once, skip, no replay on tab switch, Cronaca replay, gallery intro, realm clock chip, skins tiles (elephant locked, falcon/dragon select + API), attack cinematic regression. Suggestion: add testID missions-segment-chronicle."
+
+# ---- iteration 18 (main agent) — Chat del Regno, Login giornaliero, Mercenari diretti, look "adulto", Account Max ----
+backend:
+  - task: "Realm chat (domain/chat.py): GET /worlds/{w}/chat/summary|world|negotiations/{alliance_id}, POST /chat/world (1 msg / 3 s → 429 RATE_LIMITED) and /chat/negotiations/{id} (Leader/Vice/Diplomat only → 403 FORBIDDEN_ROLE). Daily login (domain/daily.py): GET /worlds/{w}/daily (day 1..7, claimable, streak, rewards preview, speedup_minutes), POST /daily/claim (atomic, 409 ALREADY_CLAIMED on second claim; resources credited to the capital within the warehouse cap, speed-up minutes banked on players.speedup_minutes), POST /jobs/{id}/speedup {minutes} (409 INSUFFICIENT_SPEEDUP / JOB_NOT_RUNNING; completes through the scheduler handler when the job ends). Mercenary directory GET /worlds/{w}/mercenaries + directed offers (provider_alliance_id). Max account script scripts/max_account.py (max@empirelords.com / Max12345!) + /app/memory/MAX_ACCOUNT_REPORT.md."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/chat.py, daily.py, alliances.py, api/routes_alliance.py, routes_premium.py, scripts/max_account.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "tests/smoke_new_endpoints.py + tests/smoke_max_account.py: all 200 (daily preview 896/res for demo, chat summary, mercenaries [MERC], max account readable at every cap: L30, 20/21 MAXED, 114/114 research, 3/3/3 legendaries). Daily claim verified through the UI (demo claimed day 1)."
+frontend:
+  - task: "Chat dock (chat-dock, chat-dock-preview, chat-dock-unread) above the tab bar; panel chat-panel with chat-tab-world / chat-tab-alliance / chat-tab-nego-{id}, chat-input, chat-send, chat-panel-close. Daily vault /daily (daily-screen, daily-title, daily-speedup-bank, daily-chest-stage GL, daily-strip with daily-day-1..7, daily-claim → chest opens → daily-reveal with daily-reward-{res}/daily-reward-speedup, daily-tomorrow, daily-done; claimed state: daily-claimed-label + daily-next-reset); auto-open once per session via DailyGate when claimable; entry buttons map-daily-button (+ map-daily-dot) and settlement-daily-button (+ settlement-daily-dot). Speed-up pill job-{id}-speedup next to timers (only when the bank > 0). Mercenary directory merc-{alliance_id} rows with merc-{id}-propose (directed offer note hire-directed-note) and merc-{id}-chat (opens negotiation room). Map selection card map-selection-caravan for own (non-active) / ally settlements. House: house-march-skin-preview (GL) + house-march-skin-preview-label; tapping a locked skin previews it without saving. Missions: mission-card-{key}-art banners (5 timed missions) + mission-new-art. Map palette darker/desaturated (theme.ts, terrainMaterial.ts, daylight.ts)."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/daily.tsx, app/(tabs)/_layout.tsx, app/(tabs)/map.tsx, app/(tabs)/settlement.tsx, app/(tabs)/missions.tsx, app/(tabs)/army.tsx, app/research.tsx, app/building/[name].tsx, app/mission/new.tsx, app/house.tsx, app/alliance/mercenary.tsx, src/components/chat/ChatDock.tsx, src/components/daily/ChestGL.tsx, DailyGate.tsx, src/components/SpeedupButton.tsx, src/components/MissionArt.tsx, src/map3d/MarchSkinPreview.tsx, src/theme.ts, src/map3d/terrainMaterial.ts, daylight.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK: dock visible above tabs with realm preview; vault auto-opened, chest on the painted pedestal, claim → lid opens + coins → reveal card with +896 ×5; house preview dragon/elephant; map darker. Demo already claimed today's reward (advance the QA clock 1 day to re-test the claim, or use max@empirelords.com which has not claimed)."

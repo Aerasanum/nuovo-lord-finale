@@ -56,12 +56,12 @@ const obsidian = {
   resourceIron: "#8E9AA5",
   resourceGold: "#E8C56E",
 
-  // Terrain (3D map + legend)
-  terrainPlain: "#5E7A3B",
-  terrainForest: "#2F4A2A",
-  terrainMountain: "#7A7168",
-  terrainWater: "#1F3D5C",
-  skyHorizon: "#2C3646", // distant haze the 3D map fades into
+  // Terrain (3D map + legend) — muted, earthy "adult" palette (Empire-style): olive grass, deep pine, cold rock
+  terrainPlain: "#556838",
+  terrainForest: "#26382A",
+  terrainMountain: "#6A625A",
+  terrainWater: "#1A3044",
+  skyHorizon: "#2A3038", // distant haze the 3D map fades into
 
   // Factions
   factionOwn: "#C89B3C",

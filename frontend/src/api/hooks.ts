@@ -533,7 +533,7 @@ export type InviteDto = { invite_id: string; alliance_id: string; alliance_name:
 export type AllianceFull = Omit<AlliancePublic, "members"> & { my_role: AllianceRole | null; permissions: string[]; members: AllianceMember[]; emeralds: number | null; relations: RelationDto[]; open_votes: VoteDto[]; pending_invites: InviteDto[]; contracts_active: number; at_war: boolean; pyramid_eligible: boolean; war_vote_roles: AllianceRole[]; server_time: string };
 export type MyAllianceDto = { alliance: AllianceFull | null; invites: InviteDto[]; join_cooldown_until: string | null; server_time: string };
 export type ChatMessage = { message_id: string; player_id: string | null; house_name: string | null; role: AllianceRole | "SYSTEM"; text: string; at: string };
-export type ContractDto = { contract_id: string; client_alliance_id: string; client_name: string | null; client_tag: string | null; target_alliance_id: string; target_name: string | null; target_tag: string | null; provider_alliance_id: string | null; provider_name: string | null; provider_tag: string | null; emeralds: number; duration_hours: number; status: "OFFERED" | "ACTIVE" | "COMPLETED" | "FAILED" | "CANCELLED"; result: string | null; offered_at: string | null; accepted_at: string | null; ends_at: string | null; ended_at: string | null };
+export type ContractDto = { contract_id: string; client_alliance_id: string; client_name: string | null; client_tag: string | null; target_alliance_id: string; target_name: string | null; target_tag: string | null; provider_alliance_id: string | null; provider_name: string | null; provider_tag: string | null; directed_to?: string | null; directed_to_name?: string | null; directed_to_tag?: string | null; emeralds: number; duration_hours: number; status: "OFFERED" | "ACTIVE" | "COMPLETED" | "FAILED" | "CANCELLED"; result: string | null; offered_at: string | null; accepted_at: string | null; ends_at: string | null; ended_at: string | null };
 export type MarketDto = { offers: ContractDto[]; contracts: ContractDto[]; durations_hours: number[]; escrow_min: number; escrow_max: number; max_active: number; bonuses: { single_march_capacity_pct: number; attack_pct: number } };
 export type TreasuryDto = { emeralds: number; entries: { ledger_id: string; amount: number; reason: string; ref: string | null; balance_after: number; at: string }[] };
 export type DiplomacyAction = "pna_propose" | "pna_accept" | "pna_decline" | "pna_terminate" | "war_propose" | "peace_propose" | "peace_accept";
@@ -550,6 +550,33 @@ export function useAlliancePublic(worldId?: string | null, id?: string | null) {
 export function useAllianceChat(worldId?: string | null, enabled = true) {
   return useQuery<{ messages: ChatMessage[] }>({ queryKey: ["alliance-chat", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/chat?limit=100`), enabled: !!worldId && enabled, refetchInterval: 5000 });
 }
+// ---- realm chat (world / negotiations) + mercenary hire directory ----
+export type RealmChatMessage = { message_id: string; channel: string; player_id: string | null; house_name: string | null; alliance_tag: string | null; alliance_id: string | null; role: AllianceRole | null; text: string; at: string };
+export type NegoRoom = { channel: string; alliance_id: string; name: string | null; tag: string | null; kind: AllianceKind | null; last: RealmChatMessage };
+export type ChatSummary = { world: { channel: string; last: RealmChatMessage | null }; alliance: { channel: string; last: ChatMessage | null } | null; negotiations: NegoRoom[] };
+export type MercenaryEntry = AlliancePublic & { active_contracts: number; max_active: number; contracts_failed: number; available: boolean };
+
+export function useChatSummary(worldId?: string | null) {
+  return useQuery<ChatSummary>({ queryKey: ["chat-summary", worldId], queryFn: () => get(`/worlds/${worldId}/chat/summary`), enabled: !!worldId, refetchInterval: 8000 });
+}
+export function useWorldChat(worldId?: string | null, enabled = true) {
+  return useQuery<{ messages: RealmChatMessage[] }>({ queryKey: ["world-chat", worldId], queryFn: () => get(`/worlds/${worldId}/chat/world?limit=100`), enabled: !!worldId && enabled, refetchInterval: 5000 });
+}
+export function useNegotiation(worldId?: string | null, allianceId?: string | null) {
+  return useQuery<{ channel: string; alliance: AlliancePublic; messages: RealmChatMessage[] }>({ queryKey: ["nego-chat", worldId, allianceId], queryFn: () => get(`/worlds/${worldId}/chat/negotiations/${allianceId}?limit=100`), enabled: !!worldId && !!allianceId, refetchInterval: 5000 });
+}
+export function useMercenaryDirectory(worldId?: string | null, enabled = true) {
+  return useQuery<{ mercenaries: MercenaryEntry[] }>({ queryKey: ["mercenaries", worldId], queryFn: () => get(`/worlds/${worldId}/mercenaries`), enabled: !!worldId && enabled, refetchInterval: 30000 });
+}
+export function useRealmChatMutations(worldId: string) {
+  const qc = useQueryClient();
+  const w = `/worlds/${worldId}`;
+  return {
+    world: useMutation({ mutationFn: (text: string) => post<RealmChatMessage>(`${w}/chat/world`, { text }), onSuccess: () => qc.invalidateQueries({ queryKey: ["world-chat"] }) }),
+    nego: useMutation({ mutationFn: (v: { allianceId: string; text: string }) => post<RealmChatMessage>(`${w}/chat/negotiations/${v.allianceId}`, { text: v.text }), onSuccess: () => qc.invalidateQueries({ queryKey: ["nego-chat"] }) }),
+  };
+}
+
 export function useAllianceTreasury(worldId?: string | null, enabled = true) {
   return useQuery<TreasuryDto>({ queryKey: ["alliance-treasury", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/treasury`), enabled: !!worldId && enabled });
 }
@@ -578,7 +605,7 @@ export function useAllianceMutations(worldId: string) {
     diplomacy: useMutation({ mutationFn: (v: { other_id: string; action: DiplomacyAction }) => post<RelationDto | VoteDto>(`${w}/alliance/diplomacy/${v.other_id}/${v.action}`), onSuccess: invalidate }),
     vote: useMutation({ mutationFn: (v: { vote_id: string; yes: boolean }) => post<VoteDto>(`${w}/alliance/votes/${v.vote_id}`, { yes: v.yes }), onSuccess: invalidate }),
     chat: useMutation({ mutationFn: (text: string) => post<ChatMessage>(`${w}/alliance/chat`, { text }), onSuccess: () => qc.invalidateQueries({ queryKey: ["alliance-chat"] }) }),
-    offer: useMutation({ mutationFn: (body: { target_alliance_id: string; emeralds: number; duration_hours: number }) => post<ContractDto>(`${w}/alliance/mercenary/offers`, body), onSuccess: invalidate }),
+    offer: useMutation({ mutationFn: (body: { target_alliance_id: string; emeralds: number; duration_hours: number; provider_alliance_id?: string | null }) => post<ContractDto>(`${w}/alliance/mercenary/offers`, body), onSuccess: invalidate }),
     acceptOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/accept`), onSuccess: invalidate }),
     withdrawOffer: useMutation({ mutationFn: (contract_id: string) => post<ContractDto>(`${w}/alliance/mercenary/offers/${contract_id}/withdraw`), onSuccess: invalidate }),
   };
@@ -642,6 +669,26 @@ export function useWallet(enabled = true) {
 export function useSpecialization(worldId?: string | null) {
   return useQuery<SpecializationDto>({ queryKey: ["specialization", worldId], queryFn: () => get(`/worlds/${worldId}/specialization`), enabled: !!worldId });
 }
+// ---- daily login reward + speed-up minutes ----
+export type DailyReward = { day: number; kind: "RESOURCES" | "SPEEDUP" | "CHEST"; resources: Partial<Resources> | null; speedup_minutes: number | null };
+export type DailyStatus = { day: number; claimable: boolean; streak: number; next_reset_at: string; speedup_minutes: number; rewards: DailyReward[]; capital_settlement_id: string | null };
+export type DailyGrant = { day: number; kind: DailyReward["kind"]; resources: Partial<Resources> | null; discarded: Partial<Resources> | null; speedup_minutes: number | null };
+export function useDaily(worldId?: string | null) {
+  return useQuery<DailyStatus>({ queryKey: ["daily", worldId], queryFn: () => get(`/worlds/${worldId}/daily`), enabled: !!worldId, refetchInterval: 60000 });
+}
+export function useDailyMutations(worldId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["daily"] });
+    qc.invalidateQueries({ queryKey: ["settlement"] });
+    qc.invalidateQueries({ queryKey: qk.me(worldId) });
+  };
+  return {
+    claim: useMutation({ mutationFn: () => post<{ granted: DailyGrant; status: DailyStatus }>(`/worlds/${worldId}/daily/claim`, {}), onSettled: invalidate }),
+    speedup: useMutation({ mutationFn: (v: { jobId: string; minutes: number }) => post<{ job: JobDto | null; spent_minutes: number; speedup_minutes: number }>(`/worlds/${worldId}/jobs/${v.jobId}/speedup`, { minutes: v.minutes }), onSettled: invalidate }),
+  };
+}
+
 export function usePremiumMutations(worldId: string) {
   const qc = useQueryClient();
   const invalidate = () => {

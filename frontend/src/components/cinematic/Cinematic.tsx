@@ -114,8 +114,9 @@ export function cinematicPlan(spec: CinematicSpec) {
 }
 
 // --------------------------------------------------------------------------------------------- provider
-const Ctx = createContext<{ play: (spec: CinematicSpec) => void }>({
+const Ctx = createContext<{ play: (spec: CinematicSpec) => void; active: boolean }>({
   play: () => {},
+  active: false,
 });
 
 export function CinematicProvider({ children }: { children: React.ReactNode }) {
@@ -129,7 +130,7 @@ export function CinematicProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const done = useCallback(() => setCurrent(null), []);
-  const value = useMemo(() => ({ play }), [play]);
+  const value = useMemo(() => ({ play, active: !!current }), [play, current]);
   return (
     <Ctx.Provider value={value}>
       {children}

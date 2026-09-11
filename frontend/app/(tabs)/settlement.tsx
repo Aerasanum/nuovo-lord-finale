@@ -4,10 +4,11 @@ import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { BuildingEntry, JobDto } from "@/src/api/hooks";
-import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
+import { useBuildings, useDaily, useSettlementMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
+import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -41,6 +42,7 @@ export default function SettlementScreen() {
   const { selectSettlement } = useAuth();
   const { worldId, settlementId, settlement, settlements, player, rubies } = useGame();
   const buildings = useBuildings(worldId, settlementId);
+  const daily = useDaily(worldId);
   const m = useSettlementMutations(worldId ?? "", settlementId ?? "");
   const { showError, show } = useToast();
   const d = settlement.data;
@@ -81,6 +83,10 @@ export default function SettlementScreen() {
             <T v="caption" style={{ color: colors.onSurface, fontWeight: "700" }} testID="settlement-rubies">
               {formatNumber(rubies)}
             </T>
+          </Pressable>
+          <Pressable style={s.hdrBtn} onPress={() => router.push("/daily")} testID="settlement-daily-button" accessibilityLabel={t("daily")}>
+            <Icon name={daily.data?.claimable ? "gift" : "gift-outline"} size={22} color={daily.data?.claimable ? colors.brandPrimary : colors.onSurfaceSecondary} />
+            {daily.data?.claimable ? <View style={{ position: "absolute", top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error }} testID="settlement-daily-dot" /> : null}
           </Pressable>
           <Pressable style={s.hdrBtn} onPress={() => router.push("/house")} testID="settlement-house-button" accessibilityLabel={t("house")}>
             {player?.house?.crest ? <Crest crest={player.house.crest} size={24} /> : <Icon name="shield-half-full" size={22} color={colors.onSurfaceSecondary} />}
@@ -253,6 +259,7 @@ export function JobLine({ job, onCancel }: { job: JobDto; onCancel?: () => void 
           {label}
         </T>
         <Countdown endsAt={job.ends_at} testID={`job-${job.job_id}-countdown`} />
+        <SpeedupButton job={job} />
         <FinishNowButton job={job} />
         {onCancel ? (
           <Pressable onPress={onCancel} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }} testID={`job-${job.job_id}-cancel`}>

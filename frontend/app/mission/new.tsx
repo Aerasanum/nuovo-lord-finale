@@ -4,6 +4,7 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { idem, useArmy, useMissions, useStartMission } from "@/src/api/hooks";
+import { MissionBanner } from "@/src/components/MissionArt";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { eligibleUnits, localBlocker, missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
@@ -66,6 +67,7 @@ export default function NewMissionScreen() {
     >
       <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }}>
         <Panel>
+          <MissionBanner missionKey={entry.key} title={missionName(t, entry.key, entry.name)} height={160} testID="mission-new-art" />
           {missionDesc(t, entry.key) ? <T v="caption">{missionDesc(t, entry.key)}</T> : null}
           <View style={[s.kv, { marginTop: 6 }]}>
             <T v="caption">{t("missionOrigin")}</T>

@@ -12,6 +12,9 @@ def _catalog(event: str) -> dict:
     for e in get_spec().notification_event_catalog:
         if e["event"] == event:
             return e
+    # Negotiation room message (realm chat between two Alliances, Bible §19 communication): INFO, opens the room
+    if event == "NEGOTIATION_MESSAGE":
+        return {"severity": "INFO", "deep_link": "alliance/mercenary"}
     # Land analogue of NAVAL_FLEET_DETECTED (Bible §40.5 — naval detection is DISABLED in v3.7): severity HIGH, MAP channel
     if event == "HOSTILE_MARCH_DETECTED":
         return {"severity": "HIGH", "deep_link": "map/march"}

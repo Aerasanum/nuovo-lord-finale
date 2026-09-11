@@ -35,10 +35,10 @@ const P = (sun: number, sunI: number, dir: [number, number, number], sky: number
   night,
 });
 
-const NIGHT = P(0xaebff2, 1.2, [0.3, 0.72, -0.5], 0x7386bd, 0x2a2c3e, 0.85, 0x27334f, 0.8, 0.96, 1);
-const DAWN = P(0xffc08a, 1.5, [0.85, 0.42, 0.3], 0xe6b8a8, 0x3e3430, 0.8, 0xf0b48a, 0.5, 1.02, 0.25);
-const DAY = P(0xfff0d2, 1.7, [0.68, 0.78, 0.3], 0xcfd8ea, 0x4a3f33, 0.85, 0xcfd8ea, 0, 1.05, 0);
-const DUSK = P(0xffa46a, 1.45, [-0.7, 0.38, 0.45], 0xd39aa0, 0x3a2f30, 0.8, 0xe08a6a, 0.55, 1.0, 0.3);
+const NIGHT = P(0xa8b8ea, 1.15, [0.3, 0.72, -0.5], 0x6a7bab, 0x262838, 0.8, 0x232d45, 0.8, 0.94, 1);
+const DAWN = P(0xffbb84, 1.45, [0.85, 0.42, 0.3], 0xd6aa9c, 0x36302c, 0.72, 0xe0a882, 0.5, 0.98, 0.25);
+const DAY = P(0xfbeed4, 1.55, [0.68, 0.78, 0.3], 0xb8c0cc, 0x3a3129, 0.7, 0xb8c0cc, 0, 0.97, 0);
+const DUSK = P(0xf79c62, 1.4, [-0.7, 0.38, 0.45], 0xc28f94, 0x342a2b, 0.72, 0xcf8062, 0.55, 0.96, 0.3);
 
 // realm hour → preset (wraps at 24)
 const KEYS: Key[] = [

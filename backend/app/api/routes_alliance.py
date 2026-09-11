@@ -9,6 +9,7 @@ from app.api.routes_game import Ctx, ctx
 from app.core import clock
 from app.core.errors import ApiError
 from app.domain import alliances
+from app.domain import chat as realm_chat
 
 router = APIRouter(prefix="/api", tags=["alliances"])
 
@@ -46,6 +47,7 @@ class OfferIn(BaseModel):
     target_alliance_id: str
     emeralds: int = Field(ge=1)
     duration_hours: int
+    provider_alliance_id: str | None = None
 
 
 class RespondIn(BaseModel):
@@ -190,7 +192,44 @@ async def mercenary_market(world_id: str, c: Ctx = Depends(ctx)):
 @router.post("/worlds/{world_id}/alliance/mercenary/offers", status_code=201)
 async def offer(world_id: str, body: OfferIn, c: Ctx = Depends(ctx)):
     a = await alliances.require_mine(c.player)
-    return await alliances.offer_contract(c.world, a, c.player, body.target_alliance_id, body.emeralds, body.duration_hours)
+    return await alliances.offer_contract(c.world, a, c.player, body.target_alliance_id, body.emeralds, body.duration_hours, body.provider_alliance_id)
+
+
+@router.get("/worlds/{world_id}/mercenaries")
+async def mercenary_directory(world_id: str, c: Ctx = Depends(ctx)):
+    """Hire directory (Bible §19.1): Mercenary alliances with prestige, record and free slots."""
+    return {"mercenaries": await alliances.list_mercenaries(world_id), "server_time": clock.iso(clock.now())}
+
+
+# ------------------------------------------------------------------------------------------- realm chat + negotiations
+@router.get("/worlds/{world_id}/chat/summary")
+async def chat_summary(world_id: str, c: Ctx = Depends(ctx)):
+    return await realm_chat.summary(c.player) | {"server_time": clock.iso(clock.now())}
+
+
+@router.get("/worlds/{world_id}/chat/world")
+async def world_chat(world_id: str, after: str | None = Query(default=None), limit: int = Query(default=50, le=200), c: Ctx = Depends(ctx)):
+    return {"messages": await realm_chat.history(realm_chat.world_channel(world_id), after, limit), "server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/chat/world", status_code=201)
+async def post_world_chat(world_id: str, body: ChatIn, c: Ctx = Depends(ctx)):
+    return await realm_chat.post_world(c.player, body.text)
+
+
+@router.get("/worlds/{world_id}/chat/negotiations")
+async def negotiations(world_id: str, c: Ctx = Depends(ctx)):
+    return {"rooms": await realm_chat.nego_rooms(c.player), "server_time": clock.iso(clock.now())}
+
+
+@router.get("/worlds/{world_id}/chat/negotiations/{alliance_id}")
+async def negotiation(world_id: str, alliance_id: str, after: str | None = Query(default=None), limit: int = Query(default=50, le=200), c: Ctx = Depends(ctx)):
+    return await realm_chat.nego_history(c.player, alliance_id, after, limit) | {"server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/chat/negotiations/{alliance_id}", status_code=201)
+async def post_negotiation(world_id: str, alliance_id: str, body: ChatIn, c: Ctx = Depends(ctx)):
+    return await realm_chat.post_nego(c.player, alliance_id, body.text)
 
 
 @router.post("/worlds/{world_id}/alliance/mercenary/offers/{contract_id}/accept")

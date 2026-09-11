@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ResearchEntry } from "@/src/api/hooks";
 import { useResearch, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
+import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, Chip, chipRowStyles, CostRow, Countdown, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, useI18n } from "@/src/i18n";
@@ -152,6 +153,7 @@ export default function ResearchScreen() {
             {pick.job ? (
               <Row style={{ justifyContent: "space-between" }}>
                 <Countdown endsAt={pick.job.ends_at} />
+                <SpeedupButton job={pick.job} />
                 <FinishNowButton job={pick.job} />
                 <Button title={t("cancel")} variant="danger" onPress={() => m.cancelJob.mutateAsync(pick.job!.job_id).then(() => setPick(null)).catch(showError)} testID="research-cancel-button" />
               </Row>
