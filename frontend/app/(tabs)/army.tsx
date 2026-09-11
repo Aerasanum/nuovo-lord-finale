@@ -9,7 +9,7 @@ import { FinishNowButton } from "@/src/components/FinishNow";
 import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
-import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
+import { formatDuration, formatNumber, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -120,7 +120,7 @@ export default function ArmyScreen() {
                       {u.name}
                     </T>
                     <T v="caption">
-                      {u.category} · {u.producer_building}
+                      {tDyn(t, `unitCategory_${u.category}`, u.category)} · {u.producer_building}
                     </T>
                   </View>
                 </Row>
@@ -155,11 +155,7 @@ export default function ArmyScreen() {
                   </Pressable>
                 </Row>
               ) : u.state === "LOCKED" ? (
-                <T v="caption">
-                  L{u.unlock.min_settlement_level}
-                  {u.unlock.required_research_key ? ` · ${u.unlock.required_research_key}` : ""}
-                  {!u.unlock.producer_ok ? ` · ${u.producer_building}` : ""}
-                </T>
+                <T v="caption">{unlockLine(t, u.unlock, !u.unlock.producer_ok ? u.producer_building : null)}</T>
               ) : null}
             </Pressable>
           ))}

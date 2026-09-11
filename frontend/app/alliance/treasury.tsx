@@ -7,7 +7,7 @@ import { type TreasuryDto, useAllianceTreasury, useMyAlliance } from "@/src/api/
 import { BackButton, TagChip } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
 import { Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { formatNumber, useI18n } from "@/src/i18n";
+import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -49,7 +49,7 @@ export default function AllianceTreasuryScreen() {
       <Icon name={(REASON_ICON[e.reason] ?? "diamond-stone") as any} size={20} color={e.amount >= 0 ? colors.success : colors.warning} />
       <View style={{ flex: 1 }}>
         <T v="label" style={{ color: colors.onSurface }} numberOfLines={1}>
-          {e.reason.replace(/_/g, " ")}
+          {tDyn(t, `ledger_${e.reason}`, e.reason.replace(/_/g, " "))}
         </T>
         <T v="caption" numberOfLines={1}>
           {new Date(e.at).toLocaleString()} {e.ref ? `· ${e.ref}` : ""}

@@ -158,6 +158,7 @@ frontend/
 - [x] **Look "adulto"** della mappa (stile Empire Four Kingdoms): palette terreno più scura e desaturata (`theme.ts`), grading nel shader terreno (desaturazione 24 %, gamma 1,12, cast terroso, ombre più profonde), luce diurna più fredda e meno intensa (`daylight.ts`)
 - [x] **Anteprima 3D skin marce** in Casata (`MarchSkinPreview`: colonna + stendardo con stemma + creatura, orbita; tap su skin bloccata = solo anteprima) · **Key-art missioni** (5 banner 16:9 generati con Nano Banana, `mission_*.jpg`) sulle card Missioni e nel composer
 - [x] **Account Max + rapporto di fattibilità** (`backend/scripts/max_account.py` → `max@empirelords.com / Max12345!`, tutto al cap; `/app/memory/MAX_ACCOUNT_REPORT.md`: costi/tempi per raggiungere ogni cap, verifica cap Magazzino su ogni passo della progressione → **nessun passo irraggiungibile**; stima ≈ 20 mesi senza Rubini + 126 giorni Leggendari)
+- [x] **Niente codici grezzi nella UI** (richiesta utente): Cronaca (eventi Piramide in frasi), Storia della Casata (motivi prestigio, vittorie Piramide, rinomine), Esercito/Città/Edificio (categorie tradotte, riga sblocco «Richiede: Insediamento liv. N · ricerca «Nome» · Edificio» con `required_research_name` dal backend), Inbox (titoli evento, stati code, nome ricerca, esiti marce/contratti, motivi tesoreria, messaggi di trattativa; nessun JSON), Tesoreria, Rapporto battaglia
 
 ### Prossimi (P2)
 - [ ] Eliminazione per 120 giorni di inattività, cap Leggendario

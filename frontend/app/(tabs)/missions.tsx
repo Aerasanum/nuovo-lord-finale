@@ -183,16 +183,29 @@ export default function MissionsScreen() {
             {t("houseHistory")}
           </T>
           {p.history.length === 0 ? <T v="caption">—</T> : null}
-          {p.history.map((h, i) => (
-            <View key={i} style={s.histRow}>
-              <T v="caption" style={{ color: colors.onSurface, flex: 1 }} numberOfLines={1}>
-                {h.kind === "PRESTIGE" ? tDyn(t, `prestigeReason_${h.reason}`, h.reason?.startsWith("mission_") ? missionName(t, h.reason.slice(8), h.reason.slice(8)) : (h.reason ?? "")) : `${tDyn(t, `track_${h.track}`, h.track ?? "")} · ${t("achievementTier")} ${h.tier}`}
-              </T>
-              <T v="caption" style={{ color: colors.brandPrimary }}>
-                {h.kind === "PRESTIGE" ? `+${h.points} ★` : h.decoration}
-              </T>
-            </View>
-          ))}
+          {p.history.map((h, i) => {
+            const label =
+              h.kind === "PRESTIGE"
+                ? tDyn(t, `prestigeReason_${h.reason}`, h.reason?.startsWith("mission_") ? missionName(t, h.reason.slice(8), h.reason.slice(8)) : (h.reason ?? "").replace(/_/g, " "))
+                : h.kind === "ACHIEVEMENT"
+                  ? `${tDyn(t, `track_${h.track}`, h.track ?? "")} · ${t("achievementTier")} ${h.tier ?? ""}`
+                  : h.kind === "PYRAMID_VICTORY"
+                    ? fmt(t("hist_PYRAMID_VICTORY"), { alliance: h.alliance ? `[${h.alliance}]` : "", cycle: h.cycle_id ?? "" })
+                    : h.kind === "RENAMED"
+                      ? fmt(t("hist_RENAMED"), { from: h.from ?? "", to: h.to ?? "" })
+                      : h.kind.replace(/_/g, " ").toLowerCase();
+            const value = h.kind === "PRESTIGE" ? `+${h.points} ★` : h.kind === "ACHIEVEMENT" ? h.decoration : h.kind === "PYRAMID_VICTORY" ? "👑" : "";
+            return (
+              <View key={i} style={s.histRow}>
+                <T v="caption" style={{ color: colors.onSurface, flex: 1 }} numberOfLines={2}>
+                  {label}
+                </T>
+                <T v="caption" style={{ color: colors.brandPrimary }}>
+                  {value}
+                </T>
+              </View>
+            );
+          })}
         </Panel>
       </View>
     );
@@ -204,10 +217,27 @@ export default function MissionsScreen() {
     const nm = (id?: string | null) => (id ? names[id] ?? id : "—");
     const line = (e: ChronicleEntry) => {
       const p = e.params;
-      const key = (e.kind === "SETTLEMENT_CONQUERED" && p.pvp ? "chr_SETTLEMENT_CONQUERED_PVP" : `chr_${e.kind}`) as StringKey;
+      let kind: string = e.kind;
+      if (e.kind === "SETTLEMENT_CONQUERED" && p.pvp) kind = "SETTLEMENT_CONQUERED_PVP";
+      if (e.kind === "PYRAMID_CAPTURED" && p.previous_tag) kind = "PYRAMID_CAPTURED_FROM";
+      if (e.kind === "PYRAMID_NEUTRALIZED" && p.tag) kind = "PYRAMID_NEUTRALIZED_FROM";
+      const key = `chr_${kind}` as StringKey;
       const tpl = t(key);
-      if (tpl === key) return `${e.kind} ${JSON.stringify(p).slice(0, 60)}`;
-      return fmt(tpl, { a: nm(p.new_owner ?? p.player_id ?? p.attacker ?? e.actors[0]), b: nm(p.old_owner ?? p.defender ?? e.actors[1]), x: p.x ?? "", y: p.y ?? "", p: p.power ?? "" });
+      if (tpl === key) return e.kind.replace(/_/g, " ").toLowerCase();
+      return fmt(tpl, {
+        a: nm(p.new_owner ?? p.player_id ?? p.attacker ?? e.actors[0]),
+        b: nm(p.old_owner ?? p.defender ?? e.actors[1]),
+        x: p.x ?? "",
+        y: p.y ?? "",
+        p: p.power ?? "",
+        cycle: p.cycle_id ?? "",
+        tag: p.tag ?? "",
+        name: p.name ?? "",
+        prev: p.previous_tag ?? "",
+        members: p.members ?? "",
+        units: formatNumber(Number(p.guardian_units ?? 0)),
+        power: formatNumber(Number(p.guardian_power ?? 0)),
+      });
     };
     const rec = chr.data.records || {};
     return (

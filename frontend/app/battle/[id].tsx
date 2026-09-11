@@ -7,7 +7,7 @@ import { useBattle } from "@/src/api/hooks";
 import { type CinematicSpec, useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen } from "@/src/components/overlay";
 import { Button, CostRow, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { formatNumber, useI18n } from "@/src/i18n";
+import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 import { storage } from "@/src/utils/storage";
@@ -128,21 +128,25 @@ export default function BattleReport() {
               <View style={s.side}>
                 <T v="label">{t("attacker")}</T>
                 <T v="mono">{formatNumber(r.attacker_power)}</T>
-                <T v="caption">RNG ×{r.rng?.attacker}</T>
+                <T v="caption">{t("luckRoll")} ×{r.rng?.attacker}</T>
               </View>
               <Icon name="sword-cross" size={24} color={colors.brandPrimary} />
               <View style={[s.side, { alignItems: "flex-end" }]}>
                 <T v="label">{t("defender")}</T>
                 <T v="mono">{formatNumber(r.defender_power)}</T>
-                <T v="caption">RNG ×{r.rng?.defender}</T>
+                <T v="caption">{t("luckRoll")} ×{r.rng?.defender}</T>
               </View>
             </Row>
             <T v="caption" style={{ marginTop: 6 }}>
-              {t("terrain")} {r.terrain} +{Math.round((r.modifiers?.terrain_bonus ?? 0) * 100)}% · {t("wall")} +{((r.modifiers?.wall_def_bonus_effective ?? 0) * 100).toFixed(1)}%
+              {t("terrain")} {tDyn(t, String(r.terrain ?? ""), String(r.terrain ?? ""))} +{Math.round((r.modifiers?.terrain_bonus ?? 0) * 100)}% · {t("wall")} +{((r.modifiers?.wall_def_bonus_effective ?? 0) * 100).toFixed(1)}%
               {r.wall?.before ? ` · HP ${formatNumber(r.wall.before.current_hp)} → ${formatNumber(r.wall.after.current_hp)}` : ""}
-              {r.reason ? ` · ${r.reason}` : ""}
+              {r.reason ? ` · ${tDyn(t, `battleReason_${r.reason}`, String(r.reason).replace(/_/g, " ").toLowerCase())}` : ""}
             </T>
-            {r.winner_loss_fraction != null ? <T v="caption">loss fraction {(r.winner_loss_fraction * 100).toFixed(1)}%</T> : null}
+            {r.winner_loss_fraction != null ? (
+              <T v="caption">
+                {t("winnerLossFraction")} {(r.winner_loss_fraction * 100).toFixed(1)}%
+              </T>
+            ) : null}
           </Panel>
 
           <Panel testID="battle-attacker-table">

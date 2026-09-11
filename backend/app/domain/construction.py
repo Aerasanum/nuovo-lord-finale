@@ -148,7 +148,10 @@ async def cancel_job(job: dict, player_id: str) -> dict:
     await db().settlements.update_one({"_id": job["settlement_id"]}, release)
     await economy.credit(job["settlement_id"], refund, "cancel_refund")
     await notifications.notify(job["world_id"], player_id, "BUILD_JOB_STATE" if kind in CONSTRUCTION_KINDS else f"{kind}_JOB_STATE",
-                               {"job_id": job["_id"], "entity_id": job["settlement_id"], "state": "CANCELLED", "cost_or_refund": refund}, dedupe_key=f"job_cancelled:{job['_id']}")
+                               {"job_id": job["_id"], "entity_id": job["settlement_id"], "state": "CANCELLED", "cost_or_refund": refund, "target": job.get("target"), "target_level": job.get("target_level"),
+                                "research_key": job.get("target") if kind == "RESEARCH" else None, "research_name": (get_spec().research_by_key.get(job.get("target"), {}) or {}).get("name") if kind == "RESEARCH" else None,
+                                "unit_key": job.get("target") if kind == "RECRUITMENT" else None, "batch": job.get("count") if kind == "RECRUITMENT" else None, "level": job.get("target_level")},
+                               dedupe_key=f"job_cancelled:{job['_id']}")
     return {"job": job_dto(updated), "refund": refund}
 
 

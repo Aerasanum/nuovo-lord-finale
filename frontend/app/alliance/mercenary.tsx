@@ -10,7 +10,7 @@ import { openChat } from "@/src/components/chat/ChatDock";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { contractStatusLabel } from "@/src/game/alliances";
-import { formatNumber, useI18n } from "@/src/i18n";
+import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -84,7 +84,7 @@ export default function MercenaryMarketScreen() {
         <T v="caption">
           <Icon name="diamond-stone" size={12} color={colors.success} /> {formatNumber(c.emeralds)} · {c.duration_hours}
           {t("hours")}
-          {c.result ? ` · ${c.result}` : ""}
+          {c.result ? ` · ${tDyn(t, `contractResult_${c.result}`, String(c.result).toLowerCase())}` : ""}
         </T>
         {c.directed_to_tag && c.status === "OFFERED" ? (
           <T v="caption" style={{ color: colors.brandPrimary }} testID={`contract-${c.contract_id}-directed`}>

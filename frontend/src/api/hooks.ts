@@ -77,7 +77,7 @@ export type BuildingEntry = {
   level: number;
   state: string;
   max_level: number;
-  unlock: { min_settlement_level: number; required_research_key: string | null; level_ok: boolean; research_ok: boolean };
+  unlock: { min_settlement_level: number; required_research_key: string | null; required_research_name: string | null; level_ok: boolean; research_ok: boolean };
   next?: { level: number; cost: Resources; duration_min: number; fast_applied: boolean; base_cost: Resources; base_time_min: number; research_time_reduction: number };
   missing?: Partial<Resources>;
   job?: JobDto;
@@ -109,7 +109,7 @@ export type UnitEntry = {
   cost: Resources;
   base_time_s: number;
   role: string;
-  unlock: { min_settlement_level: number; required_research_key: string | null; producer_building: string; level_ok: boolean; research_ok: boolean; producer_ok: boolean };
+  unlock: { min_settlement_level: number; required_research_key: string | null; required_research_name: string | null; producer_building: string; level_ok: boolean; research_ok: boolean; producer_ok: boolean };
   count: number;
   batch_cap: number;
   effective_time_s: number | null;
@@ -443,7 +443,7 @@ export function useSetSkin(worldId: string, sid: string) {
 export type MissionCatalogEntry = { key: string; name: string; kind: string; duration_hours: number; requirements: Record<string, any>; reward: Record<string, any>; cooldown_hours: number; cooldown_until: string | null; active_mission_id: string | null };
 export type MissionDto = { mission_id: string; key: string; name: string; origin_settlement_id: string; origin_xy: [number, number] | null; units: Record<string, number>; status: "ACTIVE" | "COMPLETED"; started_at: string | null; ends_at: string | null; completed_at: string | null; reward_result: Record<string, any> | null };
 export type ProgressTrack = { track: string; value: number; tier: number; thresholds: number[]; next_threshold: number | null; decoration: string };
-export type ProgressDto = { prestige: number; titles: string[]; cosmetics: string[]; tracks: ProgressTrack[]; history: { at: string; kind: string; reason?: string; points?: number; track?: string; tier?: number; decoration?: string }[] };
+export type ProgressDto = { prestige: number; titles: string[]; cosmetics: string[]; tracks: ProgressTrack[]; history: { at: string; kind: string; reason?: string; points?: number; track?: string; tier?: number; decoration?: string; cycle_id?: number; alliance?: string; from?: string; to?: string }[] };
 export type MissionsOverview = { catalog: MissionCatalogEntry[]; active: MissionDto[]; slots_left: number; max_simultaneous: number; history: MissionDto[]; progress: ProgressDto; server_time: string };
 export type ChronicleEntry = { chronicle_id: string; kind: string; params: Record<string, any>; actors: string[]; at: string };
 

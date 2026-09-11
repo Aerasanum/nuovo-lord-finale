@@ -10,7 +10,7 @@ import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
 import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
-import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
+import { formatDuration, formatNumber, RESOURCE_LABELS, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -232,7 +232,7 @@ export default function SettlementScreen() {
                       </View>
                     </Row>
                     <StatePill state={b.state} />
-                    {b.job ? <Countdown endsAt={b.job.ends_at} style={{ fontSize: 12 }} /> : b.next && b.state !== "LOCKED" ? <CostRow cost={b.next.cost} missing={b.missing} /> : b.state === "LOCKED" ? <T v="caption">L{b.unlock.min_settlement_level}{b.unlock.required_research_key ? ` · ${b.unlock.required_research_key}` : ""}</T> : null}
+                    {b.job ? <Countdown endsAt={b.job.ends_at} style={{ fontSize: 12 }} /> : b.next && b.state !== "LOCKED" ? <CostRow cost={b.next.cost} missing={b.missing} /> : b.state === "LOCKED" ? <T v="caption" numberOfLines={2}>{unlockLine(t, b.unlock)}</T> : null}
                   </Pressable>
                 ))}
               </View>

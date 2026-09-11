@@ -95,7 +95,7 @@ async def start_research(doc: dict, player: dict, key: str, idempotency_key: str
     await db().jobs.insert_one(job)
     await scheduler.schedule(doc["world_id"], "BUILD_RESEARCH_RECRUIT_COMPLETE", ends, doc["_id"], f"job_complete:{job['_id']}", {"job_id": job["_id"]})
     await notifications.notify(doc["world_id"], player["_id"], "RESEARCH_JOB_STATE",
-                               {"research_key": key, "level": cur + 1, "state": "STARTED", "eta": clock.iso(ends), "effect": node["effect"], "unlocks": None, "settlement_id": doc["_id"]},
+                               {"research_key": key, "research_name": node["name"], "level": cur + 1, "state": "STARTED", "eta": clock.iso(ends), "effect": node["effect"], "unlocks": None, "settlement_id": doc["_id"]},
                                dedupe_key=f"job_started:{job['_id']}", deep_link="research")
     return job
 
@@ -120,5 +120,5 @@ async def apply_complete(job: dict) -> None:
     )
     node = get_spec().research_by_key[key]
     await notifications.notify(doc["world_id"], doc.get("owner_player_id"), "RESEARCH_JOB_STATE",
-                               {"research_key": key, "level": new_level, "state": "COMPLETED", "eta": None, "effect": node["effect"], "unlocks": None, "settlement_id": doc["_id"]},
+                               {"research_key": key, "research_name": node["name"], "level": new_level, "state": "COMPLETED", "eta": None, "effect": node["effect"], "unlocks": None, "settlement_id": doc["_id"]},
                                dedupe_key=f"job_done:{job['_id']}", deep_link="research")

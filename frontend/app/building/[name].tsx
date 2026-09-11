@@ -8,7 +8,7 @@ import { FinishNowButton } from "@/src/components/FinishNow";
 import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
-import { formatDuration, useI18n } from "@/src/i18n";
+import { formatDuration, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, spacing, useTheme } from "@/src/theme";
 
@@ -58,7 +58,7 @@ export default function BuildingDetail() {
           <Panel>
             <Row style={{ justifyContent: "space-between" }}>
               <View style={{ flex: 1 }}>
-                <T v="caption">{b.category}</T>
+                <T v="caption">{tDyn(t, `buildingCategory_${b.category}`, b.category)}</T>
                 <T v="body">{b.purpose}</T>
               </View>
               <StatePill state={b.state} testID="building-state" />
@@ -116,8 +116,7 @@ export default function BuildingDetail() {
                 ) : null}
                 {b.state === "LOCKED" ? (
                   <T v="caption" style={{ color: colors.warning }}>
-                    {t("requirements")}: L{b.unlock.min_settlement_level}
-                    {b.unlock.required_research_key ? ` · ${b.unlock.required_research_key}` : ""}
+                    {unlockLine(t, b.unlock)}
                   </T>
                 ) : null}
                 {b.state === "BLOCKED_SETTLEMENT_LEVEL" ? (

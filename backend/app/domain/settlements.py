@@ -122,7 +122,15 @@ def building_unlocked(name: str, level: int, research: dict[str, int]) -> tuple[
     lvl_ok = level >= int(reg["minimum_settlement_level"])
     rk = reg.get("required_research_key")
     res_ok = True if not rk else F.rget(research, rk) >= 1
-    return (lvl_ok and res_ok), {"min_settlement_level": reg["minimum_settlement_level"], "required_research_key": rk, "level_ok": lvl_ok, "research_ok": res_ok}
+    return (lvl_ok and res_ok), {"min_settlement_level": reg["minimum_settlement_level"], "required_research_key": rk, "required_research_name": _research_name(rk), "level_ok": lvl_ok, "research_ok": res_ok}
+
+
+def _research_name(key: str | None) -> str | None:
+    """Human name of a research node for UI gates (keys such as `military.archery_unlock` never reach the Player)."""
+    if not key:
+        return None
+    node = get_spec().research_by_key.get(key)
+    return node["name"] if node else key
 
 
 def unit_unlocked(name: str, doc: dict) -> tuple[bool, dict]:
@@ -137,6 +145,7 @@ def unit_unlocked(name: str, doc: dict) -> tuple[bool, dict]:
     return (lvl_ok and res_ok and prod_ok), {
         "min_settlement_level": reg["minimum_settlement_level"],
         "required_research_key": rk,
+        "required_research_name": _research_name(rk),
         "producer_building": producer,
         "level_ok": lvl_ok,
         "research_ok": res_ok,

@@ -8,8 +8,8 @@ import { fonts, radius, useTheme } from "@/src/theme";
 import type { MapLabel } from "./engine";
 
 export function missionLabel(mission: string, t: (k: any) => string): string {
-  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison", CARAVAN: "missionCaravan", INTERCEPT: "missionIntercept" } as Record<string, string>)[mission];
-  return key ? t(key) : mission;
+  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison", GARRISON_SENTINEL: "missionGarrison", CARAVAN: "missionCaravan", INTERCEPT: "missionIntercept", PYRAMID_ATTACK: "missionAttack", PYRAMID_REINFORCE: "missionReinforce" } as Record<string, string>)[mission];
+  return key ? t(key) : mission.replace(/_/g, " ").toLowerCase();
 }
 
 /** Crisp RN text chips projected from the 3D scene: settlement names/levels and marching armies with live ETA. */

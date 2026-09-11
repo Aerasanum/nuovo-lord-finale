@@ -754,3 +754,16 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Smoke screenshots OK: dock visible above tabs with realm preview; vault auto-opened, chest on the painted pedestal, claim → lid opens + coins → reveal card with +896 ×5; house preview dragon/elephant; map darker. Demo already claimed today's reward (advance the QA clock 1 day to re-test the claim, or use max@empirelords.com which has not claimed)."
+
+# ---- iteration 18b (main agent) — no raw codes in the UI ----
+frontend:
+  - task: "Human-readable labels everywhere the Player used to see raw codes: Chronicle (PYRAMID_OPEN/CAPTURED/WON/NEUTRALIZED templates chr_*), House history (prestigeReason_pyramid_*, mercenary_contract; kinds PYRAMID_VICTORY / RENAMED), Army (unit category labels, unlock line 'Richiede: Insediamento liv. N · ricerca «Nome» · Edificio' from unlockLine + backend required_research_name), Città/Edificio locked lines, Inbox (event titles evt_*, job states, research_name, march results, return reasons, contract results, ledger reasons, NEGOTIATION_MESSAGE, no JSON fallback), Treasury ledger reasons, Battle report (terrain name, luck, winner's losses, reason)."
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/missions.tsx, inbox.tsx, army.tsx, settlement.tsx, app/building/[name].tsx, app/battle/[id].tsx, app/alliance/mercenary.tsx, treasury.tsx, src/i18n/index.tsx, src/map3d/MapLabels.tsx; backend/app/domain/settlements.py (required_research_name), research.py + construction.py (research_name / target in notifications)"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Screenshots: Cronaca, Storia della Casata, Esercito, Inbox all readable in Italian (no PYRAMID_*, JSON, 'Tier undefined', 'military.archery_unlock', 'infantry')."
