@@ -141,29 +141,34 @@ export class EntityFactory {
   private pal: EntityPalette;
   private colorCache = new Map<string, THREE.Color>();
 
-  constructor(pal: EntityPalette) {
+  constructor(pal: EntityPalette, textures?: { stone: THREE.Texture; roof: THREE.Texture }) {
     this.pal = pal;
     const geos = buildCastleParts();
     const lit = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, ...extra });
     const basic = (extra: Partial<THREE.MeshBasicMaterialParameters> = {}) => new THREE.MeshBasicMaterial({ color: 0xffffff, ...extra });
+    // masonry: stone courses on every wall-like part, tiles on the roofs (skins tint them through the instance colour)
+    // textured parts: the masonry/tile maps average ≈0.6 brightness, the boosted base colour compensates
+    const boost = new THREE.Color(1.7, 1.7, 1.7);
+    const stone = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => lit(textures ? { map: textures.stone, color: boost, ...extra } : extra);
+    const roof = () => lit(textures ? { map: textures.roof, color: boost } : {});
     const symMat = basic({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.parts = {
       shadow: { geo: geos.shadow, mat: basic({ color: SHADOW_COLOR, transparent: true, opacity: 0.28, depthWrite: false }) },
       factionRing: { geo: geos.factionRing, mat: basic({ transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }) },
-      plinth: { geo: geos.plinth, mat: lit() },
-      wall: { geo: geos.wall, mat: lit({ side: THREE.DoubleSide }) },
-      keep: { geo: geos.keep, mat: lit() },
+      plinth: { geo: geos.plinth, mat: stone() },
+      wall: { geo: geos.wall, mat: stone({ side: THREE.DoubleSide }) },
+      keep: { geo: geos.keep, mat: stone() },
       windows: { geo: geos.windows, mat: basic({ color: WINDOW_COLOR }) },
-      keepRoof_pyramid: { geo: geos.keepRoof_pyramid, mat: lit() },
-      keepRoof_cone: { geo: geos.keepRoof_cone, mat: lit() },
+      keepRoof_pyramid: { geo: geos.keepRoof_pyramid, mat: roof() },
+      keepRoof_cone: { geo: geos.keepRoof_cone, mat: roof() },
       keepRoof_onion: { geo: geos.keepRoof_onion, mat: lit({ flatShading: false }) },
-      turrets: { geo: geos.turrets, mat: lit() },
-      tower: { geo: geos.tower, mat: lit() },
-      towerRoof_cone: { geo: geos.towerRoof_cone, mat: lit() },
-      towerRoof_pyramid: { geo: geos.towerRoof_pyramid, mat: lit() },
-      gate: { geo: geos.gate, mat: lit() },
+      turrets: { geo: geos.turrets, mat: stone() },
+      tower: { geo: geos.tower, mat: stone() },
+      towerRoof_cone: { geo: geos.towerRoof_cone, mat: roof() },
+      towerRoof_pyramid: { geo: geos.towerRoof_pyramid, mat: roof() },
+      gate: { geo: geos.gate, mat: stone() },
       gateDoor: { geo: geos.gateDoor, mat: lit() },
-      gateRoof: { geo: geos.gateRoof, mat: lit() },
+      gateRoof: { geo: geos.gateRoof, mat: roof() },
       torch: { geo: geos.torch, mat: basic({ color: TORCH_COLOR }) },
       torchGlow: { geo: geos.torchGlow, mat: basic({ color: TORCH_COLOR, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }) },
       senGlow: { geo: geos.senGlow, mat: basic({ transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }) },
@@ -243,11 +248,17 @@ export class EntityFactory {
     return g;
   }
 
+  private static CASTERS = new Set(["plinth", "wall", "keep", "keepRoof_pyramid", "keepRoof_cone", "keepRoof_onion", "turrets", "tower", "towerRoof_cone", "towerRoof_pyramid", "gate", "gateRoof", "senTower", "army"]);
+
   private make(part: string, count: number): THREE.InstancedMesh {
     const p = this.parts[part];
     const m = new THREE.InstancedMesh(p.geo, p.mat, Math.max(1, count));
     m.count = 0;
     m.frustumCulled = false;
+    if (EntityFactory.CASTERS.has(part)) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+    }
     return m;
   }
 

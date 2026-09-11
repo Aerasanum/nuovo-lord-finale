@@ -1,20 +1,17 @@
 /**
  * Skippable attack cinematics (Bible §41.2 — Major Attack 6s / Conquest Success 8s; standard departure 4s).
  *
- *  DEPARTURE  — played when the player launches a march: the real formation marches out under the house crest and
- *               the Alliance banner. Variants: a Dragon/Angel/Demon descends from the sky and advances with the
- *               army (legendary → Major Attack), a Falcon sweeps ahead when Falcons are in the march.
- *  CONQUEST   — played when an ownership change is committed in the player's favour (settlement or Pyramid):
- *               the enemy banner falls, the house crest rises, survivors are listed.
+ *  DEPARTURE  — played when the player launches a march. Variants: Dragon / Angel / Demon (legendary → Major Attack),
+ *               Major offensive (≥25.000 units), Falcon scouting, standard night march.
+ *  CONQUEST   — played when an ownership change is committed in the player's favour (settlement or Pyramid).
  *
- * The picture is a real-time 3D scene (three.js on expo-gl — see ./scene3d): night march with a low-poly army,
- * procedural dragon, falcon, fire particles; dawn conquest with the taken castle/Pyramid. This file keeps the
- * provider, the variant plan and the 2D HUD (crest, title, composition, Salta, progress).
+ * The picture is epic key-art (see ./CinematicArt) with camera moves, a cut, embers and letterbox; this file keeps the
+ * provider, the variant plan and the 2D HUD (crest, house, Alliance tag, title, real composition, Salta, progress).
  * Pure presentation: the overlay never blocks server timers; "Salta" is available after one second.
  */
 import { LinearGradient } from "expo-linear-gradient";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, { Easing, FadeIn, FadeInDown, FadeInUp, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import type { CrestDto } from "@/src/api/hooks";
@@ -24,7 +21,7 @@ import { fmt, formatDuration, formatNumber, useI18n } from "@/src/i18n";
 import { setMapRenderHold } from "@/src/map3d/engine";
 import { fonts, radius, spacing, useTheme } from "@/src/theme";
 
-import { CinematicGL } from "./CinematicGL";
+import { type ArtVariant, CinematicArt } from "./CinematicArt";
 
 export type CinematicSpec = {
   kind: "DEPARTURE" | "CONQUEST";
@@ -58,15 +55,17 @@ const UNIT_ICON: Record<string, IconName> = {
   Demone: "emoticon-devil",
 };
 const MAJOR_UNITS = 25000; // spec.cinematics.major_attack.trigger_any.total_units_gte
-const SCRIM = "rgba(7, 11, 24, 0.78)"; // matches the night backdrop of the GL scene (identical in every theme)
+const SCRIM = "rgba(5, 7, 14, 0.82)"; // matches the black letterbox of the artwork (identical in every theme)
 
 export function cinematicPlan(spec: CinematicSpec) {
   const total = Object.values(spec.units).reduce((a, c) => a + (c || 0), 0);
-  const legendary = (Object.keys(spec.units).find((u) => LEGENDARY[u] && spec.units[u] > 0) ? LEGENDARY[Object.keys(spec.units).find((u) => LEGENDARY[u] && spec.units[u] > 0)!] : null) as Legendary | null;
+  const legendaryUnit = Object.keys(spec.units).find((u) => LEGENDARY[u] && spec.units[u] > 0);
+  const legendary: Legendary | null = legendaryUnit ? LEGENDARY[legendaryUnit] : null;
   const falcon = (spec.units.Falco ?? 0) > 0;
   const major = !!legendary || total >= MAJOR_UNITS;
   const durationMs = spec.kind === "CONQUEST" ? 8000 : major ? 6000 : 4000;
-  return { total, legendary, falcon, major, durationMs };
+  const variant: ArtVariant = spec.kind === "CONQUEST" ? (spec.pyramid ? "pyramid" : "conquest") : (legendary ?? (major ? "major" : falcon ? "falcon" : "standard"));
+  return { total, legendary, falcon, major, durationMs, variant };
 }
 
 // --------------------------------------------------------------------------------------------- provider
@@ -93,22 +92,21 @@ export function useCinematic() {
 function CinematicOverlay({ spec, onDone }: { spec: CinematicSpec; onDone: () => void }) {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const { height } = useWindowDimensions();
   const plan = useMemo(() => cinematicPlan(spec), [spec]);
-  const sceneSpec = useMemo(() => ({ units: spec.units, legendary: plan.legendary, falcon: plan.falcon, durationMs: plan.durationMs, crest: spec.crest ?? null, pyramid: !!spec.pyramid, newLevel: spec.newLevel ?? null, skin: spec.skin ?? null }), [spec, plan]);
-  // the show clock starts on the first rendered GL frame (or after a grace period if GL never comes up)
+  // the show clock starts when the artwork is on screen (CinematicArt → onReady)
   const [started, setStarted] = useState<number | null>(null);
   const onReady = useCallback((t0: number) => setStarted((s) => s ?? t0), []);
   const [canSkip, setCanSkip] = useState(false);
   const progress = useSharedValue(0);
+  const barH = Math.round(height * 0.065);
 
   useEffect(() => {
-    // the map underneath stops drawing for the whole show (one GL context at a time, no wasted GPU on device)
+    // the map underneath stops drawing for the whole show (nothing of it is visible; saves GPU on device)
     setMapRenderHold(true);
-    const skip = setTimeout(() => setCanSkip(true), 1000); // "Salta" never depends on the GPU coming up
-    const grace = setTimeout(() => setStarted((s) => s ?? Date.now()), 6000);
+    const skip = setTimeout(() => setCanSkip(true), 1000);
     return () => {
       clearTimeout(skip);
-      clearTimeout(grace);
       setMapRenderHold(false);
     };
   }, []);
@@ -139,17 +137,18 @@ function CinematicOverlay({ spec, onDone }: { spec: CinematicSpec; onDone: () =>
 
   return (
     <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(400)} style={[StyleSheet.absoluteFill, styles.root]} testID="cinematic-overlay" accessibilityViewIsModal>
-      <CinematicGL kind={spec.kind} spec={sceneSpec} onReady={onReady} />
-      {/* scrims: keep the HUD legible over a bright dawn sky or a dark night (scene colours are theme-independent) */}
-      <LinearGradient colors={[SCRIM, "transparent"]} style={[styles.scrim, { top: 0, height: 220 }]} pointerEvents="none" />
-      <LinearGradient colors={["transparent", SCRIM]} style={[styles.scrim, { bottom: 0, height: 200 }]} pointerEvents="none" />
-      {/* semantic markers for the variant on stage (the scene itself is a GL canvas) */}
+      <CinematicArt variant={plan.variant} durationMs={plan.durationMs} onReady={onReady} />
+      {/* scrims: keep the HUD legible over bright skies */}
+      <LinearGradient colors={[SCRIM, "transparent"]} style={[styles.scrim, { top: barH, height: 230 }]} pointerEvents="none" />
+      <LinearGradient colors={["transparent", SCRIM]} style={[styles.scrim, { bottom: barH, height: 210 }]} pointerEvents="none" />
+      {/* semantic markers for the variant on stage */}
       <View style={styles.marker} testID={spec.kind === "CONQUEST" ? "cinematic-conquest" : "cinematic-departure"} pointerEvents="none" />
+      <View style={styles.marker} testID={`cinematic-variant-${plan.variant}`} pointerEvents="none" />
       {plan.legendary ? <View style={styles.marker} testID={`cinematic-${plan.legendary}`} pointerEvents="none" /> : null}
       {plan.falcon ? <View style={styles.marker} testID="cinematic-falcon" pointerEvents="none" /> : null}
 
       {/* HUD: crest + house + alliance banner */}
-      <Animated.View entering={FadeInDown.duration(500)} style={[styles.hud, { top: spacing.xl + 8 }]} pointerEvents="none">
+      <Animated.View entering={FadeInDown.duration(500)} style={[styles.hud, { top: barH + spacing.md }]} pointerEvents="none">
         <View style={styles.houseRow}>
           {spec.crest ? <Crest crest={spec.crest} size={44} testID="cinematic-crest" /> : <Icon name="shield" size={40} color={colors.brandPrimary} />}
           <View style={{ flex: 1 }}>
@@ -175,7 +174,7 @@ function CinematicOverlay({ spec, onDone }: { spec: CinematicSpec; onDone: () =>
       </Animated.View>
 
       {/* composition (actual army) */}
-      <Animated.View entering={FadeInUp.delay(spec.kind === "CONQUEST" ? 3400 : 900).duration(600)} style={[styles.bottom, { bottom: spacing.xl + 52 }]} pointerEvents="none">
+      <Animated.View entering={FadeInUp.delay(spec.kind === "CONQUEST" ? 3400 : 900).duration(600)} style={[styles.bottom, { bottom: barH + 60 }]} pointerEvents="none">
         <Text style={[styles.compTitle, { color: colors.onSurfaceSecondary }]}>{spec.kind === "CONQUEST" ? t("cinSurvivors") : fmt(t("cinUnitsTotal"), { n: formatNumber(plan.total) })}</Text>
         <View style={styles.chips} testID="cinematic-composition">
           {composition.map(([u, c]) => (
@@ -191,7 +190,7 @@ function CinematicOverlay({ spec, onDone }: { spec: CinematicSpec; onDone: () =>
 
       {/* skip + progress */}
       {canSkip ? (
-        <Animated.View entering={FadeIn.duration(250)} style={[styles.skipWrap, { bottom: spacing.xl + 10 }]}>
+        <Animated.View entering={FadeIn.duration(250)} style={[styles.skipWrap, { bottom: barH + 10 }]}>
           <Pressable onPress={onDone} style={[styles.skip, { backgroundColor: colors.glass, borderColor: colors.borderStrong }]} testID="cinematic-skip" accessibilityRole="button">
             <Text style={[styles.skipText, { color: colors.onSurface }]}>{t("cinSkip")}</Text>
             <Icon name="skip-next" size={16} color={colors.onSurface} />
@@ -207,7 +206,7 @@ function CinematicOverlay({ spec, onDone }: { spec: CinematicSpec; onDone: () =>
 
 // --------------------------------------------------------------------------------------------- styles
 const styles = StyleSheet.create({
-  root: { zIndex: 1000, elevation: 1000, backgroundColor: "#070B18", overflow: "hidden" },
+  root: { zIndex: 1000, elevation: 1000, backgroundColor: "#000000", overflow: "hidden" },
   scrim: { position: "absolute", left: 0, right: 0 },
   marker: { position: "absolute", width: 1, height: 1, opacity: 0 },
   hud: { position: "absolute", left: spacing.md, right: spacing.md, gap: 6 },
@@ -215,8 +214,8 @@ const styles = StyleSheet.create({
   house: { fontFamily: fonts.display, fontSize: 18 },
   tag: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, height: 22, borderRadius: radius.pill, borderWidth: 1, marginTop: 2 },
   tagText: { fontFamily: fonts.body, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
-  title: { fontFamily: fonts.display, fontSize: 27, lineHeight: 33, marginTop: spacing.sm },
-  subtitle: { fontFamily: fonts.body, fontSize: 14 },
+  title: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, marginTop: spacing.sm, textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 8, textShadowOffset: { width: 0, height: 2 } },
+  subtitle: { fontFamily: fonts.body, fontSize: 14, textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: "absolute", left: spacing.md, right: spacing.md, gap: 6 },
   compTitle: { fontFamily: fonts.body, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },

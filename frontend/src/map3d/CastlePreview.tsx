@@ -11,6 +11,7 @@ import { useTheme } from "@/src/theme";
 
 import { disposeGroup, EntityFactory } from "./entities";
 import { SmokeSystem } from "./smoke";
+import { makeRoofTexture, makeStoneTexture } from "./textures";
 
 type Props = { skin: string; level: number; crest?: CrestDto | null; style?: StyleProp<ViewStyle>; testID?: string };
 
@@ -55,18 +56,29 @@ export function CastlePreview({ skin, level, crest, style, testID }: Props) {
       renderer.setPixelRatio(1);
       renderer.setSize(w, h, false);
       renderer.setClearColor(new THREE.Color(colors.surfaceSecondary), 1);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.enabled = true;
       const scene = new THREE.Scene();
-      scene.add(new THREE.HemisphereLight(0xcfd8ea, 0x4a3f33, 0.8));
-      const sun = new THREE.DirectionalLight(0xfff0d2, 1.5);
+      scene.add(new THREE.HemisphereLight(0xcfd8ea, 0x4a3f33, 0.85));
+      const sun = new THREE.DirectionalLight(0xfff0d2, 1.7);
       sun.position.set(0.68, 0.78, 0.3).multiplyScalar(20);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.camera.left = sun.shadow.camera.bottom = -4;
+      sun.shadow.camera.right = sun.shadow.camera.top = 4;
+      sun.shadow.camera.near = 1;
+      sun.shadow.camera.far = 60;
+      sun.shadow.normalBias = 0.05;
       scene.add(sun);
       const ground = new THREE.Mesh(new THREE.CircleGeometry(2.6, 40), new THREE.MeshLambertMaterial({ color: new THREE.Color(colors.terrainPlain) }));
       ground.rotation.x = -Math.PI / 2;
       ground.position.y = -0.01;
+      ground.receiveShadow = true;
       scene.add(ground);
       const camera = new THREE.PerspectiveCamera(38, w / Math.max(1, h), 0.1, 100);
       const pal = { own: new THREE.Color(colors.factionOwn), enemy: new THREE.Color(colors.factionEnemy), neutral: new THREE.Color(colors.factionNeutral), ally: new THREE.Color(colors.factionAlly), snow: new THREE.Color(colors.onSurface) };
-      const factory = new EntityFactory(pal);
+      const factory = new EntityFactory(pal, { stone: makeStoneTexture(), roof: makeRoofTexture() });
       const smoke = new SmokeSystem(pal.snow.clone().multiplyScalar(0.8));
       scene.add(smoke.mesh);
       const r: Rig = { renderer, scene, camera, factory, smoke, castle: null, raf: 0, gl };

@@ -22,6 +22,7 @@ import { type SmokeEmitter, SmokeSystem } from "./smoke";
 import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
 import { createTerrainMaterial } from "./terrainMaterial";
 import { buildTerritory, createTerritoryMaterials, type TerritoryMaterials } from "./territory";
+import { makeDetailTexture, makeRoofTexture, makeStoneTexture } from "./textures";
 import { createWater } from "./water";
 
 export const CHUNK = 32;
@@ -147,6 +148,10 @@ export class MapEngine {
   private minimap: { rect: { x: number; y: number; w: number; h: number } | null; scene: THREE.Scene; cam: THREE.OrthographicCamera; footprint: THREE.LineLoop; center: THREE.Mesh; marches: THREE.Group; statics: THREE.Group };
   private camAnim: { from: { tx: number; tz: number; dist: number }; to: { tx: number; tz: number; dist: number }; start: number; ms: number } | null = null;
   private mats: { terrain: THREE.ShaderMaterial; overview: THREE.ShaderMaterial; grid: THREE.LineBasicMaterial; territory: TerritoryMaterials };
+  private textures: { detail: THREE.DataTexture; stone: THREE.DataTexture; roof: THREE.DataTexture };
+  private sun: THREE.DirectionalLight;
+  private sunDir: THREE.Vector3;
+  private shadowRadius = 0;
   private sampler: Sampler = (x, y) => this.tileAt(x, y);
   private ovSampler: Sampler = (x, y) => this.overviewTileAt(x, y);
 
@@ -181,6 +186,11 @@ export class MapEngine {
     const canvas: any = { width: opts.gl.drawingBufferWidth, height: opts.gl.drawingBufferHeight, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: opts.gl.drawingBufferHeight, getContext: () => opts.gl };
     this.renderer = new THREE.WebGLRenderer({ canvas, context: opts.gl as any, antialias: true, alpha: false, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(1);
+    // cinematic look: filmic tone mapping + real-time sun shadows (one directional shadow map following the camera)
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.bufW = opts.gl.drawingBufferWidth;
     this.bufH = opts.gl.drawingBufferHeight;
     this.renderer.setSize(this.bufW, this.bufH, false);
@@ -194,29 +204,38 @@ export class MapEngine {
     const groundColor = new THREE.Color(0x4a3f33);
     const sunColor = new THREE.Color(0xfff0d2);
     const sunDir = new THREE.Vector3(0.68, 0.78, 0.3).normalize();
-    const hemi = new THREE.HemisphereLight(skyColor, groundColor, 0.75);
+    const hemi = new THREE.HemisphereLight(skyColor, groundColor, 0.85);
     this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(sunColor, 1.55);
+    const sun = new THREE.DirectionalLight(sunColor, 1.7);
     sun.position.copy(sunDir).multiplyScalar(150);
-    this.scene.add(sun);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0003;
+    sun.shadow.normalBias = 0.35;
+    sun.shadow.camera.near = 20;
+    sun.shadow.camera.far = 420;
+    this.scene.add(sun, sun.target);
+    this.sun = sun;
+    this.sunDir = sunDir;
     const fill = new THREE.DirectionalLight(0x9fb4ff, 0.22);
     fill.position.set(-60, 80, -90);
     this.scene.add(fill);
 
-    const light = { sunDir, sunColor: sunColor.clone().multiplyScalar(1.15), skyColor: skyColor.clone().multiplyScalar(0.55), groundColor: groundColor.clone().multiplyScalar(0.5) };
+    this.textures = { detail: makeDetailTexture(), stone: makeStoneTexture(), roof: makeRoofTexture() };
+    const light = { sunDir, sunColor: sunColor.clone().multiplyScalar(1.2), skyColor: skyColor.clone().multiplyScalar(0.58), groundColor: groundColor.clone().multiplyScalar(0.55) };
     this.mats = {
-      terrain: createTerrainMaterial(this.palette, light, { detail: 1 }),
-      overview: createTerrainMaterial(this.palette, light, { detail: 0, polygonOffset: true, snowHeight: 3.9 * OV_SCALE_Y }),
+      terrain: createTerrainMaterial(this.palette, light, this.textures.detail, { detail: 1 }),
+      overview: createTerrainMaterial(this.palette, light, this.textures.detail, { detail: 0, polygonOffset: true, snowHeight: 3.9 * OV_SCALE_Y }),
       grid: new THREE.LineBasicMaterial({ color: this.palette.snow, transparent: true, opacity: 0.1, depthWrite: false }),
       territory: createTerritoryMaterials(),
     };
     for (const m of [this.mats.terrain, this.mats.overview, this.mats.grid]) m.userData.shared = true;
-    this.factory = new EntityFactory(this.palette);
+    this.factory = new EntityFactory(this.palette, { stone: this.textures.stone, roof: this.textures.roof });
     this.smoke = new SmokeSystem(this.palette.snow.clone());
     this.scene.add(this.smoke.mesh);
     this.flora = new FloraFactory({ forest: this.palette.forest, plain: this.palette.plain, rock: this.palette.rock.clone().offsetHSL(0, 0, 0.08), wood: hexToColor(c.resourceWood) });
 
-    this.water = createWater(WORLD, this.palette.water, this.palette.water.clone().offsetHSL(0.01, 0.05, 0.12));
+    this.water = createWater(WORLD, this.palette.water, this.palette.water.clone().offsetHSL(0.01, 0.05, 0.12), this.palette.horizon.clone().lerp(skyColor, 0.5), sunDir, sunColor);
     this.scene.add(this.water.mesh);
 
     this.selectionRing = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: this.palette.own, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false }));
@@ -229,7 +248,7 @@ export class MapEngine {
     this.homeBeacon.visible = false;
     this.scene.add(this.homeBeacon);
 
-    this.pyramid = new PyramidMonument({ own: this.palette.own, enemy: this.palette.enemy, neutral: this.palette.neutral });
+    this.pyramid = new PyramidMonument({ own: this.palette.own, enemy: this.palette.enemy, neutral: this.palette.neutral }, this.textures.stone);
     this.scene.add(this.pyramid.group);
     this.placePyramid();
 
@@ -502,6 +521,8 @@ export class MapEngine {
     disposeGroup(this.minimap.scene);
     this.smoke.dispose();
     this.pyramid.dispose();
+    for (const t of Object.values(this.textures)) t.dispose();
+    this.sun.shadow.dispose();
     this.renderer.dispose();
   }
 
@@ -645,6 +666,19 @@ export class MapEngine {
     const fog = this.scene.fog as THREE.Fog;
     fog.near = dist * 1.6;
     fog.far = dist * 4.5 + 40;
+    // the sun's shadow frustum follows the camera target and grows with the zoom (crisp close-up, soft far away)
+    this.sun.target.position.set(tx, 0, tz);
+    this.sun.position.copy(this.sunDir).multiplyScalar(160).add(this.sun.target.position);
+    const r = Math.min(110, Math.max(16, dist * 1.25));
+    if (Math.abs(r - this.shadowRadius) > 1) {
+      this.shadowRadius = r;
+      const sc = this.sun.shadow.camera;
+      sc.left = -r;
+      sc.right = r;
+      sc.top = r;
+      sc.bottom = -r;
+      sc.updateProjectionMatrix();
+    }
     this.dirty = true;
     this.labelsDirty = true;
     this.opts.onCameraChange?.({ tx, tz, dist });
@@ -854,6 +888,7 @@ export class MapEngine {
     const geo = buildTerrainGeometry({ ox, oz, w: Math.min(CHUNK, WORLD - ox), h: Math.min(CHUNK, WORLD - oz), step: LOD_STEPS[lod], sampler: this.sampler, palette: this.palette });
     if (!geo) return;
     const mesh = new THREE.Mesh(geo, this.mats.terrain);
+    mesh.receiveShadow = true;
     mesh.visible = false;
     node.terrain[lod] = mesh;
     node.group.add(mesh);

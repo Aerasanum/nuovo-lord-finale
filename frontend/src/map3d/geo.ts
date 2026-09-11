@@ -1,13 +1,14 @@
 /** Tiny geometry helpers shared by the procedural asset builders (castles, flora, markers). */
 import * as THREE from "three";
 
-/** Merge geometries into one non-indexed geometry (position + normal), optionally per-part transforms applied first. */
+/** Merge geometries into one non-indexed geometry (position + normal + uv), optionally per-part transforms applied first. */
 export function mergeGeos(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const nonIndexed = parts.map((g) => (g.index ? g.toNonIndexed() : g));
   let total = 0;
   for (const g of nonIndexed) total += g.getAttribute("position").count;
   const positions = new Float32Array(total * 3);
   const normals = new Float32Array(total * 3);
+  const uvs = new Float32Array(total * 2);
   let off = 0;
   for (const g of nonIndexed) {
     const p = g.getAttribute("position") as THREE.BufferAttribute;
@@ -15,11 +16,14 @@ export function mergeGeos(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
     const n = g.getAttribute("normal") as THREE.BufferAttribute;
     positions.set(p.array as Float32Array, off * 3);
     normals.set(n.array as Float32Array, off * 3);
+    const uv = g.getAttribute("uv") as THREE.BufferAttribute | undefined;
+    if (uv) uvs.set(uv.array as Float32Array, off * 2);
     off += p.count;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.computeBoundingSphere();
   for (const g of parts) g.dispose();
   return geo;

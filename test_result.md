@@ -676,3 +676,29 @@ frontend:
       - working: true
         agent: "testing"
         comment: "iteration_15.json: 6/8 PASS (gallery rows, dragon 3D night scene not black + auto-dismiss, conquest dawn castle, pyramid replay from battle report, skip, no console errors). Found: cold-start play before /me hydration → no crest/tag (fixed by main: rows disabled until player loaded). Suggestion applied by main: Salta shown 1s after mount regardless of GL. Not exercised: real march launch (covered in iter14), map-after-cinematic (main verified by screenshot)."
+
+# ---- iteration 16 (main agent) — Cinematiche key-art AI + grafica 3D mappa (tone mapping, texture, ombre, acqua, alberi, Piramide) ----
+frontend:
+  - task: "Cinematics replaced by AI key-art player (CinematicArt.tsx): 2 bundled JPEG stills per variant (assets/cinematics/*.jpg generated once with Gemini Nano Banana via backend/scripts/gen_cinematics.py), Ken Burns camera moves, cross-dissolve cut with flash, embers, letterbox bars; HUD unchanged (cinematic-overlay, cinematic-title, cinematic-skip, cinematic-composition, cinematic-crest, cinematic-alliance-banner, markers cinematic-departure/conquest, cinematic-variant-{standard|falcon|major|dragon|angel|demon|conquest|pyramid}, cinematic-dragon/angel/demon/falcon). 3D scene files removed. Gallery /cinematics unchanged (rows disabled until player loaded)."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/cinematic/Cinematic.tsx, CinematicArt.tsx, app/cinematics.tsx, assets/cinematics/*.jpg"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK: dragon (skip at 1.4s, cut at 55%, auto-dismiss 6s), conquest, skip closes overlay."
+  - task: "Map 3D upgrade: ACES tone mapping (exposure 1.05), real-time sun shadow map (2048, follows camera target, radius by zoom) received by terrain (custom shader with three shadow chunks) and castles; procedural tileable textures (textures.ts: terrain detail atlas, stone masonry, roof tiles) — terrain detail + dry patches in shader, castles' walls/towers/roofs textured (mergeGeos now keeps UVs), Pyramid rebuilt (7 masonry tiers, gold edge bands, grand stair with rails + braziers, 4 obelisks, summit shrine + pyramidion, light pillar + halo); water with wave normals, sun glint, Fresnel; trees: jittered 4-tier conifers/5-blob broadleaf with baked AO + wind sway, cast shadows. CastlePreview (/skins) gets the same tone mapping/textures/shadows."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts, terrainMaterial.ts, textures.ts, water.ts, flora.ts, pyramid.ts, entities.ts, geo.ts, CastlePreview.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshots OK at 3 zoom levels + pyramid; no shader errors in console."
+      - working: true
+        agent: "testing"
+        comment: "iteration_16.json: 7/7 PASS — map renders (terrain mottling, masonry castles, tiled roofs, trees), controls/pyramid centering (stepped stone pyramid, gold bands, stair, braziers, light pillar), labels/legend, skins preview textured, cinematics gallery (dragon/conquest/pyramid/standard key-art, letterbox, cut at 2.2s, skip, auto-dismiss), battle replay, map after cinematics. No errors."
