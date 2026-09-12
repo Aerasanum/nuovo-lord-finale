@@ -592,3 +592,146 @@ def generate_world(base_seed: int, spec: Spec | None = None, cfg: GenConfig | No
             return result
         rejected += 1
     raise MapGenerationError("MAP_GENERATION_CONSTRAINT_FAILED")
+
+
+# ============================================================================= Grande Mondo (Bibbia GM v0.2)
+@dataclass
+class GrandeMondoGen:
+    seed: int
+    terrain: np.ndarray  # uint8 [y, x], whole mega-realm
+    anchors: list[tuple[Anchor, str]]  # (anchor in world coordinates, region code)
+    stats: dict
+
+
+def _coarse_fbm(n: int, rng: np.random.Generator, base_freq: int, factor: int = 4) -> np.ndarray:
+    """fbm on an n/factor grid upsampled by nearest neighbour (float32) — the mega-realm is ~10M tiles, a full-res
+    noise stack would cost hundreds of MB."""
+    m = (n + factor - 1) // factor
+    small = fbm((m, m), rng, octaves=4, base_freq=base_freq).astype(np.float32)
+    return np.repeat(np.repeat(small, factor, axis=0), factor, axis=1)[:n, :n]
+
+
+def _band_bbox(n: int, x1: float, y1: float, x2: float, y2: float, half_w: float, pad: int = 8) -> tuple[int, int, int, int]:
+    x0 = max(0, int(math.floor(min(x1, x2) - half_w - pad)))
+    y0 = max(0, int(math.floor(min(y1, y2) - half_w - pad)))
+    xe = min(n, int(math.ceil(max(x1, x2) + half_w + pad)) + 1)
+    ye = min(n, int(math.ceil(max(y1, y2) + half_w + pad)) + 1)
+    return x0, y0, xe, ye
+
+
+def _segment_mask_bbox(n: int, x1: float, y1: float, x2: float, y2: float, half_w: np.ndarray | float, bbox: tuple[int, int, int, int]) -> np.ndarray:
+    """Segment band restricted to a bounding box (returns a full-size bool mask, work done on the slice only)."""
+    x0, y0, xe, ye = bbox
+    yy, xx = np.mgrid[y0:ye, x0:xe].astype(np.float32)
+    dx, dy = x2 - x1, y2 - y1
+    seg_len2 = dx * dx + dy * dy
+    t = np.clip(((xx - x1) * dx + (yy - y1) * dy) / seg_len2, 0, 1) if seg_len2 else np.zeros_like(xx)
+    px, py = x1 + t * dx, y1 + t * dy
+    dist = np.sqrt((xx - px) ** 2 + (yy - py) ** 2)
+    hw = half_w[y0:ye, x0:xe] if isinstance(half_w, np.ndarray) else half_w
+    out = np.zeros((n, n), dtype=bool)
+    out[y0:ye, x0:xe] = dist <= hw
+    return out
+
+
+def generate_grande_mondo(base_seed: int, spec: Spec, region_cfg: GenConfig, placements: list[dict], world_size: int, center: tuple[int, int], center_radius: int, arm_width: int) -> GrandeMondoGen:
+    """Composite generator: one validated realm per region (same Bible constraints, counts and quotas as a classic
+    realm) pasted on the ring, plus the neutral central land with the Grande Piramide plateau and one land arm per
+    region. Arms are cost-compensated (a mountain pass on the shorter ones) so every region pays the same path cost
+    from its coast to the Grande Piramide (Bibbia GM: distanze equivalenti o compensate)."""
+    N = int(world_size)  # noqa: N806
+    cx, cy = center
+    terrain = np.full((N, N), WATER, dtype=np.uint8)
+    anchors: list[tuple[Anchor, str]] = []
+    protected = np.zeros((N, N), dtype=bool)  # cardinal water next to port-eligible anchors stays water
+    mainland_masks: list[np.ndarray] = []
+    inside_regions = np.zeros((N, N), dtype=bool)
+    region_stats = {}
+    for i, p in enumerate(placements):
+        g = generate_world(base_seed * 100 + i, spec, region_cfg)
+        s = region_cfg.size
+        x0, y0 = p["x0"], p["y0"]
+        terrain[y0 : y0 + s, x0 : x0 + s] = g.terrain
+        inside_regions[y0 : y0 + s, x0 : x0 + s] = True
+        ml = np.zeros((N, N), dtype=bool)
+        ml[y0 : y0 + s, x0 : x0 + s] = g.region == 0
+        mainland_masks.append(ml)
+        for a in g.anchors:
+            wa = Anchor(a.kind, a.x + x0, a.y + y0, a.terrain, a.region, a.port_eligible, a.level)
+            anchors.append((wa, p["code"]))
+            if a.port_eligible:
+                for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+                    protected[wa.y + dy, wa.x + dx] = True
+        region_stats[p["code"]] = {**g.stats, "seed": g.seed}
+
+    rng = np.random.default_rng(base_seed * 7 + 13)
+    noise = _coarse_fbm(N, rng, base_freq=16)
+    # ---- central land: noisy disc around the Grande Piramide ----
+    cb = (max(0, cx - center_radius - 80), max(0, cy - center_radius - 80), min(N, cx + center_radius + 81), min(N, cy + center_radius + 81))
+    central = np.zeros((N, N), dtype=bool)
+    yy, xx = np.mgrid[cb[1] : cb[3], cb[0] : cb[2]].astype(np.float32)
+    dist_c = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+    central[cb[1] : cb[3], cb[0] : cb[2]] = dist_c <= center_radius * (1.0 + 0.20 * (noise[cb[1] : cb[3], cb[0] : cb[2]] - 0.5))
+    del yy, xx, dist_c
+    # ---- arms: from the centre to the closest point of each region, then on until the region mainland ----
+    arm_len: list[float] = []
+    arm_masks: list[np.ndarray] = []
+    arm_dirs: list[tuple[float, float, float, float]] = []
+    half_w = (arm_width / 2.0 + 6.0 * (noise - 0.5)).astype(np.float32)
+    for i, p in enumerate(placements):
+        s = p["size"]
+        px = float(min(max(cx, p["x0"]), p["x0"] + s - 1))
+        py = float(min(max(cy, p["y0"]), p["y0"] + s - 1))
+        d = math.hypot(px - cx, py - cy)
+        ux, uy = (px - cx) / d, (py - cy) / d
+        ex, ey = px, py
+        for step in range(400):  # extend into the square until the first mainland tile on the ray
+            tx, ty = int(round(px + ux * step)), int(round(py + uy * step))
+            if not (0 <= tx < N and 0 <= ty < N):
+                break
+            ex, ey = float(tx), float(ty)
+            if mainland_masks[i][ty, tx]:
+                break
+        bbox = _band_bbox(N, cx, cy, ex, ey, arm_width / 2.0 + 6)
+        arm_masks.append(_segment_mask_bbox(N, cx, cy, ex, ey, half_w, bbox))
+        arm_len.append(d)
+        arm_dirs.append((px, py, ux, uy))
+    arms = np.zeros((N, N), dtype=bool)
+    for b in arm_masks:
+        arms |= b
+    new_land = (central | arms) & (terrain == WATER) & ~protected
+    terrain[new_land] = PLAIN
+    # forest patches on the central land (not on the arms: the Via della Piramide stays open ground)
+    fnoise = _coarse_fbm(N, rng, base_freq=24)
+    forest = central & ~arms & ~inside_regions & (terrain == PLAIN) & (fnoise > 0.60)
+    terrain[forest] = FOREST
+    # Grande Piramide plateau (flat plain) — the monument itself is rendered by the client at the anchor
+    terrain[cy - 16 : cy + 17, cx - 16 : cx + 17] = PLAIN
+    # ---- cost compensation: mountain pass (cost 2.0 vs 1.0) of length d_max - d_k across the shorter arms ----
+    d_max = max(arm_len)
+    passes: list[int] = []
+    for i, p in enumerate(placements):
+        extra = int(round(d_max - arm_len[i]))
+        if extra <= 0:
+            passes.append(0)
+            continue
+        px, py, ux, uy = arm_dirs[i]
+        d = arm_len[i]
+        r0 = center_radius + (d - center_radius - extra) / 2.0
+        r1 = r0 + extra
+        bbox = _band_bbox(N, cx + ux * r0, cy + uy * r0, cx + ux * r1, cy + uy * r1, arm_width / 2.0 + 8)
+        x0, y0, xe, ye = bbox
+        yy, xx = np.mgrid[y0:ye, x0:xe].astype(np.float32)
+        along = (xx - cx) * ux + (yy - cy) * uy
+        sl = arm_masks[i][y0:ye, x0:xe] & (along >= r0) & (along <= r1) & ~inside_regions[y0:ye, x0:xe] & (terrain[y0:ye, x0:xe] == PLAIN)
+        terrain[y0:ye, x0:xe][sl] = MOUNTAIN
+        passes.append(extra)
+    stats = {
+        "regions": region_stats,
+        "central_land": int(central.sum()),
+        "arm_lengths": [round(v, 1) for v in arm_len],
+        "mountain_pass_tiles": passes,
+        "world_size": N,
+        "water_pct": round(100.0 * float((terrain == WATER).sum()) / (N * N), 2),
+    }
+    return GrandeMondoGen(seed=base_seed, terrain=terrain, anchors=anchors, stats=stats)

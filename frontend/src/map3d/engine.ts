@@ -26,12 +26,17 @@ import { createTerrainMaterial } from "./terrainMaterial";
 import { buildTerritory, createTerritoryMaterials, type TerritoryMaterials } from "./territory";
 import { makeDetailTexture, makeRoofTexture, makeStoneTexture } from "./textures";
 import { createWater } from "./water";
+import { type FogBounds, FogWall } from "./fog";
 
 export const CHUNK = 32;
 const DEFAULT_WORLD = 400; // spec.world.map_size_x — each realm carries its own size (world DTO)
-const OV_FACTOR = 4;
-const OV_PER_CHUNK = CHUNK / OV_FACTOR;
 const OV_SCALE_Y = 1.2;
+/** 1 overview cell = factor×factor tiles — same rule as the server (`overview_factor`): 4 for realms, 8 for mega-realms. */
+export function overviewFactor(worldSize: number): number {
+  return worldSize > 1024 ? 8 : 4;
+}
+/** Far-LOD tiles are only kept within this many tiles of the camera target (mega-realms have ~10k chunks). */
+const OV_WINDOW_TILES = 720;
 
 export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidDto };
 export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string };
@@ -51,6 +56,8 @@ type EngineOpts = {
   worldSize?: number;
   /** pyramid anchor (pyramid DTO `anchor`); defaults to the centre of the realm */
   pyramidXY?: [number, number];
+  /** Grande Mondo: visible region while the fog wall is up (camera clamp, minimap, fog); null = whole realm */
+  viewBounds?: FogBounds | null;
 };
 
 type ChunkNode = {
@@ -112,6 +119,11 @@ export class MapEngine {
   readonly world: number;
   private nChunks: number;
   private ovSize: number;
+  private ovFactor: number;
+  private ovPerChunk: number;
+  private bounds: FogBounds;
+  private fog: FogWall;
+  private ovWindowAt: { tx: number; tz: number } | null = null;
   private pyr: [number, number];
   private gl: ExpoWebGLRenderingContext;
   private renderer: THREE.WebGLRenderer;
@@ -153,7 +165,7 @@ export class MapEngine {
   private overviewLoading = false;
   private pinsDist = 1;
   private panVel = { x: 0, y: 0 };
-  private minimap: { rect: { x: number; y: number; w: number; h: number } | null; scene: THREE.Scene; cam: THREE.OrthographicCamera; footprint: THREE.LineLoop; center: THREE.Mesh; marches: THREE.Group; statics: THREE.Group };
+  private minimap: { rect: { x: number; y: number; w: number; h: number } | null; scene: THREE.Scene; cam: THREE.OrthographicCamera; footprint: THREE.LineLoop; center: THREE.Mesh; marches: THREE.Group; statics: THREE.Group; sea: THREE.Mesh };
   private camAnim: { from: { tx: number; tz: number; dist: number }; to: { tx: number; tz: number; dist: number }; start: number; ms: number } | null = null;
   private mats: { terrain: THREE.ShaderMaterial; overview: THREE.ShaderMaterial; grid: THREE.LineBasicMaterial; territory: TerritoryMaterials };
   private textures: { detail: THREE.DataTexture; stone: THREE.DataTexture; roof: THREE.DataTexture };
@@ -173,7 +185,10 @@ export class MapEngine {
     this.opts = opts;
     this.world = opts.worldSize ?? DEFAULT_WORLD;
     this.nChunks = Math.ceil(this.world / CHUNK);
-    this.ovSize = this.world / OV_FACTOR;
+    this.ovFactor = overviewFactor(this.world);
+    this.ovPerChunk = CHUNK / this.ovFactor;
+    this.ovSize = Math.floor(this.world / this.ovFactor);
+    this.bounds = opts.viewBounds ?? { x0: -10, y0: -10, x1: this.world + 10, y1: this.world + 10 };
     this.pyr = opts.pyramidXY ?? [Math.floor(this.world / 2), Math.floor(this.world / 2)];
     this.gl = opts.gl;
     this.width = opts.width;
@@ -267,6 +282,11 @@ export class MapEngine {
     this.scene.add(this.pyramid.group);
     this.placePyramid();
 
+    // Grande Mondo fog wall (visuals only — the server rejects every interregional order while it stands)
+    this.fog = new FogWall(this.palette.snow.clone().lerp(this.palette.horizon, 0.3).offsetHSL(0, -0.35, -0.08));
+    this.scene.add(this.fog.group);
+    if (opts.viewBounds) this.fog.setBounds(opts.viewBounds, this.world);
+
     this.scene.add(this.marchGroup);
     this.minimap = this.createMinimap();
     this.updateCamera();
@@ -337,9 +357,35 @@ export class MapEngine {
     const fz = -Math.cos(yaw);
     this.cam.tx += (-rx * dx + fx * dy) * k;
     this.cam.tz += (-rz * dx + fz * dy) * k;
-    this.cam.tx = Math.max(-10, Math.min(this.world + 10, this.cam.tx));
-    this.cam.tz = Math.max(-10, Math.min(this.world + 10, this.cam.tz));
+    this.clampTarget();
     this.updateCamera();
+  }
+
+  private clampTarget() {
+    const b = this.bounds;
+    this.cam.tx = Math.max(b.x0, Math.min(b.x1, this.cam.tx));
+    this.cam.tz = Math.max(b.y0, Math.min(b.y1, this.cam.tz));
+  }
+
+  /**
+   * Grande Mondo: restrict the camera / minimap / far LOD to the player's region and raise the fog wall on its border
+   * (fog up), or open the whole realm (null, fog down).
+   */
+  setViewBounds(bounds: FogBounds | null) {
+    const next = bounds ?? { x0: -10, y0: -10, x1: this.world + 10, y1: this.world + 10 };
+    const same = next.x0 === this.bounds.x0 && next.y0 === this.bounds.y0 && next.x1 === this.bounds.x1 && next.y1 === this.bounds.y1 && !!bounds === this.fog.active;
+    if (same) return;
+    this.bounds = next;
+    this.fog.setBounds(bounds, this.world);
+    this.clampTarget();
+    this.updateCamera();
+    this.layoutMinimap();
+    if (this.overview) {
+      this.ovWindowAt = null;
+      this.buildMinimapStatics();
+    }
+    this.dirty = true;
+    this.labelsDirty = true;
   }
 
   /** Momentum after a pan gesture; velocity in view px/s. */
@@ -361,8 +407,9 @@ export class MapEngine {
     if (before) {
       const after = this.groundHit(px!, py!);
       if (after) {
-        this.cam.tx = Math.max(-10, Math.min(this.world + 10, this.cam.tx + before.x - after.x));
-        this.cam.tz = Math.max(-10, Math.min(this.world + 10, this.cam.tz + before.z - after.z));
+        this.cam.tx += before.x - after.x;
+        this.cam.tz += before.z - after.z;
+        this.clampTarget();
         this.updateCamera();
       }
     }
@@ -520,6 +567,16 @@ export class MapEngine {
   /** Refresh chunk entities after a data change (e.g. conquest) without re-fetching terrain. */
   invalidateChunks() {
     for (const key of Array.from(this.chunks.keys())) this.removeChunk(key);
+    if (this.overview) {
+      for (const m of this.overview.tiles.values()) {
+        this.scene.remove(m);
+        m.geometry.dispose();
+      }
+      if (this.overview.pins) {
+        this.scene.remove(this.overview.pins);
+        this.overview.pins.dispose();
+      }
+    }
     this.overview = null;
     this.loadOverview();
     this.dirty = true;
@@ -542,6 +599,7 @@ export class MapEngine {
     disposeGroup(this.minimap.scene);
     this.smoke.dispose();
     this.pyramid.dispose();
+    this.fog.dispose();
     for (const t of Object.values(this.textures)) t.dispose();
     this.sun.shadow.dispose();
     this.renderer.dispose();
@@ -561,7 +619,34 @@ export class MapEngine {
     const u = (px - r.x) / r.w;
     const v = (py - r.y) / r.h;
     if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-    return { x: Math.floor(u * this.world), y: Math.floor(v * this.world) };
+    const f = this.minimapFrame();
+    return { x: Math.floor(f.x0 + u * f.size), y: Math.floor(f.y0 + v * f.size) };
+  }
+
+  /** Square tile window shown by the minimap: the view bounds (fog up) or the whole realm. */
+  private minimapFrame(): { x0: number; y0: number; size: number } {
+    const b = this.bounds;
+    const x0 = Math.max(0, b.x0);
+    const y0 = Math.max(0, b.y0);
+    const x1 = Math.min(this.world, b.x1);
+    const y1 = Math.min(this.world, b.y1);
+    const size = Math.max(x1 - x0, y1 - y0);
+    return { x0: x0 + (x1 - x0 - size) / 2, y0: y0 + (y1 - y0 - size) / 2, size };
+  }
+
+  private layoutMinimap() {
+    const f = this.minimapFrame();
+    const cam = this.minimap.cam;
+    cam.left = -f.size / 2;
+    cam.right = f.size / 2;
+    cam.top = f.size / 2;
+    cam.bottom = -f.size / 2;
+    cam.position.set(f.x0 + f.size / 2, 200, f.y0 + f.size / 2);
+    cam.lookAt(f.x0 + f.size / 2, 0, f.y0 + f.size / 2);
+    cam.updateProjectionMatrix();
+    const sea = this.minimap.sea;
+    sea.scale.set(f.size / this.world, 1, f.size / this.world);
+    sea.position.set(f.x0 + f.size / 2, -0.5, f.y0 + f.size / 2);
   }
 
   private createMinimap() {
@@ -574,6 +659,16 @@ export class MapEngine {
     sea.rotation.x = -Math.PI / 2;
     sea.position.set(this.world / 2, -0.5, this.world / 2);
     scene.add(sea);
+    const f = this.minimapFrame();
+    cam.left = -f.size / 2;
+    cam.right = f.size / 2;
+    cam.top = f.size / 2;
+    cam.bottom = -f.size / 2;
+    cam.position.set(f.x0 + f.size / 2, 200, f.y0 + f.size / 2);
+    cam.lookAt(f.x0 + f.size / 2, 0, f.y0 + f.size / 2);
+    cam.updateProjectionMatrix();
+    sea.scale.set(f.size / this.world, 1, f.size / this.world);
+    sea.position.set(f.x0 + f.size / 2, -0.5, f.y0 + f.size / 2);
     const statics = new THREE.Group();
     scene.add(statics);
     const marches = new THREE.Group();
@@ -594,7 +689,7 @@ export class MapEngine {
     center.rotation.x = -Math.PI / 2;
     center.position.y = 2.5;
     scene.add(center);
-    return { rect: null, scene, cam, footprint, center, marches, statics };
+    return { rect: null, scene, cam, footprint, center, marches, statics, sea };
   }
 
   /** Called once the overview is known: flat coloured terrain + player settlement dots. */
@@ -604,11 +699,16 @@ export class MapEngine {
     mm.statics.clear();
     // unlit pass → lift the terrain palette so land reads clearly against the sea at thumbnail size
     const bright = Object.fromEntries(Object.entries(this.palette).map(([k, c]) => [k, c.clone().multiplyScalar(1.6)])) as unknown as TerrainPalette;
-    const geo = buildTerrainGeometry({ ox: 0, oz: 0, w: this.ovSize, h: this.ovSize, step: 1, sampler: this.ovSampler, palette: bright, scaleXZ: OV_FACTOR, scaleY: 0, noiseScale: OV_FACTOR });
+    const f = this.minimapFrame();
+    const ox = Math.max(0, Math.floor(f.x0 / this.ovFactor));
+    const oz = Math.max(0, Math.floor(f.y0 / this.ovFactor));
+    const cells = Math.min(this.ovSize - Math.min(ox, oz), Math.ceil(f.size / this.ovFactor));
+    const step = Math.max(1, Math.ceil(cells / 160)); // thumbnail: ≤ ~160² quads whatever the realm size
+    const geo = buildTerrainGeometry({ ox, oz, w: Math.min(cells, this.ovSize - ox), h: Math.min(cells, this.ovSize - oz), step, sampler: this.ovSampler, palette: bright, scaleXZ: this.ovFactor, scaleY: 0, noiseScale: this.ovFactor });
     if (geo) mm.statics.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true })));
     const players = this.overview?.data.settlements ?? [];
     if (players.length) {
-      const dotGeo = new THREE.CircleGeometry(7, 12);
+      const dotGeo = new THREE.CircleGeometry(Math.max(4, f.size / 60), 12);
       dotGeo.rotateX(-Math.PI / 2);
       const dots = new THREE.InstancedMesh(dotGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), players.length);
       const M = new THREE.Matrix4();
@@ -621,7 +721,7 @@ export class MapEngine {
       if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
       mm.statics.add(dots);
     }
-    const pyrGeo = new THREE.CircleGeometry(9, 4);
+    const pyrGeo = new THREE.CircleGeometry(Math.max(5, f.size / 45), 4);
     pyrGeo.rotateX(-Math.PI / 2);
     const pyr = new THREE.Mesh(pyrGeo, new THREE.MeshBasicMaterial({ color: this.palette.own.clone().offsetHSL(0, 0.1, 0.15) }));
     pyr.position.set(this.pyr[0] + 0.5, 1.2, this.pyr[1] + 0.5);
@@ -654,7 +754,7 @@ export class MapEngine {
       // rays above the horizon (far top corners) fall back to a point `2·dist` ahead so the footprint stays bounded
       const x = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.x : this.cam.tx + (px < this.width / 2 ? -1 : 1) * d * 1.2;
       const z = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.z : this.cam.tz - d * 1.2;
-      pos.setXYZ(i, Math.max(-5, Math.min(this.world + 5, x)), 0, Math.max(-5, Math.min(this.world + 5, z)));
+      pos.setXYZ(i, Math.max(this.bounds.x0 - 5, Math.min(this.bounds.x1 + 5, x)), 0, Math.max(this.bounds.y0 - 5, Math.min(this.bounds.y1 + 5, z)));
     });
     pos.needsUpdate = true;
     mm.center.position.set(this.cam.tx, 2.5, this.cam.tz);
@@ -757,7 +857,7 @@ export class MapEngine {
   heightAt(x: number, y: number): number {
     if (this.tileAt(x, y) >= 0) return tileHeight(this.sampler, x, y);
     // chunk not loaded: use the overview relief so beacons / pins / labels sit on the coarse terrain
-    if (this.overview) return tileHeight(this.ovSampler, Math.floor(x / OV_FACTOR), Math.floor(y / OV_FACTOR), OV_FACTOR) * OV_SCALE_Y;
+    if (this.overview) return tileHeight(this.ovSampler, Math.floor(x / this.ovFactor), Math.floor(y / this.ovFactor), this.ovFactor) * OV_SCALE_Y;
     return 0;
   }
 
@@ -772,21 +872,8 @@ export class MapEngine {
         const grid = base64ToBytes(data.terrain_b64);
         const tiles = new Map<string, THREE.Mesh>();
         this.overview = { data, grid, tiles, pins: null };
-        for (let cy = 0; cy < this.nChunks; cy++) {
-          for (let cx = 0; cx < this.nChunks; cx++) {
-            const ox = cx * OV_PER_CHUNK;
-            const oz = cy * OV_PER_CHUNK;
-            const geo = buildTerrainGeometry({ ox, oz, w: Math.min(OV_PER_CHUNK, this.ovSize - ox), h: Math.min(OV_PER_CHUNK, this.ovSize - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: OV_FACTOR, scaleY: OV_SCALE_Y, noiseScale: OV_FACTOR });
-            if (!geo) continue;
-            const mesh = new THREE.Mesh(geo, this.mats.overview);
-            mesh.position.y = -0.03;
-            const key = `${cx}:${cy}`;
-            const node = this.chunks.get(key);
-            mesh.visible = !(node && node.group.visible);
-            tiles.set(key, mesh);
-            this.scene.add(mesh);
-          }
-        }
+        this.ovWindowAt = null;
+        this.ensureOverviewTiles(true);
         this.rebuildPins();
         this.buildMinimapStatics();
         this.placePyramid();
@@ -796,6 +883,51 @@ export class MapEngine {
       })
       .catch(() => {})
       .finally(() => (this.overviewLoading = false));
+  }
+
+  /**
+   * Far-LOD tiles (one per chunk, hidden under loaded chunks) are kept only within OV_WINDOW_TILES of the camera target
+   * and inside the view bounds: a mega-realm has ~10k chunks, a realm ≤ 400. Re-evaluated when the target moves.
+   */
+  private ensureOverviewTiles(force = false) {
+    const ov = this.overview;
+    if (!ov) return;
+    const at = this.ovWindowAt;
+    if (!force && at && Math.hypot(at.tx - this.cam.tx, at.tz - this.cam.tz) < CHUNK * 3) return;
+    this.ovWindowAt = { tx: this.cam.tx, tz: this.cam.tz };
+    const win = OV_WINDOW_TILES;
+    const b = this.bounds;
+    const lo = (v: number) => Math.max(0, Math.floor(v / CHUNK));
+    const hi = (v: number) => Math.min(this.nChunks - 1, Math.floor(v / CHUNK));
+    const cx0 = lo(Math.max(this.cam.tx - win, b.x0 - CHUNK * 2));
+    const cx1 = hi(Math.min(this.cam.tx + win, b.x1 + CHUNK * 2));
+    const cy0 = lo(Math.max(this.cam.tz - win, b.y0 - CHUNK * 2));
+    const cy1 = hi(Math.min(this.cam.tz + win, b.y1 + CHUNK * 2));
+    const keep = new Set<string>();
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const key = `${cx}:${cy}`;
+        keep.add(key);
+        if (ov.tiles.has(key)) continue;
+        const ox = cx * this.ovPerChunk;
+        const oz = cy * this.ovPerChunk;
+        const geo = buildTerrainGeometry({ ox, oz, w: Math.min(this.ovPerChunk, this.ovSize - ox), h: Math.min(this.ovPerChunk, this.ovSize - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: this.ovFactor, scaleY: OV_SCALE_Y, noiseScale: this.ovFactor });
+        if (!geo) continue;
+        const mesh = new THREE.Mesh(geo, this.mats.overview);
+        mesh.position.y = -0.03;
+        const node = this.chunks.get(key);
+        mesh.visible = !(node && node.group.visible);
+        ov.tiles.set(key, mesh);
+        this.scene.add(mesh);
+      }
+    }
+    for (const [key, mesh] of ov.tiles) {
+      if (keep.has(key)) continue;
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      ov.tiles.delete(key);
+    }
+    this.dirty = true;
   }
 
   private rebuildPins() {
@@ -830,8 +962,12 @@ export class MapEngine {
   private visibleChunkKeys(): { key: string; cx: number; cy: number; d: number }[] {
     const radius = Math.min(this.cam.dist * 1.35 + 24, STREAM_RADIUS_CAP);
     const out: { key: string; cx: number; cy: number; d: number }[] = [];
-    for (let cy = 0; cy < this.nChunks; cy++) {
-      for (let cx = 0; cx < this.nChunks; cx++) {
+    const cx0 = Math.max(0, Math.floor((this.cam.tx - radius - CHUNK) / CHUNK));
+    const cx1 = Math.min(this.nChunks - 1, Math.floor((this.cam.tx + radius + CHUNK) / CHUNK));
+    const cy0 = Math.max(0, Math.floor((this.cam.tz - radius - CHUNK) / CHUNK));
+    const cy1 = Math.min(this.nChunks - 1, Math.floor((this.cam.tz + radius + CHUNK) / CHUNK));
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
         const d = this.chunkDistance(cx, cy);
         if (d <= radius) out.push({ key: `${cx}:${cy}`, cx, cy, d });
       }
@@ -843,6 +979,7 @@ export class MapEngine {
   private stream(now: number) {
     if (now - this.lastStream < 200) return;
     this.lastStream = now;
+    this.ensureOverviewTiles();
     const visible = this.visibleChunkKeys();
     const visibleSet = new Set(visible.map((v) => v.key));
     let inflight = this.loading.size;
@@ -1210,6 +1347,7 @@ export class MapEngine {
     this.water.update(t);
     this.factory.tick(t);
     this.pyramid.tick(t);
+    this.fog.tick(t, this.cam.dist);
     this.animateSmoke(t);
     this.selectionRing.scale.setScalar(this.selScale * (1 + 0.08 * Math.sin(t * 3.2)));
     this.homeBeacon.scale.setScalar(1 + 0.12 * Math.sin(t * 2.1));

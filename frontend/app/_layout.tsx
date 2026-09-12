@@ -56,6 +56,7 @@ export default function RootLayout() {
                       <Stack.Screen name="sentinels" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="house" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="pyramid" options={{ animation: "slide_from_right" }} />
+                      <Stack.Screen name="grande-mondo" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="skins" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="building/[name]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
                       <Stack.Screen name="target/[id]" options={{ presentation: "modal", animation: "slide_from_bottom" }} />

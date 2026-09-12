@@ -9,9 +9,9 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import alliances, combat, conquest, progress, economy, intel, navy, notifications, scheduler, sentinels, territory
+from app.domain import alliances, combat, conquest, grande_mondo, progress, economy, intel, navy, notifications, scheduler, sentinels, territory
 from app.domain import formulas as F
-from app.domain.pathfinding import astar, load_terrain
+from app.domain.pathfinding import astar_async, load_terrain
 from app.domain.settlements import catch_up_neutral, new_id
 
 ACTIVE = ("OUTBOUND", "RESOLVING", "RETURNING")
@@ -126,9 +126,10 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
     spec = get_spec()
     research = origin.get("research", {})
     naval = False
+    grande_mondo.check_target(world, (origin["x"], origin["y"]), (target["x"], target["y"]))  # fog wall (Bibbia GM)
     grid = await load_terrain(world["_id"])
     own_tiles = await territory.player_tiles(world["_id"], player["_id"])
-    result = astar(grid, (origin["x"], origin["y"]), (target["x"], target["y"]), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]))
+    result = await astar_async(grid, (origin["x"], origin["y"]), (target["x"], target["y"]), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=grande_mondo.movement_mask(world, (origin["x"], origin["y"])))
     if result is None:
         raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
     path, cost = result
@@ -240,13 +241,15 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         raise ApiError("MARCH_CAPACITY_EXCEEDED", "Formation exceeds War Hall capacity", 409, {"cap": cap})
 
     # ---- path & ETA snapshot ----
+    grande_mondo.check_target(world, (origin["x"], origin["y"]), (tx, ty))  # fog wall (Bibbia GM): no interregional order before day 120
+    allowed = grande_mondo.movement_mask(world, (origin["x"], origin["y"]))
     grid = await load_terrain(world["_id"])
     if naval:
         starts = _adjacent_water(grid, origin["x"], origin["y"])
         goals = _adjacent_water(grid, tx, ty)
         if not starts or not goals:
             raise ApiError("NO_NAVAL_PATH", "No water access", 409)
-        result = astar(grid, starts[0], goals[0], naval=True, starts=starts, goals=set(goals))
+        result = await astar_async(grid, starts[0], goals[0], naval=True, starts=starts, goals=set(goals), allowed=allowed)
         if result is None:
             raise ApiError("NO_NAVAL_PATH", "No naval route between the two ports", 409)
         path, cost = result
@@ -254,7 +257,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         speed = navy.fleet_speed_tph(research)
     else:
         own_tiles = await territory.player_tiles(world["_id"], player["_id"], await alliances.ally_player_ids(player))
-        result = astar(grid, (origin["x"], origin["y"]), (tx, ty), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]))
+        result = await astar_async(grid, (origin["x"], origin["y"]), (tx, ty), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=allowed)
         if result is None:
             raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
         path, cost = result

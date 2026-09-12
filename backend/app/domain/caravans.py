@@ -14,8 +14,8 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import alliances, combat, economy, formulas as F, intel, notifications, progress, scheduler, territory
-from app.domain.pathfinding import astar, load_terrain
+from app.domain import alliances, grande_mondo, combat, economy, formulas as F, intel, notifications, progress, scheduler, territory
+from app.domain.pathfinding import astar_async, load_terrain
 from app.domain.pyramid_reward import bonus_pct
 
 BUILDING = "Caravanserraglio"
@@ -123,9 +123,10 @@ async def send(world: dict, player: dict, origin: dict, target_id: str, cargo: d
         raise ApiError("INVALID_TARGET", "Caravans travel to own or allied settlements", 409)
     if await db().marches.count_documents({"world_id": world["_id"], "origin_settlement_id": origin["_id"], "mission": "CARAVAN", "status": "OUTBOUND"}) >= int(spec.marches["caravan_outgoing_max_per_settlement"]):
         raise ApiError("CARAVAN_OUTGOING_MAX", "Only one outgoing caravan per settlement", 409)
+    grande_mondo.check_target(world, (origin["x"], origin["y"]), (target["x"], target["y"]))  # fog wall (Bibbia GM)
     grid = await load_terrain(world["_id"])
     own_tiles = await territory.player_tiles(world["_id"], player["_id"], await alliances.ally_player_ids(player))
-    result = astar(grid, (origin["x"], origin["y"]), (target["x"], target["y"]), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]))
+    result = await astar_async(grid, (origin["x"], origin["y"]), (target["x"], target["y"]), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=grande_mondo.movement_mask(world, (origin["x"], origin["y"])))
     if result is None:
         raise ApiError("NO_LAND_PATH", "No terrestrial path to target", 409)
     path, cost = result
@@ -247,15 +248,19 @@ async def search(world_id: str, observer: dict, player: dict) -> dict:
     """Foreign OUTBOUND caravans whose current position lies within the observer settlement's search radius (Chebyshev),
     nearest first."""
     research = observer.get("research", {})
-    world = await db().worlds.find_one({"_id": world_id}, {"caravan_search_radius": 1})
+    world = await db().worlds.find_one({"_id": world_id})
     radius = search_radius(research, world)
     now = clock.now()
     out = []
     allies = set(await alliances.ally_player_ids(player))
+    fog_zones = grande_mondo.visible_zones(world, [(observer["x"], observer["y"])])  # fog wall: nothing is seen across it
+    zone = grande_mondo.zone_grid(world) if fog_zones is not None else None
     async for m in db().marches.find({"world_id": world_id, "mission": "CARAVAN", "status": "OUTBOUND", "player_id": {"$nin": list(allies | {player["_id"]})}}):
         x, y, idx = _position(m, now)
         dist = max(abs(x - observer["x"]), abs(y - observer["y"]))
         if dist > radius:
+            continue
+        if zone is not None and int(zone[y, x]) not in fog_zones:
             continue
         origin = await db().settlements.find_one({"_id": m["origin_settlement_id"]}, {"research": 1})
         s = intel.score(research, (origin or {}).get("research", {}), None) + 2 * F.rget(research, "intelligence.caravan_search_2")
@@ -306,6 +311,8 @@ async def intercept(world: dict, player: dict, origin: dict, caravan_id: str, un
     cx, cy, cidx = _position(caravan, now)
     if max(abs(cx - origin["x"]), abs(cy - origin["y"])) > search_radius(research, world):
         raise ApiError("CARAVAN_NOT_DETECTED", "Caravan outside the search radius of this settlement", 409)
+    grande_mondo.check_target(world, (origin["x"], origin["y"]), (cx, cy))  # fog wall (Bibbia GM)
+    allowed = grande_mondo.movement_mask(world, (origin["x"], origin["y"]))
     wh = int(origin["buildings"].get("Sala di Guerra", 0))
     cap = F.war_hall_cap(wh, research, "ATTACK", spec)
     if sum(units.values()) > cap:
@@ -324,7 +331,7 @@ async def intercept(world: dict, player: dict, origin: dict, caravan_id: str, un
         t_caravan = dep + timedelta(seconds=total * (i / max(1, n - 1)))
         if t_caravan <= now:
             continue
-        r = astar(grid, (origin["x"], origin["y"]), (px, py), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]))
+        r = await astar_async(grid, (origin["x"], origin["y"]), (px, py), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=allowed)
         if r is None:
             continue
         path, cost = r

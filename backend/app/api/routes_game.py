@@ -12,7 +12,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, worlds
+from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -80,6 +80,8 @@ async def list_worlds(account_id: str = CurrentAccount):
 class CreateWorldIn(BaseModel):
     name: str | None = None
     seed: int | None = None
+    kind: str | None = None  # "GRANDE_MONDO" → Bibbia GM mega-realm (generated in background, listed as GENERATING)
+    grande_mondo: dict | None = None  # optional overrides of grande_mondo.DEFAULTS (regions, region_size, isolation_days, …)
     # optional landmass layout overrides (worldgen.GenConfig): bigger realm / more room between castles
     size: int | None = Field(default=None, ge=256, le=1024)
     hard_min_player_distance: int | None = Field(default=None, ge=4, le=60)
@@ -90,19 +92,32 @@ class CreateWorldIn(BaseModel):
 
 @router.post("/worlds", dependencies=[Depends(require_admin)])
 async def create_world(body: CreateWorldIn):
-    overrides = {k: v for k, v in body.model_dump(exclude={"name", "seed"}).items() if v is not None}
+    if body.kind == grande_mondo.KIND:
+        return world_dto(await worlds.create_grande_mondo(body.name, body.seed, body.grande_mondo, background=True))
+    overrides = {k: v for k, v in body.model_dump(exclude={"name", "seed", "kind", "grande_mondo"}).items() if v is not None}
     return world_dto(await worlds.create_world(body.name, body.seed, overrides or None))
 
 
 class JoinIn(BaseModel):
     house_name: str = Field(min_length=3, max_length=24)
+    region_code: str | None = Field(default=None, max_length=8)  # Grande Mondo: explicit region choice (Bibbia GM)
 
 
 @router.post("/worlds/{world_id}/join")
 async def join(world_id: str, body: JoinIn, account_id: str = CurrentAccount):
     world = await worlds.get_world(world_id)
-    player = await worlds.join_world(world, account_id, body.house_name)
-    return {"player": player_dto(player), "world": world_dto(world)}
+    player = await worlds.join_world(world, account_id, body.house_name, region_code=body.region_code)
+    world = await worlds.get_world(world_id)
+    return {"player": player_dto(player), "world": world_dto(world, player)}
+
+
+@router.get("/worlds/{world_id}/grande-mondo")
+async def grande_mondo_status(c: Ctx = Depends(ctx)):
+    """Grande Mondo phase (fog wall / War of the Regions), countdown and the regions with their population."""
+    d = grande_mondo.dto(c.world, c.player)
+    if d is None:
+        raise ApiError("NOT_GRANDE_MONDO", "This realm is not a Grande Mondo", 404)
+    return {**d, "server_time": clock.iso(clock.now())}
 
 
 @router.get("/worlds/{world_id}/me")
@@ -114,7 +129,7 @@ async def me(c: Ctx = Depends(ctx)):
         settlements.append({**public_dto(s, c.player["_id"], c.player.get("alliance_id")), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
     unread = await db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None})
     acc = await db().accounts.find_one({"_id": c.account_id}, {"rubies": 1})
-    return {"player": player_dto(c.player), "world": world_dto(c.world), "settlements": settlements, "unread_inbox": unread, "rubies": int((acc or {}).get("rubies", 0)), "server_time": clock.iso(clock.now())}
+    return {"player": player_dto(c.player), "world": world_dto(c.world, c.player), "settlements": settlements, "unread_inbox": unread, "rubies": int((acc or {}).get("rubies", 0)), "server_time": clock.iso(clock.now())}
 
 
 class HouseIn(BaseModel):
@@ -270,6 +285,10 @@ async def map_chunk(world_id: str, cx: int, cy: int, c: Ctx = Depends(ctx)):
     chunk = await db().map_chunks.find_one({"world_id": world_id, "cx": cx, "cy": cy})
     if not chunk:
         raise not_found("chunk", f"{cx},{cy}")
+    # Grande Mondo fog wall: beyond the viewer's region(s) only the terrain is served — no castles, sentinels or borders
+    zones = await _fog_zones(c)
+    if not grande_mondo.chunk_visible(c.world, zones, cx, cy):
+        return {"world_id": world_id, "cx": cx, "cy": cy, "size": CHUNK, "terrain_b64": base64.b64encode(chunk["terrain"]).decode("ascii"), "settlements": [], "sentinels": [], "territory": [], "fogged": True, "server_time": clock.iso(clock.now())}
     ents = []
     async for s in db().settlements.find({"world_id": world_id, "chunk_cx": cx, "chunk_cy": cy}):
         if s["kind"] == "NEUTRAL":
@@ -299,27 +318,45 @@ OVERVIEW_FACTOR = 4
 _overview_cache: dict[str, bytes] = {}
 
 
+def overview_factor(size: int) -> int:
+    """1 overview cell = factor×factor tiles: 4 for classic realms, 8 for mega-realms (the client uses the same rule)."""
+    return 8 if size > 1024 else OVERVIEW_FACTOR
+
+
+async def _fog_zones(c: Ctx) -> set[int] | None:
+    """Zones the viewer may observe while the Grande Mondo fog is up (None = no fog / classic realm)."""
+    if not grande_mondo.fog_up(c.world):
+        return None
+    xy = [(int(s["x"]), int(s["y"])) async for s in db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}, {"x": 1, "y": 1})]
+    return grande_mondo.visible_zones(c.world, xy)
+
+
 @router.get("/worlds/{world_id}/map/overview")
 async def map_overview(world_id: str, c: Ctx = Depends(ctx)):
-    """Low-resolution world terrain (1 cell = 4x4 tiles) + all player settlements, for far-zoom LOD rendering."""
+    """Low-resolution world terrain (1 cell = factor×factor tiles) + all player settlements, for far-zoom LOD rendering."""
     import numpy as np
 
     from app.domain.pathfinding import load_terrain
 
+    factor = overview_factor(int(c.world.get("size") or 400))
     if world_id not in _overview_cache:
         grid = await load_terrain(world_id)
-        n = int(grid.shape[0]) // OVERVIEW_FACTOR
-        blocks = grid[: n * OVERVIEW_FACTOR, : n * OVERVIEW_FACTOR].reshape(n, OVERVIEW_FACTOR, n, OVERVIEW_FACTOR)
+        n = int(grid.shape[0]) // factor
+        blocks = grid[: n * factor, : n * factor].reshape(n, factor, n, factor)
         counts = np.stack([(blocks == code).sum(axis=(1, 3)) for code in range(4)], axis=-1).astype(np.float32)
         counts *= np.array([1.0, 1.15, 1.35, 1.05], dtype=np.float32)  # plain, forest, mountain, water — keep relief readable
         _overview_cache[world_id] = counts.argmax(axis=-1).astype(np.uint8).tobytes()
+    zones = await _fog_zones(c)
+    zone_grid = grande_mondo.zone_grid(c.world) if zones is not None else None
     players = []
     async for s in db().settlements.find({"world_id": world_id, "kind": "PLAYER"}):
+        if zone_grid is not None and int(zone_grid[int(s["y"]), int(s["x"])]) not in zones:
+            continue  # fog wall: foreign regions are invisible until the War of the Regions
         players.append(public_dto(s, c.player["_id"], c.player.get("alliance_id")))
     return {
         "world_id": world_id,
-        "factor": OVERVIEW_FACTOR,
-        "size": int(c.world.get("size") or 400) // OVERVIEW_FACTOR,
+        "factor": factor,
+        "size": int(c.world.get("size") or 400) // factor,
         "terrain_b64": base64.b64encode(_overview_cache[world_id]).decode("ascii"),
         "settlements": players,
         "server_time": clock.iso(clock.now()),

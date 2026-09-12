@@ -14,19 +14,20 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import conquest, house, notifications, territory
+from app.domain import conquest, grande_mondo, house, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
-from app.domain.worldgen import N, GenConfig, generate_world
+from app.domain.worldgen import N, GenConfig, generate_grande_mondo, generate_world
 
 log = logging.getLogger("worlds")
 
 
-def world_dto(w: dict) -> dict:
+def world_dto(w: dict, player: dict | None = None) -> dict:
     return {
         "world_id": w["_id"],
         "name": w["name"],
+        "kind": w.get("kind") or "REALM",
         "status": w["status"],
         "seed": w.get("seed"),
         "size": w.get("size", N),
@@ -37,6 +38,7 @@ def world_dto(w: dict) -> dict:
         "spec_hash": w.get("spec_hash"),
         "terrain_stats": w.get("terrain_stats", {}),
         "age_days": round((clock.now() - clock.aware(w["opened_at"])).total_seconds() / 86400.0, 3) if w.get("opened_at") else 0,
+        "grande_mondo": grande_mondo.dto(w, player),
     }
 
 
@@ -82,20 +84,37 @@ async def create_world(name: str | None = None, seed: int | None = None, gen_ove
     except Exception as e:  # noqa: BLE001
         await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "FAILED", "error": str(e)}})
         raise ApiError("MAP_GENERATION_CONSTRAINT_FAILED", "World generation failed", 500, {"error": str(e)})
-    # chunks
-    chunks = []
+    await _persist_chunks(world_id, gen.terrain)
+    await _persist_settlements(world_id, [(a, None) for a in gen.anchors], gen.terrain, now)
+    invalidate(world_id)
+    await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "OPEN", "opened_at": now, "terrain_stats": gen.stats, "generation_seed": gen.seed}})
+    return await db().worlds.find_one({"_id": world_id})
+
+
+async def _persist_chunks(world_id: str, terrain: np.ndarray) -> None:
+    size = int(terrain.shape[0])
     n_chunks = (size + CHUNK - 1) // CHUNK
+    chunks = []
     for cy in range(n_chunks):
         for cx in range(n_chunks):
             block = np.full((CHUNK, CHUNK), 3, dtype=np.uint8)
             h = min(CHUNK, size - cy * CHUNK)
             w = min(CHUNK, size - cx * CHUNK)
-            block[:h, :w] = gen.terrain[cy * CHUNK : cy * CHUNK + h, cx * CHUNK : cx * CHUNK + w]
+            block[:h, :w] = terrain[cy * CHUNK : cy * CHUNK + h, cx * CHUNK : cx * CHUNK + w]
             chunks.append({"_id": f"{world_id}:{cx}:{cy}", "world_id": world_id, "cx": cx, "cy": cy, "terrain": block.tobytes()})
-    await db().map_chunks.insert_many(chunks)
-    # settlements
+            if len(chunks) >= 2000:
+                await db().map_chunks.insert_many(chunks)
+                chunks = []
+    if chunks:
+        await db().map_chunks.insert_many(chunks)
+
+
+async def _persist_settlements(world_id: str, anchors: list[tuple], terrain: np.ndarray, now) -> None:
+    """Neutral + PLAYER_SLOT documents (+ slot reservation tiles). `anchors` = (Anchor, region_code | None)."""
+    spec = get_spec()
+    size = int(terrain.shape[0])
     docs = []
-    for a in gen.anchors:
+    for a, code in anchors:
         cx, cy = chunk_of(a.x, a.y)
         base = {
             "_id": new_id("stl"),
@@ -115,31 +134,105 @@ async def create_world(name: str | None = None, seed: int | None = None, gen_ove
             "research": {},
             "ships": 0,
         }
+        if code:
+            base["region_code"] = code
         if a.kind == "NEUTRAL":
             st = build_neutral_state(a.level, a.port_eligible)
             docs.append({**base, "kind": "NEUTRAL", "name": f"Neutrale {a.x},{a.y}", "level": st["level"], "buildings": st["buildings"], "army": st["army"], "wall": st["wall"], "growth_ticks": 0, "next_growth_at": None})
         else:
             docs.append({**base, "kind": "PLAYER_SLOT", "slot_status": "FREE", "level": 0, "buildings": {}, "army": {}, "wall": {"level": 0, "current_hp": 0, "max_hp": 0}})
-    await db().settlements.insert_many(docs)
+    for i in range(0, len(docs), 2000):
+        await db().settlements.insert_many(docs[i : i + 2000])
     # slot reservation radius 4 blocks territory claims around unused slots
-    slot_tiles = []
-    for d in docs:
-        if d["kind"] == "PLAYER_SLOT":
-            r = int(spec.spawn["unused_slot_reservation"]["radius_tiles_chebyshev"])
-            for dx in range(-r, r + 1):
-                for dy in range(-r, r + 1):
-                    slot_tiles.append((d["x"] + dx, d["y"] + dy, d["_id"]))
+    r = int(spec.spawn["unused_slot_reservation"]["radius_tiles_chebyshev"])
     tile_docs = []
-    for x, y, sid in slot_tiles:
-        if 0 <= x < size and 0 <= y < size and gen.terrain[y, x] != 3:
-            tile_docs.append({"_id": f"{world_id}:{x}:{y}", "world_id": world_id, "x": x, "y": y, "chunk_cx": x // CHUNK, "chunk_cy": y // CHUNK, "owner_player_id": None, "settlement_id": sid, "source": "SLOT_RESERVATION"})
-    if tile_docs:
+    seen = set()
+    for d in docs:
+        if d["kind"] != "PLAYER_SLOT":
+            continue
+        for dx in range(-r, r + 1):
+            for dy in range(-r, r + 1):
+                x, y = d["x"] + dx, d["y"] + dy
+                if 0 <= x < size and 0 <= y < size and terrain[y, x] != 3 and (x, y) not in seen:
+                    seen.add((x, y))
+                    tile_docs.append({"_id": f"{world_id}:{x}:{y}", "world_id": world_id, "x": x, "y": y, "chunk_cx": x // CHUNK, "chunk_cy": y // CHUNK, "owner_player_id": None, "settlement_id": d["_id"], "source": "SLOT_RESERVATION"})
+    for i in range(0, len(tile_docs), 5000):
         try:
-            await db().territory_tiles.insert_many(tile_docs, ordered=False)
+            await db().territory_tiles.insert_many(tile_docs[i : i + 5000], ordered=False)
         except Exception:  # overlapping reservations between slots are fine
             pass
-    invalidate(world_id)
-    await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "OPEN", "opened_at": now, "terrain_stats": gen.stats, "generation_seed": gen.seed}})
+
+
+async def create_grande_mondo(name: str | None = None, seed: int | None = None, params: dict | None = None, background: bool = False) -> dict:
+    """Bibbia GM: one mega-realm with `regions` full realms on a ring + neutral central land with the Grande Piramide.
+    Generation takes ~20 s (9 realms): with `background=True` the world is returned as GENERATING and completed by a task."""
+    spec = get_spec()
+    D = {**grande_mondo.DEFAULTS, **(params or {})}  # noqa: N806
+    n = int(D["regions"])
+    if not (2 <= n <= len(grande_mondo.REGION_CATALOG)):
+        raise ApiError("INVALID_REGIONS", f"regions must be 2..{len(grande_mondo.REGION_CATALOG)}", 400)
+    lay = grande_mondo.layout(n, int(D["region_size"]), int(D["fog_gap"]), int(D["margin"]))
+    count = await db().worlds.count_documents({})
+    world_id = f"gm_{await db().worlds.count_documents({'kind': grande_mondo.KIND}) + 1}"
+    if seed is None:
+        seed = int(hashlib.sha256(world_id.encode()).hexdigest(), 16) % 1_000_000
+    now = clock.now()
+    cx, cy = lay["center"]
+    regions = []
+    for r in lay["regions"]:
+        cat = grande_mondo.REGION_CATALOG[r["index"]]
+        regions.append({"index": r["index"], "code": cat["code"], "name": cat["name"], "lang": cat["lang"], "x0": r["x0"], "y0": r["y0"], "size": r["size"], "player_slots": int(D["max_players_per_region"]), "player_count": 0, "pyramid_anchor": [r["x0"] + r["size"] // 2, r["y0"] + r["size"] // 2]})
+    region_cfg = GenConfig.from_spec(spec, {"size": int(D["region_size"]), **D["region_gen"], "pyramid_anchor": [int(D["region_size"]) // 2, int(D["region_size"]) // 2]})
+    gm_state, _ = grande_mondo.initial_state(world_id, now, D)
+    doc = {
+        "_id": world_id,
+        "name": name or f"Grande Mondo {count + 1}",
+        "kind": grande_mondo.KIND,
+        "status": "GENERATING",
+        "seed": seed,
+        "size": int(lay["world_size"]),
+        "gen_config": region_cfg.to_doc(),
+        "gm_config": {k: D[k] for k in ("regions", "region_size", "max_players_per_region", "isolation_days", "war_days", "pyramid_hold_hours", "fog_gap", "margin", "center_radius", "arm_width")},
+        "regions": regions,
+        "center": {"x": cx, "y": cy, "radius": int(D["center_radius"]), "pyramid_anchor": [cx, cy], "ring_radius": lay["ring_radius"]},
+        "player_slots": int(spec.world["player_slots"]) * n,
+        "player_count": 0,
+        "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
+        # Grande Piramide monument at the centre; the classic Alliance cycle stays dormant here (regional control comes with the GM Pyramid rules)
+        "pyramid_config": {"anchor": [cx, cy], "first_open_day": 1_000_000},
+        "gm": gm_state,
+        "spec_version": spec.version,
+        "spec_hash": spec.computed_hash,
+        "created_at": now,
+        "opened_at": None,
+    }
+    try:
+        await db().worlds.insert_one(doc)
+    except DuplicateKeyError:
+        raise ApiError("WORLD_EXISTS", "World already exists", 409)
+
+    async def _finish() -> None:
+        try:
+            gen = await asyncio.get_running_loop().run_in_executor(None, generate_grande_mondo, seed, spec, region_cfg, [{**r} for r in regions], int(lay["world_size"]), (cx, cy), int(D["center_radius"]), int(D["arm_width"]))
+        except Exception as e:  # noqa: BLE001
+            log.exception("grande mondo generation failed")
+            await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "FAILED", "error": str(e)}})
+            if not background:
+                raise ApiError("MAP_GENERATION_CONSTRAINT_FAILED", "World generation failed", 500, {"error": str(e)})
+            return
+        await _persist_chunks(world_id, gen.terrain)
+        await _persist_settlements(world_id, gen.anchors, gen.terrain, now)
+        invalidate(world_id)
+        opened = clock.now()
+        state, key = grande_mondo.initial_state(world_id, opened, D)
+        await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "OPEN", "opened_at": opened, "terrain_stats": gen.stats, "generation_seed": gen.seed, "gm": state}})
+        await grande_mondo.ensure_schedule(await db().worlds.find_one({"_id": world_id}))
+        log.info("grande mondo %s ready (%d regions, %dx%d)", world_id, n, lay["world_size"], lay["world_size"])
+
+    if background:
+        asyncio.create_task(_finish())
+    else:
+        await _finish()
     return await db().worlds.find_one({"_id": world_id})
 
 
@@ -159,8 +252,8 @@ async def ensure_default_world() -> None:
 async def list_worlds(account_id: str) -> list[dict]:
     out = []
     async for w in db().worlds.find({"status": {"$in": ["OPEN", "GENERATING"]}}).sort("created_at", 1):
-        d = world_dto(w)
         p = await db().players.find_one({"world_id": w["_id"], "account_id": account_id})
+        d = world_dto(w, p)
         d["joined"] = bool(p)
         d["player_id"] = p["_id"] if p else None
         d["house_name"] = p["house_name"] if p else None
@@ -196,6 +289,7 @@ def player_dto(p: dict) -> dict:
         "world_id": p["world_id"],
         "account_id": p["account_id"],
         "house_name": p["house_name"],
+        "region_code": p.get("region_code"),
         "house": house.dto(p),
         "mother_settlement_id": p.get("mother_settlement_id"),
         "settlement_count": int(p.get("settlement_count", 1)),
@@ -215,8 +309,9 @@ def player_dto(p: dict) -> dict:
     }
 
 
-async def join_world(world: dict, account_id: str, house_name: str, slot_id: str | None = None) -> dict:
-    """Join a realm; the spawn slot is picked deterministically among the FREE ones (QA tools may pin `slot_id`)."""
+async def join_world(world: dict, account_id: str, house_name: str, slot_id: str | None = None, region_code: str | None = None) -> dict:
+    """Join a realm; the spawn slot is picked deterministically among the FREE ones (QA tools may pin `slot_id`).
+    Grande Mondo (Bibbia GM): the player must pick a region explicitly; a full region (100 players) refuses him."""
     spec = get_spec()
     house_name = house_name.strip()
     if not (3 <= len(house_name) <= 24):
@@ -226,24 +321,32 @@ async def join_world(world: dict, account_id: str, house_name: str, slot_id: str
     existing = await db().players.find_one({"world_id": world["_id"], "account_id": account_id})
     if existing:
         return existing
+    region = None
+    if grande_mondo.is_grande_mondo(world):
+        region = grande_mondo.region_by_code(world, region_code)
+        if not region:
+            raise ApiError("REGION_REQUIRED", "Choose a region of the Grande Mondo", 400, {"regions": [r["code"] for r in world.get("regions") or []]})
+        if int(region.get("player_count", 0)) >= int(region.get("player_slots", 100)):
+            raise ApiError("REGION_FULL", "This region has reached its player limit", 409, {"region": region["code"]})
     if await db().players.find_one({"world_id": world["_id"], "house_name_lc": house_name.lower()}):
         raise ApiError("HOUSE_NAME_TAKEN", "House name already used in this world", 409)
     player_id = f"ply_{uuid.uuid4().hex[:12]}"
     crest = house.default_crest(house_name)
     # deterministic-but-random spawn: claim ONE free slot atomically
     slot = await db().settlements.find_one_and_update(
-        {"world_id": world["_id"], "kind": "PLAYER_SLOT", "slot_status": "FREE", **({"_id": slot_id} if slot_id else {})},
+        {"world_id": world["_id"], "kind": "PLAYER_SLOT", "slot_status": "FREE", **({"_id": slot_id} if slot_id else {}), **({"region_code": region["code"]} if region else {})},
         {"$set": {"slot_status": "CLAIMING", "claim_token": player_id}},
         sort=[("_id", 1)],
         return_document=True,
     )
     if not slot:
-        raise ApiError("WORLD_FULL", "No free player slots in this world", 409)
+        raise ApiError("REGION_FULL" if region else "WORLD_FULL", "No free player slots" + (" in this region" if region else " in this world"), 409)
     now = clock.now()
     player = {
         "_id": player_id,
         "world_id": world["_id"],
         "account_id": account_id,
+        "region_code": region["code"] if region else None,
         "house_name": house_name,
         "house_name_lc": house_name.lower(),
         "house_crest": crest,
@@ -269,6 +372,9 @@ async def join_world(world: dict, account_id: str, house_name: str, slot_id: str
     # release slot reservation, then claim canonical base territory
     await db().territory_tiles.delete_many({"world_id": world["_id"], "settlement_id": slot["_id"], "source": "SLOT_RESERVATION"})
     await territory.claim_base(world["_id"], fresh)
-    await db().worlds.update_one({"_id": world["_id"]}, {"$inc": {"player_count": 1}})
+    inc = {"player_count": 1}
+    if region:
+        inc[f"regions.{int(region['index'])}.player_count"] = 1
+    await db().worlds.update_one({"_id": world["_id"]}, {"$inc": inc})
     await notifications.notify(world["_id"], player_id, "SETTLEMENT_UPGRADE_STATE", {"settlement_id": slot["_id"], "state": "FOUNDED", "new_level": 1, "unlocks": spec.settlement_progression[1]["unlocks"]}, dedupe_key=f"founded:{player_id}", deep_link="settlement")
     return player

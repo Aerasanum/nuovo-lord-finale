@@ -90,6 +90,8 @@ export default function InboxScreen() {
   const describe = (n: InboxItem) => {
     const p = n.payload || {};
     switch (n.event) {
+      case "GRANDE_MONDO_PHASE":
+        return `${p.phase === "WAR" ? t("gmFogFallen") : t("gmFogReturned")} · ${t("gmCycle")} ${p.cycle}`;
       case "BUILD_JOB_STATE":
         return `${p.target ?? t("evt_BUILD_JOB_STATE")}${p.target_level ? ` ${t("level")} ${p.target_level}` : ""} · ${jobState(p.state)}`;
       case "SETTLEMENT_UPGRADE_STATE":
@@ -158,6 +160,7 @@ export default function InboxScreen() {
     if ((n.event === "BATTLE_REPORT_READY" || n.event === "BATTLE_RESOLVED") && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
     else if (n.deep_link?.startsWith("battle/")) router.push({ pathname: "/battle/[id]", params: { id: n.deep_link.slice("battle/".length) } });
     else if (n.deep_link?.startsWith("pyramid")) router.push("/pyramid");
+    else if (n.deep_link?.startsWith("grande-mondo")) router.push("/grande-mondo");
     else if (n.deep_link?.startsWith("research")) router.push("/research");
     else if (n.deep_link?.startsWith("caravans")) router.push("/caravans");
     else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");

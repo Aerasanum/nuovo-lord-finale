@@ -333,6 +333,27 @@ export const qk = {
   catalog: ["catalog"] as const,
 };
 
+export type GmRegion = { index: number; code: string; name: string; lang: string; x0: number; y0: number; size: number; center: [number, number]; pyramid_anchor: [number, number] | null; player_slots: number; player_count: number; free: number; full: boolean };
+export type GrandeMondoDto = {
+  phase: "ISOLATION" | "WAR";
+  cycle: number;
+  phase_since: string | null;
+  phase_until: string | null;
+  seconds_left: number | null;
+  fog_up: boolean;
+  isolation_days: number;
+  war_days: number;
+  pyramid_hold_hours: number;
+  regions: GmRegion[];
+  center: { x: number; y: number; radius: number; pyramid_anchor: [number, number] } | null;
+  my_region: string | null;
+};
+export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
+
+export function useGrandeMondo(worldId?: string | null, enabled = true) {
+  return useQuery<GrandeMondoDto & { server_time: string }>({ queryKey: ["grande-mondo", worldId || ""], queryFn: () => get(`/worlds/${worldId}/grande-mondo`).then(sync), enabled: !!worldId && enabled, refetchInterval: 30000 });
+}
+
 export function useWorlds(enabled = true) {
   return useQuery({ queryKey: qk.worlds, queryFn: () => get("/worlds").then(sync), enabled, refetchInterval: 15000 });
 }

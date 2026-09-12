@@ -15,6 +15,7 @@ import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
+import { formatCountdown, regionAt, regionBounds, regionByCode, regionFlag, secondsLeft } from "@/src/game/grandeMondo";
 import { MapView3D } from "@/src/map3d/MapView";
 import { MiniMapFrame } from "@/src/map3d/MiniMap";
 import { useAuth } from "@/src/state/AuthContext";
@@ -43,6 +44,8 @@ const useStyles = makeStyles((c) => ({
   chipRow: { flexDirection: "row", gap: spacing.xs },
   settChip: { paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.border, justifyContent: "center" },
   settChipActive: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
+  gmChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: spacing.xs, paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong },
+  gmChipWar: { borderColor: c.factionEnemy },
 }));
 
 export default function MapScreen() {
@@ -77,6 +80,18 @@ export default function MapScreen() {
   const [cam, setCam] = useState({ tx: 200, tz: 200, dist: 38 });
   const active = settlement.data;
   const home = useMemo(() => (active ? { x: active.x, y: active.y } : null), [active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Grande Mondo: while the fog wall is up the map is confined to the active settlement's region (Bibbia GM)
+  const gm = world?.grande_mondo ?? null;
+  const myRegion = useMemo(() => (active ? regionAt(gm, active.x, active.y) : null) ?? regionByCode(gm, gm?.my_region), [gm, active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
+  const viewBounds = useMemo(() => (gm?.fog_up && myRegion ? regionBounds(myRegion) : null), [gm?.fog_up, myRegion]);
+  const gmLeft = secondsLeft(gm, realmNow);
+  // fog fell / returned: foreign castles become visible / hidden → refetch chunks and the far LOD
+  const phaseRef = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = gm?.phase ?? null;
+    if (phaseRef.current && phase && phaseRef.current !== phase) engineRef.current?.invalidateChunks();
+    phaseRef.current = phase;
+  }, [gm?.phase]);
   const onSelect = useCallback((v: Selection | null) => setSel(v), []);
   // deep link from "Carovane nei dintorni": /map?fx=..&fy=..&ft=<nonce> → centre the camera on that tile once
   useEffect(() => {
@@ -113,7 +128,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} /> : null}
+      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} /> : null}
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -130,6 +145,15 @@ export default function MapScreen() {
             {marches.data?.marches?.length ? <View style={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brandPrimary }} /> : null}
           </Pressable>
         </Panel>
+        {gm ? (
+          <Pressable style={[s.gmChip, gm.phase === "WAR" && s.gmChipWar]} onPress={() => router.push("/grande-mondo")} testID="map-gm-chip" accessibilityLabel={t("gmTitle")}>
+            <Icon name={gm.phase === "WAR" ? "sword-cross" : "weather-fog"} size={16} color={gm.phase === "WAR" ? colors.factionEnemy : colors.brandPrimary} />
+            <T v="caption" testID="map-gm-chip-text">
+              {gm.phase === "WAR" ? t("gmWarChip") : t("gmFogChip")} · {formatCountdown(gmLeft)}
+              {myRegion ? ` · ${regionFlag(myRegion.code)} ${myRegion.code}` : ""}
+            </T>
+          </Pressable>
+        ) : null}
         <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push("/pyramid")} style={{ marginTop: spacing.xs }} />
         {settlements.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chipRow, { paddingHorizontal: spacing.xs, paddingTop: spacing.xs }]}>
@@ -145,7 +169,7 @@ export default function MapScreen() {
         ) : null}
       </View>
 
-      <View style={[s.coord, { top: insets.top + 64 + (settlements.length > 1 ? 40 : 0), pointerEvents: "none" }]}>
+      <View style={[s.coord, { top: insets.top + 64 + (settlements.length > 1 ? 40 : 0) + (gm ? 44 : 0), pointerEvents: "none" }]}>
         <T v="caption" testID="map-camera-coords">
           {Math.round(cam.tx)},{Math.round(cam.tz)} · ×{Math.round(cam.dist)}
         </T>
@@ -158,11 +182,20 @@ export default function MapScreen() {
       </View>
 
       {/* right controls */}
-      <View style={[s.right, { top: insets.top + 110 + (settlements.length > 1 ? 40 : 0) }]}>
+      <View style={[s.right, { top: insets.top + 110 + (settlements.length > 1 ? 40 : 0) + (gm ? 44 : 0) }]}>
         <Pressable style={s.iconBtn} onPress={() => active && engineRef.current?.centerOn(active.x, active.y, 30)} testID="map-center-home-button" accessibilityLabel={t("centerOnHome")}>
           <Icon name="home-map-marker" size={22} color={colors.brandPrimary} />
         </Pressable>
-        <Pressable style={s.iconBtn} onPress={() => engineRef.current?.centerOn(pyramid.data?.anchor[0] ?? 200, pyramid.data?.anchor[1] ?? 200, 44)} testID="map-center-pyramid-button" accessibilityLabel={t("pyramidCenter")}>
+        <Pressable
+          style={s.iconBtn}
+          onPress={() => {
+            // fog up: the Grande Piramide lies beyond the wall → frame the regional Pyramid instead
+            const target = gm?.fog_up && myRegion?.pyramid_anchor ? myRegion.pyramid_anchor : pyramid.data?.anchor ?? [200, 200];
+            engineRef.current?.centerOn(target[0], target[1], 44);
+          }}
+          testID="map-center-pyramid-button"
+          accessibilityLabel={t("pyramidCenter")}
+        >
           <Icon name="pyramid" size={22} color={pyramid.data?.state === "OPEN" ? colors.brandPrimary : colors.onSurface} />
         </Pressable>
         <Pressable style={s.iconBtn} onPress={() => router.push("/caravan/nearby")} testID="map-nearby-caravans-button" accessibilityLabel={t("nearbyCaravans")}>

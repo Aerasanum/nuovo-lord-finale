@@ -198,3 +198,22 @@ async def qa_pyramid_reset(body: PyramidWorldIn):
 
     doc = await pyramid.reset(body.world_id, body.clear_config, body.config)
     return {"state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "config": pyramid.config(await db().worlds.find_one({"_id": body.world_id}))}
+
+
+# --------------------------------------------------------------------------- Grande Mondo (Bibbia GM) — phase control
+class GmPhaseIn(BaseModel):
+    world_id: str
+    to: str  # WAR | ISOLATION
+
+
+@router.post("/grande-mondo/phase")
+async def qa_gm_phase(body: GmPhaseIn):
+    """Test fixture: force the fog to fall (WAR) or return (ISOLATION) now, through the real transition (notices, chronicle, next deadline)."""
+    _gate()
+    from app.domain import grande_mondo
+
+    world = await db().worlds.find_one({"_id": body.world_id})
+    if not world or not grande_mondo.is_grande_mondo(world):
+        raise ApiError("WORLD_NOT_FOUND", "Grande Mondo not found", 404)
+    world = await grande_mondo.transition(world, body.to.upper(), reason="QA")
+    return grande_mondo.dto(world)

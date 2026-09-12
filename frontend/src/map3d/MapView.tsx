@@ -8,6 +8,7 @@ import type { ChunkDto, MarchDto, OverviewDto, PyramidDto } from "@/src/api/hook
 import { useTheme } from "@/src/theme";
 
 import { MapEngine, MapLabel, Selection, setEngineServerOffset } from "./engine";
+import type { FogBounds } from "./fog";
 import { MapLabels } from "./MapLabels";
 
 type Props = {
@@ -22,9 +23,11 @@ type Props = {
   onCameraChange?: (cam: { tx: number; tz: number; dist: number }) => void;
   refreshToken?: number;
   showLabels?: boolean;
+  /** Grande Mondo: region visible while the fog wall is up (null = whole realm, fog down) */
+  viewBounds?: FogBounds | null;
 };
 
-export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true }: Props) {
+export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true, viewBounds = null }: Props) {
   const { colors } = useTheme();
   const engineRef = useRef<MapEngine | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
@@ -65,6 +68,7 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
         onLabels: setLabels,
         worldSize,
         pyramidXY: pyramid?.anchor ? [pyramid.anchor[0], pyramid.anchor[1]] : undefined,
+        viewBounds,
       });
       engineRef.current = engine;
       if (home) {
@@ -98,6 +102,11 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
   useEffect(() => {
     engineRef.current?.setPyramid(pyramid ?? null);
   }, [pyramid]);
+
+  const boundsKey = viewBounds ? `${viewBounds.x0}:${viewBounds.y0}:${viewBounds.x1}:${viewBounds.y1}` : "";
+  useEffect(() => {
+    engineRef.current?.setViewBounds(viewBounds ?? null);
+  }, [boundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (refreshToken) {

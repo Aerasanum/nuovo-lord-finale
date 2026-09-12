@@ -881,3 +881,27 @@ backend:
     file: "backend/app/domain/caravans.py, worlds.py, routes_game.py"
     stuck_count: 0
     priority: "high"
+
+# ---- iteration 25 (main agent) — GRANDE MONDO Fase 1 (Bibbia GM v0.2): mega-mappa 9 regioni, muro di nebbia, ciclo ISOLAMENTO/GUERRA ----
+backend:
+  - task: "grande_mondo.py: layout ring (9 regioni 600x600, gap 64, mondo 3232), zone grid, fog_up/check_target/movement_mask (FOG_WALL 409), ciclo ISOLATION(120g)->WAR(20g)->ISOLATION via scheduler GM_PHASE_DEADLINE + notifica GRANDE_MONDO_PHASE + cronaca; worldgen.generate_grande_mondo (9 regni validati + terra centrale con Grande Piramide + 9 'Vie della Piramide' cost-compensate con passo di montagna); worlds.create_grande_mondo/join(region_code, REGION_REQUIRED/REGION_FULL, cap 100) ; world_dto.grande_mondo; /worlds/{w}/grande-mondo; map chunk/overview filtrati (fogged) fuori dalle zone visibili; marches/caravans usano check_target + allowed mask; astar octile + astar_async; QA POST /qa/grande-mondo/phase {world_id,to}; scripts/create_grande_mondo.py (gm_1 creato)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/grande_mondo.py, worldgen.py, worlds.py, pathfinding.py, marches.py, caravans.py, backend/app/api/routes_game.py, routes_qa.py, server.py, scripts/create_grande_mondo.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manual httpx: join IT ok, join senza regione 400 REGION_REQUIRED, chunk FR fogged (0 settlements) in ISOLATION, preview IT->FR 409 FOG_WALL, QA->WAR: chunk FR visibile, inbox GRANDE_MONDO_PHASE, cronaca GM_FOG_FALLEN, QA->ISOLATION cycle 2. A* 900 tiles 0.2s (era 5s)."
+frontend:
+  - task: "worlds.tsx: badge GRANDE MONDO + sottotitolo fase/countdown + sheet scelta regione (join-region-list, join-region-<CODE>, join-region-chosen) prima del nome Casa; map.tsx: chip map-gm-chip (Nebbia/Guerra · countdown · bandiera) -> /grande-mondo, viewBounds regione (camera clamp + minimap regione + muro di nebbia 3D src/map3d/fog.ts), pulsante piramide centra la Piramide regionale con nebbia alta; app/grande-mondo.tsx (gm-phase-card, gm-countdown, gm-rules, gm-region-<CODE>, gm-my-region); inbox GRANDE_MONDO_PHASE; engine: overview factor 8 per mondi >1024, tile far-LOD finestrati attorno alla camera, minimap sui bounds."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/worlds.tsx, app/grande-mondo.tsx, app/(tabs)/map.tsx, app/(tabs)/inbox.tsx, app/_layout.tsx, src/map3d/engine.ts, src/map3d/fog.ts, src/map3d/MapView.tsx, src/game/grandeMondo.ts, src/api/hooks.ts, src/i18n/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots: card Grande Mondo 1 (9 regioni · mega-mappa 3232×3232 · Muro di nebbia · 119g 19h · 🇮🇹 Italia), mappa gm_1 con chip 'Nebbia · 119g 19h · 🇮🇹 IT', minimap regionale, nebbia grigia oltre il confine nord; schermata /grande-mondo con countdown, regole e 9 regioni."
