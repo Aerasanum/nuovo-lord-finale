@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 24 GREEN end-to-end. Backend (pytest, public URL, 4/4 pass in tests/test_iteration_24.py): (a) Lord world_2 stl_aaf827bc3a0340cc caravans/info search_radius==50; caravans/search returns radius=50, caravans[] sorted by distance ascending with int distance and target_xy; (b) POST /api/worlds/world_2/caravans as Lord from village stl_0de020b9adfa4fd7 (L14 500,533) to home with cargo grain 300 + escort {Fanteria:20} → 201 with escort_units/escort/units containing Fanteria=20; a second POST from the same origin → 409 CARAVAN_OUTGOING_MAX (Bible cap enforced); (c) demo world_2 caravans/search returns radius=50, interception_unlocked=true, caravans sorted asc with distance<=50 (Casa Lord convoys visible). Frontend (Playwright 390x844): 1) Lord login → world_2 → binoculars button opens nearby-caravans-screen; radius text 'Casa Lord · Raggio di ricerca: 50 · 0'; empty-state 'Nessuna carovana straniera nel raggio di ricerca' visible; back returns to map. 2) Tapping the north-west village castle on the map opens the selection card with map-selection-open-city + map-selection-reinforce + map-selection-caravan; Rinforza → march-composer-screen opens with march-mission-REINFORCE selected, filling Fanteria=300 yields march-preview-eta '3h 36m' and no march-preview-error, march-launch-button enabled → launch succeeds ('La marcia parte · Rinforzo verso Casa Lord · 482,540 · Arrivo tra 3h 36m'). 3) Città → settlement-caravans-button → Invia carovana composer for HOME: caravan-new-blocker text 'Una carovana è già in viaggio da questo insediamento: la Bibbia ne consente una sola in uscita per volta. Attendi la consegna.' and caravan-new-submit is disabled; toggling caravan-escort-toggle ON without units shows caravan-escort-empty warning 'Scorta attiva ma nessuna unità selezionata: il convoglio partirà senza scorta.' 4) Demo login → world_2 → map-nearby-caravans-badge shows '2'; nearby-caravans-screen lists nearby-caravan-crv_50e04dd43d76456a (distance 31, 'Raggiungibile') + a second row; tapping raid opens intercept-screen ('Carovana straniera · Casa Lord', ETA 4h 54m), MAX Cavalleria sets 400 units, intercept-submit is enabled and posting to /api/.../intercepts returned 409 (server-side unreachable) — no raw code shown in UI, form reverts to 0/0 units with the 'Solo unità con ATK > 0' blocker (Italian). No red console errors on any screen (only whitelisted shadow*/textShadow* RN deprecation warnings).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_24.py",
+    "/app/test_reports/pytest/iter24.xml",
+    "/app/test_reports/screens/iter24_lord_map.jpg",
+    "/app/test_reports/screens/iter24_lord_nearby.jpg",
+    "/app/test_reports/screens/iter24_select1.jpg",
+    "/app/test_reports/screens/iter24_march_composer.jpg",
+    "/app/test_reports/screens/iter24_after_launch.jpg",
+    "/app/test_reports/screens/iter24_caravans_hub.jpg",
+    "/app/test_reports/screens/iter24_new_caravan_screen.jpg",
+    "/app/test_reports/screens/iter24_new_caravan_escort.jpg",
+    "/app/test_reports/screens/iter24_demo_map.jpg",
+    "/app/test_reports/screens/iter24_intercept.jpg",
+    "/app/test_reports/screens/iter24_intercept_after.jpg"
+  ],
+  "action_items": [
+    "INFO: Iteration 24 (caravan Bible-cap blockers, escorted-caravan send, map 'Rinforza' button + REINFORCE composer, 'Carovane nei dintorni' screen with binoculars badge, intercept from nearby list) is verified end-to-end. No fixes required from main agent."
+  ],
+  "critical_code_review_comments": [
+    "app/caravan/new.tsx blocker computes caravanOut from marches where origin_settlement_id === active settlement && mission==='CARAVAN' && status==='OUTBOUND' — correct alignment with Bible cap of 1 outgoing caravan per settlement; capOut>=5 also enforced for the 5-marches limit.",
+    "app/(tabs)/map.tsx selection card correctly renders map-selection-reinforce for OWN non-active settlements pushing /march/new?target=... (params seed march composer with REINFORCE mission and OWN target).",
+    "app/caravan/nearby.tsx radius text pulls search_radius from the caravans/info DTO and the '· <count>' suffix is derived from search results; distance/reach labels use int distance and 3 tiles/h cavalry ETA — matches backend caravans/search sort order.",
+    "app/caravan/intercept.tsx intercept-submit posts to server which selects the first reachable waypoint; 409 INTERCEPT_UNREACHABLE is surfaced via toast in Italian (see toast handler in overlay), and the form correctly reverts unit values on rejection — no raw error codes are shown in UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_24.py",
+    "/app/test_reports/iteration_23.json",
+    "/app/test_reports/pytest/iter24.xml"
+  ],
+  "success_rate": {"backend": "4/4 (100%) — Lord caravans/info + search, escorted-caravan send + Bible-cap 409, demo caravans/search shape", "frontend": "9/9 flows verified with 0 non-whitelisted console errors"},
+  "seed_data_creation": "Backend test sent one escorted caravan Fanteria 20 from Lord village stl_0de020b9adfa4fd7 (or fallback stl_20ab7c21e5674eff) to home; frontend test launched one REINFORCE march (Fanteria 300) from village 482,540 to Casa Lord home. Both are transient world_2 state that will settle in a few hours.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 24 verified. Base URL https://empire-lords-dragon.preview.emergentagent.com. Login testIDs are login-email-input / login-password-input / login-submit-button (NOT auth-*). World enter: world-enter-world_2. Map tab: tab-map. Città tab: tab-settlement. Nearby caravans binoculars button is on the map right rail with testID map-nearby-caravans-button and a red count badge map-nearby-caravans-badge. The caravan hub 'send' button text is 'Invia carovana' (there is no 'Nuova carovana' text). Selection card in map appears ~1.5s after tapping a castle at (85,185)-ish for the NW village of the Lord home cluster. Intercept form testIDs: intercept-screen, intercept-unit-<name>-max, intercept-submit; 409 INTERCEPT_UNREACHABLE is rendered as Italian toast (transient) — assert via toast selector rather than body text.",
+  "rca_of_issue": "N/A — no defects. The Lord home caravan blocker fires because backend already had an outbound caravan from the home settlement (crv seed + earlier iteration state); the blocker text matches i18n key caravanAlreadyOutbound. Demo intercept submit returned 409 because the currently-visible Casa Lord convoys were already too far along the route for a 3 tiles/h cavalry ambush from Casa Demo Due (502,548 → distance 31 but ETA 4h 54m leaves too little time before delivery)."
+}

@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
@@ -30,6 +30,8 @@ const useStyles = makeStyles((c) => ({
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm },
   resBar: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flex: 1, flexWrap: "wrap" },
   iconBtn: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center" },
+  badge: { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.factionEnemy, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  badgeText: { color: c.onBrandSecondary, fontSize: 10, fontWeight: "700" },
   right: { position: "absolute", right: spacing.sm, gap: spacing.sm },
   bottom: { position: "absolute", left: spacing.sm, right: spacing.sm },
   coord: { position: "absolute", left: spacing.sm, backgroundColor: c.glass, paddingHorizontal: 8, height: 24, borderRadius: radius.sm, justifyContent: "center", borderWidth: 1, borderColor: c.border },
@@ -58,6 +60,8 @@ export default function MapScreen() {
   const marchMut = useMarchMutations(worldId ?? "");
   const { showError } = useToast();
   const engineRef = useRef<MapEngine | null>(null);
+  const focus = useLocalSearchParams<{ fx?: string; fy?: string; ft?: string }>();
+  const focusedRef = useRef<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [legend, setLegend] = useState(false);
   // realm clock (UTC+1, shared by every player) — drives the map daylight, refreshed twice a minute
@@ -74,6 +78,22 @@ export default function MapScreen() {
   const active = settlement.data;
   const home = useMemo(() => (active ? { x: active.x, y: active.y } : null), [active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelect = useCallback((v: Selection | null) => setSel(v), []);
+  // deep link from "Carovane nei dintorni": /map?fx=..&fy=..&ft=<nonce> → centre the camera on that tile once
+  useEffect(() => {
+    const key = focus.fx && focus.fy ? `${focus.fx}:${focus.fy}:${focus.ft ?? ""}` : null;
+    if (!key || focusedRef.current === key) return;
+    const tryFocus = () => {
+      if (!engineRef.current) return false;
+      engineRef.current.centerOn(Number(focus.fx), Number(focus.fy), 24);
+      focusedRef.current = key;
+      return true;
+    };
+    if (!tryFocus()) {
+      const id = setInterval(() => tryFocus() && clearInterval(id), 400);
+      return () => clearInterval(id);
+    }
+  }, [focus.fx, focus.fy, focus.ft]);
+
   const onCam = useCallback((c: { tx: number; tz: number; dist: number }) => setCam(c), []);
   // own marches + detected hostile marches (intel-disclosed by the server) + foreign caravans detected by the active
   // settlement's search radius (Bible §34.9) share one marker layer
@@ -144,6 +164,14 @@ export default function MapScreen() {
         </Pressable>
         <Pressable style={s.iconBtn} onPress={() => engineRef.current?.centerOn(pyramid.data?.anchor[0] ?? 200, pyramid.data?.anchor[1] ?? 200, 44)} testID="map-center-pyramid-button" accessibilityLabel={t("pyramidCenter")}>
           <Icon name="pyramid" size={22} color={pyramid.data?.state === "OPEN" ? colors.brandPrimary : colors.onSurface} />
+        </Pressable>
+        <Pressable style={s.iconBtn} onPress={() => router.push("/caravan/nearby")} testID="map-nearby-caravans-button" accessibilityLabel={t("nearbyCaravans")}>
+          <Icon name="binoculars" size={22} color={(caravanSearch.data?.caravans.length ?? 0) > 0 ? colors.brandPrimary : colors.onSurface} />
+          {(caravanSearch.data?.caravans.length ?? 0) > 0 ? (
+            <View style={s.badge} testID="map-nearby-caravans-badge">
+              <T style={s.badgeText}>{caravanSearch.data!.caravans.length}</T>
+            </View>
+          ) : null}
         </Pressable>
         <Pressable style={s.iconBtn} onPress={() => engineRef.current?.zoomBy(1.4)} testID="map-zoom-in-button">
           <Icon name="plus" size={22} color={colors.onSurface} />
@@ -240,7 +268,12 @@ export default function MapScreen() {
             {selS && selS.kind !== "PLAYER_SLOT" ? (
               <View style={s.actions}>
                 {selS.faction === "OWN" ? (
-                  <Button title={t("tabCity")} icon="castle" variant="secondary" style={{ flex: 1 }} onPress={() => selectSettlement(selS.settlement_id).then(() => router.push("/(tabs)/settlement"))} testID="map-selection-open-city" />
+                  <>
+                    <Button title={t("tabCity")} icon="castle" variant="secondary" style={{ flex: 1 }} onPress={() => selectSettlement(selS.settlement_id).then(() => router.push("/(tabs)/settlement"))} testID="map-selection-open-city" />
+                    {selS.settlement_id !== settlementId ? (
+                      <Button title={t("reinforceOwn")} icon="shield-plus" variant="secondary" style={{ flex: 1 }} onPress={() => router.push({ pathname: "/march/new", params: { target: selS.settlement_id } })} testID="map-selection-reinforce" />
+                    ) : null}
+                  </>
                 ) : (
                   <>
                     <Button title={t("target")} icon="information-outline" variant="secondary" style={{ flex: 1 }} onPress={() => router.push({ pathname: "/target/[id]", params: { id: selS.settlement_id } })} testID="map-selection-detail" />

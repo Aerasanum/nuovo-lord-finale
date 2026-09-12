@@ -361,7 +361,7 @@ async def caravan_info(world_id: str, settlement_id: str, c: Ctx = Depends(ctx))
     origin = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
     owners = await alliances.ally_player_ids(c.player)
     dests = [{"settlement_id": s["_id"], "name": s.get("name"), "x": s["x"], "y": s["y"], "level": s.get("level", 1), "allied": s["owner_player_id"] != c.player["_id"], "owner_house_name": s.get("owner_house_name")} async for s in db().settlements.find({"world_id": world_id, "owner_player_id": {"$in": owners}, "kind": "PLAYER", "_id": {"$ne": settlement_id}}).sort([("owner_player_id", 1), ("founded_at", 1)])]
-    return {**caravans.info(origin), "destinations": dests, "resources": (await economy.accrue(origin))["resources"]}
+    return {**caravans.info(origin, c.world), "destinations": dests, "resources": (await economy.accrue(origin))["resources"]}
 
 
 @router.post("/worlds/{world_id}/caravans", status_code=201)

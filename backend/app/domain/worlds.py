@@ -40,6 +40,11 @@ def world_dto(w: dict) -> dict:
     }
 
 
+# Owner's rule: foreign caravans are visible/raidable up to this Chebyshev distance from the observing settlement
+# (the Bible research radius 5–12 is the floor; see caravans.search_radius).
+CARAVAN_SEARCH_RADIUS = 50
+
+
 async def create_world(name: str | None = None, seed: int | None = None, gen_overrides: dict | None = None) -> dict:
     """Generate and open a new realm. `gen_overrides` (size / spacing / pyramid anchor) tune the landmass layout for
     this world only — see worldgen.GenConfig; Bible counts, timers and costs are untouched."""
@@ -60,6 +65,7 @@ async def create_world(name: str | None = None, seed: int | None = None, gen_ove
         "gen_config": cfg.to_doc(),
         "player_slots": int(spec.world["player_slots"]),
         "player_count": 0,
+        "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
         "spec_version": spec.version,
         "spec_hash": spec.computed_hash,
         "created_at": now,

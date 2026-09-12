@@ -865,3 +865,19 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots: sentinels screen shows 4+8 slots with ✓ on built; city shows towers with lit braziers + empty slot posts outside the walls."
+
+# ---- iteration 24 (main agent) — caravan escort UX/blockers, Reinforce button for own settlements, "Carovane nei dintorni" (50-tile search) ----
+frontend:
+  - task: "Caravan composer up-front blockers (caravanAlreadyOutbound / outgoingCapReached / escort-empty hint) + Italian API error toasts; map selection card 'Rinforza' (map-selection-reinforce) for own non-active settlements → /march/new REINFORCE; map HUD binoculars button (map-nearby-caravans-button + map-nearby-caravans-badge) → /caravan/nearby (nearby-caravans-screen, rows nearby-caravan-<id> with -raid / -map / -reach); caravans hub row button renamed 'Saccheggia'."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/caravan/new.tsx, app/caravan/nearby.tsx, app/(tabs)/map.tsx, app/caravans.tsx, src/components/overlay.tsx, src/i18n/index.tsx, src/api/hooks.ts"
+    stuck_count: 0
+    priority: "high"
+backend:
+  - task: "caravans.search_radius(research, world) = max(Bible, world.caravan_search_radius=50); search returns distance/target_xy sorted; create_world sets caravan_search_radius 50."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/caravans.py, worlds.py, routes_game.py"
+    stuck_count: 0
+    priority: "high"

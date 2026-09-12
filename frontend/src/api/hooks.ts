@@ -188,7 +188,7 @@ export type MarchDto = {
   caravan?: DetectedCaravan | null; // client-side: a detected foreign caravan rendered as a hostile marker
 };
 
-export type DetectedCaravan = { caravan_id: string; house_name: string | null; house_crest: CrestDto | null; position: [number, number]; heading: string | null; escorted: boolean; escort_band: [number, number] | null; cargo_band: [number, number] | null; arrival_at: string; remaining_path: [number, number][]; intel_score: number };
+export type DetectedCaravan = { caravan_id: string; house_name: string | null; house_crest: CrestDto | null; position: [number, number]; heading: string | null; escorted: boolean; escort_band: [number, number] | null; cargo_band: [number, number] | null; arrival_at: string; remaining_path: [number, number][]; intel_score: number; distance: number; target_xy: [number, number] | null };
 export type CaravanInfo = { unlocked: boolean; research_unlock_key: string; caravanserai_level: number; caravans_per_march: number; capacity_per_caravan: number; max_capacity: number; unescorted_speed_tph: number; max_outgoing: number; interception_unlocked: boolean; search_radius: number; destinations: { settlement_id: string; name: string; x: number; y: number; level: number }[]; resources: Resources };
 
 export function useCaravanInfo(worldId?: string | null, sid?: string | null) {

@@ -54,16 +54,19 @@ def speed_tph(escort: dict[str, int], research: dict) -> float:
     return base * (1 + bonus)
 
 
-def search_radius(research: dict) -> int:
+def search_radius(research: dict, world: dict | None = None) -> int:
+    """Bible radius (base 5, research up to 12) — a realm may widen it (`world.caravan_search_radius`, e.g. 50 tiles:
+    "Carovane nei dintorni" requested by the game owner) so passing convoys of other players stay visible/raidable."""
     c = _cfg()
     l1 = F.rget(research, "intelligence.caravan_search_1")
     l2 = F.rget(research, "intelligence.caravan_search_2")
     lookup = [0, 0, 1, 1, 2, 2]
     r = int(c["search_base_radius_tiles"]) + lookup[min(l1, 5)] + int(c["search_bonus"]["intelligence.caravan_search_2_per_level"]) * l2
-    return min(int(c["search_max_radius_tiles"]), r)
+    bible = min(int(c["search_max_radius_tiles"]), r)
+    return max(bible, int((world or {}).get("caravan_search_radius") or 0))
 
 
-def info(origin: dict) -> dict:
+def info(origin: dict, world: dict | None = None) -> dict:
     """Composer data for the UI: unlock state, slots, capacity per slot, speed."""
     research = origin.get("research", {})
     lvl = int(origin["buildings"].get(BUILDING, 0))
@@ -80,7 +83,7 @@ def info(origin: dict) -> dict:
         "unescorted_speed_tph": round(speed_tph({}, research), 3),
         "max_outgoing": int(get_spec().marches["caravan_outgoing_max_per_settlement"]),
         "interception_unlocked": F.rget(research, INTERCEPT_RESEARCH) >= 1,
-        "search_radius": search_radius(research),
+        "search_radius": search_radius(research, world),
     }
 
 
@@ -241,15 +244,18 @@ def _position(m: dict, now) -> tuple[int, int, int]:
 
 
 async def search(world_id: str, observer: dict, player: dict) -> dict:
-    """Foreign OUTBOUND caravans whose current position lies within the observer settlement's search radius (Chebyshev)."""
+    """Foreign OUTBOUND caravans whose current position lies within the observer settlement's search radius (Chebyshev),
+    nearest first."""
     research = observer.get("research", {})
-    radius = search_radius(research)
+    world = await db().worlds.find_one({"_id": world_id}, {"caravan_search_radius": 1})
+    radius = search_radius(research, world)
     now = clock.now()
     out = []
     allies = set(await alliances.ally_player_ids(player))
     async for m in db().marches.find({"world_id": world_id, "mission": "CARAVAN", "status": "OUTBOUND", "player_id": {"$nin": list(allies | {player["_id"]})}}):
         x, y, idx = _position(m, now)
-        if max(abs(x - observer["x"]), abs(y - observer["y"])) > radius:
+        dist = max(abs(x - observer["x"]), abs(y - observer["y"]))
+        if dist > radius:
             continue
         origin = await db().settlements.find_one({"_id": m["origin_settlement_id"]}, {"research": 1})
         s = intel.score(research, (origin or {}).get("research", {}), None) + 2 * F.rget(research, "intelligence.caravan_search_2")
@@ -268,8 +274,11 @@ async def search(world_id: str, observer: dict, player: dict) -> dict:
                 "arrival_at": clock.iso(m["arrival_at"]),
                 "remaining_path": m["path"][idx:],
                 "intel_score": s,
+                "distance": dist,
+                "target_xy": [m["path"][-1][0], m["path"][-1][1]] if m.get("path") else None,
             }
         )
+    out.sort(key=lambda c: c["distance"])
     return {"radius": radius, "interception_unlocked": F.rget(research, INTERCEPT_RESEARCH) >= 1, "caravans": out}
 
 
@@ -295,7 +304,7 @@ async def intercept(world: dict, player: dict, origin: dict, caravan_id: str, un
     await alliances.check_hostile_launch(world["_id"], player, caravan["player_id"])
     now = clock.now()
     cx, cy, cidx = _position(caravan, now)
-    if max(abs(cx - origin["x"]), abs(cy - origin["y"])) > search_radius(research):
+    if max(abs(cx - origin["x"]), abs(cy - origin["y"])) > search_radius(research, world):
         raise ApiError("CARAVAN_NOT_DETECTED", "Caravan outside the search radius of this settlement", 409)
     wh = int(origin["buildings"].get("Sala di Guerra", 0))
     cap = F.war_hall_cap(wh, research, "ATTACK", spec)

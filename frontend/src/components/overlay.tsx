@@ -4,6 +4,7 @@ import Animated, { FadeInDown, FadeOutDown, SlideInDown, SlideOutDown } from "re
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError } from "@/src/api/client";
+import { API_ERRORS, useI18n } from "@/src/i18n";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 import { Icon, T } from "./ui";
@@ -28,6 +29,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const s = useToastStyles();
   const { colors } = useTheme();
+  const { lang } = useI18n();
   const show = useCallback((message: string, kind: Toast["kind"] = "info") => {
     const id = ++seq.current;
     setToasts((t) => [...t.slice(-2), { id, message, kind }]);
@@ -37,10 +39,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     (e: unknown) => {
       if (e instanceof ApiError) {
         const detail = e.details?.missing ? ` (${Object.entries(e.details.missing as Record<string, number>).map(([k, v]) => `${k} -${v}`).join(", ")})` : "";
-        show(`${e.code}: ${e.message}${detail}`, "error");
+        const human = API_ERRORS[lang][e.code];
+        show(human ? `${human}${detail}` : `${e.code}: ${e.message}${detail}`, "error");
       } else show(String((e as Error)?.message || e), "error");
     },
-    [show],
+    [show, lang],
   );
   const value = useMemo(() => ({ show, showError }), [show, showError]);
   return (

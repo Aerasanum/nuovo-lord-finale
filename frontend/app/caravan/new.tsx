@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { idem, useArmy, useCaravanInfo, useCaravanMutations } from "@/src/api/hooks";
+import { idem, useArmy, useCaravanInfo, useCaravanMutations, useMarches } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
@@ -34,6 +34,7 @@ export default function NewCaravanScreen() {
   const info = useCaravanInfo(worldId, settlementId);
   const army = useArmy(worldId, settlementId);
   const { send } = useCaravanMutations(worldId ?? "");
+  const marches = useMarches(worldId);
   const { show, showError } = useToast();
   const [dest, setDest] = useState<string | null>(target ?? null);
   const [slots, setSlots] = useState(1);
@@ -58,7 +59,11 @@ export default function NewCaravanScreen() {
     setCargo((p) => ({ ...p, [r]: Math.max(0, Math.min(avail(r), capacity - others, Math.floor(n) || 0)) }));
   };
   const setEsc = (u: string, n: number) => setEscort((p) => ({ ...p, [u]: Math.max(0, Math.min(army.data?.army[u] ?? 0, Math.floor(n) || 0)) }));
-  const blocker = !d.unlocked ? t("caravanLocked") : !d.destinations.length ? t("caravanNoDestinations") : !dest ? t("caravanDestination") : total <= 0 ? t("caravanCargo") : total > capacity ? t("caravanCapacity") : null;
+  // Bible §13 caps, checked up-front so the button explains itself instead of failing on the server
+  const outgoing = (marches.data?.marches ?? []).filter((m) => m.origin_settlement_id === settlementId && m.status === "OUTBOUND");
+  const caravanOut = outgoing.some((m) => m.mission === "CARAVAN");
+  const capOut = outgoing.length >= 5;
+  const blocker = !d.unlocked ? t("caravanLocked") : !d.destinations.length ? t("caravanNoDestinations") : caravanOut ? t("caravanAlreadyOutbound") : capOut ? t("outgoingCapReached") : !dest ? t("caravanDestination") : total <= 0 ? t("caravanCargo") : total > capacity ? t("caravanCapacity") : null;
 
   const submit = () =>
     send
@@ -166,6 +171,11 @@ export default function NewCaravanScreen() {
           <T v="caption" style={{ marginTop: 4 }}>
             {t("caravanEscortHint")}
           </T>
+          {escortOn && !Object.keys(escortUnits).length ? (
+            <T v="caption" style={{ marginTop: 4, color: colors.warning }} testID="caravan-escort-empty">
+              {t("escortEmptyHint")}
+            </T>
+          ) : null}
           {escortOn
             ? Object.entries(army.data?.army ?? {})
                 .filter(([, n]) => n > 0)

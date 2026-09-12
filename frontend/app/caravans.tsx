@@ -171,7 +171,7 @@ function DetectedRow({ c, canIntercept, onIntercept }: { c: DetectedCaravan; can
           {t("cargoEstimate")}: {c.cargo_band ? `${formatNumber(c.cargo_band[0])}–${formatNumber(c.cargo_band[1])}` : t("unknown")}
           {c.escort_band ? ` · ${t("caravanEscort")} ${formatNumber(c.escort_band[0])}–${formatNumber(c.escort_band[1])}` : ""}
         </T>
-        <Button title={t("intercept")} icon="sword" variant="secondary" disabled={!canIntercept} onPress={onIntercept} testID={`detected-caravan-${c.caravan_id}-intercept`} />
+        <Button title={t("raidCaravan")} icon="sword" variant="secondary" disabled={!canIntercept} onPress={onIntercept} testID={`detected-caravan-${c.caravan_id}-intercept`} />
       </Row>
     </View>
   );
