@@ -684,9 +684,9 @@ export class MapEngine {
     this.renderer.setClearColor(horizon, 1);
     for (const m of [this.mats.terrain, this.mats.overview]) {
       (m.uniforms.uSunDir.value as THREE.Vector3).copy(this.sunDir);
-      (m.uniforms.uSunColor.value as THREE.Color).copy(d.sunColor).multiplyScalar(1.2 * (d.sunIntensity / 1.7));
-      (m.uniforms.uSkyColor.value as THREE.Color).copy(d.skyColor).multiplyScalar(0.58 * (d.hemiIntensity / 0.85));
-      (m.uniforms.uGroundColor.value as THREE.Color).copy(d.groundColor).multiplyScalar(0.55);
+      (m.uniforms.uSunColor.value as THREE.Color).copy(d.sunColor).multiplyScalar(0.95 * (d.sunIntensity / 1.7));
+      (m.uniforms.uSkyColor.value as THREE.Color).copy(d.skyColor).multiplyScalar(0.56 * (d.hemiIntensity / 0.85));
+      (m.uniforms.uGroundColor.value as THREE.Color).copy(d.groundColor).multiplyScalar(0.5);
     }
     this.water.setLight(this.sunDir, d.sunColor, horizon.clone().lerp(d.skyColor, 0.5));
     this.factory.setNight(d.night);

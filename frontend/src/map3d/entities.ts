@@ -145,13 +145,14 @@ export class EntityFactory {
   constructor(pal: EntityPalette, textures?: { stone: THREE.Texture; roof: THREE.Texture }) {
     this.pal = pal;
     const geos = buildCastleParts();
-    const lit = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, ...extra });
+    const lit = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: false, ...extra });
     const basic = (extra: Partial<THREE.MeshBasicMaterialParameters> = {}) => new THREE.MeshBasicMaterial({ color: 0xffffff, ...extra });
-    // masonry: stone courses on every wall-like part, tiles on the roofs (skins tint them through the instance colour)
-    // textured parts: the masonry/tile maps average ≈0.6 brightness, the boosted base colour compensates
-    const boost = new THREE.Color(1.7, 1.7, 1.7);
-    const stone = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => lit(textures ? { map: textures.stone, color: boost, ...extra } : extra);
-    const roof = () => lit(textures ? { map: textures.roof, color: boost } : {});
+    // masonry: fieldstone courses on every wall-like part, tiles on the roofs (skins tint them through the instance colour)
+    // textured parts: the maps average ≈0.8 (stone) / ≈0.63 (tiles) brightness, the boosted base colour compensates
+    const stoneBoost = new THREE.Color(1.28, 1.28, 1.28);
+    const roofBoost = new THREE.Color(1.6, 1.6, 1.6);
+    const stone = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => lit(textures ? { map: textures.stone, color: stoneBoost, ...extra } : extra);
+    const roof = () => lit(textures ? { map: textures.roof, color: roofBoost } : {});
     const symMat = basic({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.parts = {
       shadow: { geo: geos.shadow, mat: basic({ color: SHADOW_COLOR, transparent: true, opacity: 0.28, depthWrite: false }) },

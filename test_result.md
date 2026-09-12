@@ -804,3 +804,16 @@ frontend:
       - working: true
         agent: "main"
         comment: "Screenshot at 360px: mission composer cards readable; Città shows L10 with consistent buildings."
+
+# ---- iteration 20 (main agent) — "storybook" Game-of-Warriors graphics (city + world map), no blocky bricks ----
+frontend:
+  - task: "Vivid storybook 3D look: city (src/city/village.ts rounded blocks, puffy gables, curved 'hat' roofs, lumpy trees, rolling meadow with vertex colours, sky dome + clouds in src/city/sky.ts, no ink outlines), shared castle rig softened (src/map3d/castle.ts RoundedBox keep, 12-seg towers, hat roofs) and natural fieldstone texture (src/map3d/textures.ts), vivid theme terrain tokens (theme.ts), terrain shader grading removed (terrainMaterial.ts), warmer/brighter daylight presets (daylight.ts). Game rules untouched. Flows to regress: map renders + tap settlement → selection card (map-selection-* incl. map-selection-caravan for own), Città panel (settlement-village) → settlement-village-expand → /city (city-screen) → tap castle → city-picked-name 'Castello / Fortezza' → city-back; /skins CastlePreview GL renders; /house march skin preview renders; no red console errors."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/city/village.ts, cityTextures.ts, sky.ts, CityScene.tsx, src/map3d/castle.ts, textures.ts, entities.ts, daylight.ts, terrainMaterial.ts, engine.ts, src/theme.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots OK: map vivid (green plain, pine forests, blue water, softened castles), city bright with sky/clouds when tilted (drag up), pick castle → card. WebGL headless is slow: allow 6-10 s after opening Mappa/Città/city."

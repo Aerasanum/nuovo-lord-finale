@@ -91,12 +91,12 @@ void main() {
   float shadow = getShadowMask();
   float ndl = max(dot(n, uSunDir), 0.0);
   vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
-  vec3 light = uSunColor * (ndl * 0.85 + 0.15 * sqrt(ndl)) * mix(0.2, 1.0, shadow) + hemi * (0.88 + 0.16 * d2.r);
+  vec3 light = uSunColor * (ndl * 0.85 + 0.15 * sqrt(ndl)) * mix(0.28, 1.0, shadow) + hemi * (0.88 + 0.16 * d2.r);
   col *= light;
-  // gritty grade: pull saturation, deepen the darks, faint warm-earth cast (adult "Empire" look, not cartoon green)
+  // painterly grade: a touch more saturation and a soft lift in the shadows (vivid storybook look)
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(lum), col, 0.76);
-  col = pow(max(col, vec3(0.0)), vec3(1.12)) * vec3(0.99, 0.955, 0.9);
+  col = mix(vec3(lum), col, 1.14);
+  col = max(col, vec3(0.0)) * 1.04 + vec3(0.012, 0.014, 0.02);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

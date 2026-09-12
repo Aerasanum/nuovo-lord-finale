@@ -85,33 +85,48 @@ export function makeDetailTexture(size = 256): THREE.DataTexture {
 }
 
 /**
- * Stone courses: `rows` courses of blocks with a half-block stagger, dark mortar, per-block tone, chipped edges and
- * grain. Greyscale-ish (multiplied by the instance/skin colour in the material) — `tint` shifts the hue slightly.
+ * Weathered ashlar: a few tall courses of large blocks with irregular widths, soft low-contrast joints, gentle bevels
+ * and grain — reads as natural stone, not a brick grid. Greyscale-ish (multiplied by the instance/skin colour in the
+ * material) — `tint` shifts the hue slightly.
  */
-export function makeStoneTexture(size = 256, rows = 8, tint = 1.0): THREE.DataTexture {
+export function makeStoneTexture(size = 256, rows = 4, tint = 1.0): THREE.DataTexture {
   const grain = fbm(size, 16, 4, 53);
   const macro = fbm(size, 4, 3, 59);
   const data = new Uint8Array(size * size * 4);
   const rowH = size / rows;
-  const blockW = rowH * 2;
-  const cols = size / blockW;
-  const mortar = Math.max(1.5, size * 0.012);
+  const perRow = 3;
+  const joint = Math.max(1.5, size * 0.008);
+  // irregular, periodic block boundaries for each course (stagger + jitter)
+  const edges: number[][] = [];
+  for (let r = 0; r < rows; r++) {
+    const list: number[] = [];
+    for (let k = 0; k < perRow; k++) list.push((((k + (r % 2) * 0.5 + (hash(k, r, 61) - 0.5) * 0.45) / perRow) * size + size) % size);
+    edges.push(list.sort((a, b) => a - b));
+  }
+  const wrapDist = (a: number, b: number) => {
+    const d = Math.abs(a - b) % size;
+    return Math.min(d, size - d);
+  };
   for (let y = 0; y < size; y++) {
     const row = Math.floor(y / rowH);
     const ly = y - row * rowH;
-    const stagger = row % 2 ? blockW / 2 : 0;
+    const rowEdges = edges[row];
     for (let x = 0; x < size; x++) {
-      const xs = (x + stagger) % size;
-      const col = Math.floor(xs / blockW);
-      const lx = xs - col * blockW;
       const i = y * size + x;
-      const dEdge = Math.min(lx, blockW - lx, ly, rowH - ly);
-      const tone = 0.78 + 0.34 * hash(col % cols, row, 71);
-      // bevel: slightly lighter top-left, darker bottom-right of each block
-      const bevel = 1 + ((ly < rowH * 0.25 ? 0.06 : 0) - (ly > rowH * 0.8 ? 0.07 : 0)) + (lx < blockW * 0.12 ? 0.04 : 0);
-      let v = tone * bevel * (0.9 + 0.2 * grain[i]) * (0.94 + 0.12 * macro[i]);
-      if (dEdge < mortar) v = 0.42 + 0.12 * grain[i] + Math.max(0, (mortar - dEdge) / mortar - 0.6) * 0.1;
-      else if (dEdge < mortar * 2.2) v *= 0.86 + 0.14 * ((dEdge - mortar) / (mortar * 1.2));
+      let dx = size;
+      let blockId = 0;
+      for (let k = 0; k < rowEdges.length; k++) {
+        const d = wrapDist(x, rowEdges[k]);
+        if (d < dx) dx = d;
+        if (rowEdges[k] <= x) blockId = k + 1;
+      }
+      const dEdge = Math.min(dx, ly, rowH - ly);
+      const tone = 0.9 + 0.16 * hash(blockId, row, 71);
+      // soft bevel: a touch lighter towards the top of each block, darker at its foot
+      const bevel = 1 + 0.05 * (1 - ly / rowH) - 0.05 * Math.max(0, ly / rowH - 0.75) * 4;
+      let v = tone * bevel * (0.93 + 0.14 * grain[i]) * (0.95 + 0.1 * macro[i]);
+      if (dEdge < joint) v = 0.66 + 0.1 * grain[i];
+      else if (dEdge < joint * 3) v *= 0.9 + 0.1 * ((dEdge - joint) / (joint * 2));
       const c = Math.max(0, Math.min(1, v * 0.86));
       data[i * 4] = Math.round(c * 255 * Math.min(1, tint));
       data[i * 4 + 1] = Math.round(c * 255 * Math.min(1, tint * 0.985));

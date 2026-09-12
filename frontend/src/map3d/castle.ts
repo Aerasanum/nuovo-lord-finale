@@ -6,6 +6,7 @@
  * Positions use the (sin a, y, cos a) convention so the gate faces +z.
  */
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 import { mergeGeos, place, ring } from "./geo";
 
@@ -75,8 +76,23 @@ export const TORCHES = [
 export const BRAZIER = { x: 0, y: 1.16, z: 0 };
 
 const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
+/** Softly bevelled block (keeps the silhouette but kills the razor edges of a plain box). */
+const rbox = (w: number, h: number, d: number, r = 0.035) => new RoundedBoxGeometry(w, h, d, 2, Math.min(r, Math.min(w, h, d) * 0.3));
 const cyl = (rt: number, rb: number, h: number, seg: number, open = false) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, open);
 const cone = (r: number, h: number, seg: number) => new THREE.ConeGeometry(r, h, seg);
+/** Curved "witch hat" roof: concave flare at the eaves, pointed tip (lathe; 4 segments → curved pyramid). */
+export function hat(r: number, h: number, seg: number): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  const n = 6;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push(new THREE.Vector2(r * Math.pow(1 - t, 1.45) * (i === n ? 0 : 1), h * t));
+  }
+  pts.unshift(new THREE.Vector2(0, 0));
+  const g = new THREE.LatheGeometry(pts, seg);
+  g.translate(0, -h / 2, 0); // centre on the height like ConeGeometry so existing placements hold
+  return g;
+}
 
 function onionRoof(): THREE.BufferGeometry {
   const pts = [
@@ -100,25 +116,25 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
   factionRing.rotateX(-Math.PI / 2);
   factionRing.translate(0, 0.02, 0);
 
-  const plinth = place(cyl(0.98, 1.08, 0.18, 8), 0, 0.09, 0, CASTLE_OCTAGON);
+  const plinth = place(cyl(0.98, 1.08, 0.18, 16), 0, 0.09, 0, CASTLE_OCTAGON);
 
   const walkway = new THREE.RingGeometry(0.7, 0.86, 8, 1, CASTLE_OCTAGON);
   walkway.rotateX(-Math.PI / 2);
   walkway.translate(0, 0.73, 0);
   const wall = mergeGeos([
-    place(cyl(0.84, 0.88, 0.55, 8, true), 0, 0.455, 0, CASTLE_OCTAGON),
+    place(cyl(0.84, 0.9, 0.55, 8, true), 0, 0.455, 0, CASTLE_OCTAGON),
     walkway,
-    ...ring(8, 0.855, 0.78, () => box(0.075, 0.1, 0.07), -0.19),
-    ...ring(8, 0.855, 0.78, () => box(0.075, 0.1, 0.07), 0),
-    ...ring(8, 0.855, 0.78, () => box(0.075, 0.1, 0.07), 0.19),
+    ...ring(8, 0.855, 0.78, () => rbox(0.075, 0.1, 0.07, 0.015), -0.19),
+    ...ring(8, 0.855, 0.78, () => rbox(0.075, 0.1, 0.07, 0.015), 0),
+    ...ring(8, 0.855, 0.78, () => rbox(0.075, 0.1, 0.07, 0.015), 0.19),
   ]);
 
   const keep = mergeGeos([
-    place(box(0.66, 0.95, 0.66), 0, 0.655, 0),
-    place(box(0.74, 0.06, 0.74), 0, 1.16, 0),
-    place(box(0.5, 0.45, 0.5), 0, 1.415, 0),
+    place(rbox(0.66, 0.95, 0.66), 0, 0.655, 0),
+    place(rbox(0.74, 0.06, 0.74, 0.02), 0, 1.16, 0),
+    place(rbox(0.5, 0.45, 0.5), 0, 1.415, 0),
     place(box(0.1, 0.6, 0.1), CHIMNEY.x, CHIMNEY.y - 0.3, CHIMNEY.z), // chimney (smoke emitter), clears every roof style
-    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => place(box(0.08, 0.97, 0.08), sx * 0.33, 0.665, sz * 0.33))),
+    ...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => place(cyl(0.045, 0.05, 0.97, 8), sx * 0.33, 0.665, sz * 0.33))),
   ]);
   const windows = mergeGeos([
     ...[-1, 1].flatMap((side) =>
@@ -131,18 +147,18 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
     ),
     ...[-1, 1].flatMap((side) => [place(box(0.08, 0.14, 0.03), 0, 1.42, side * 0.255), place(box(0.03, 0.14, 0.08), side * 0.255, 1.42, 0)]),
   ]);
-  const keepRoof_pyramid = place(cone(0.4, 0.52, 4), 0, 1.9, 0, Math.PI / 4);
-  const keepRoof_cone = place(cone(0.37, 0.62, 8), 0, 1.95, 0);
+  const keepRoof_pyramid = place(hat(0.42, 0.56, 4), 0, 1.92, 0, Math.PI / 4);
+  const keepRoof_cone = place(hat(0.39, 0.66, 12), 0, 1.97, 0);
   const keepRoof_onion = place(onionRoof(), 0, 1.64, 0);
-  const turrets = mergeGeos([-1, 1].flatMap((sx) => [-1, 1].flatMap((sz) => [place(cyl(0.06, 0.07, 0.36, 6), sx * 0.25, 1.78, sz * 0.25), place(cone(0.08, 0.14, 6), sx * 0.25, 2.03, sz * 0.25)])));
+  const turrets = mergeGeos([-1, 1].flatMap((sx) => [-1, 1].flatMap((sz) => [place(cyl(0.06, 0.07, 0.36, 8), sx * 0.25, 1.78, sz * 0.25), place(hat(0.085, 0.16, 8), sx * 0.25, 2.04, sz * 0.25)])));
 
-  const tower = mergeGeos([place(cyl(0.17, 0.2, 0.9, 8), 0, 0.63, 0), place(cyl(0.2, 0.17, 0.06, 8), 0, 1.11, 0), ...ring(8, 0.18, 1.175, () => box(0.06, 0.07, 0.05))]);
-  const towerRoof_cone = place(cone(0.23, 0.36, 8), 0, 1.32, 0);
-  const towerRoof_pyramid = place(cone(0.24, 0.32, 4), 0, 1.3, 0, Math.PI / 4);
+  const tower = mergeGeos([place(cyl(0.17, 0.21, 0.9, 12), 0, 0.63, 0), place(cyl(0.21, 0.17, 0.06, 12), 0, 1.11, 0), ...ring(8, 0.18, 1.175, () => rbox(0.06, 0.07, 0.05, 0.012))]);
+  const towerRoof_cone = place(hat(0.25, 0.4, 12), 0, 1.34, 0);
+  const towerRoof_pyramid = place(hat(0.26, 0.36, 4), 0, 1.32, 0, Math.PI / 4);
 
-  const gate = mergeGeos([place(box(0.42, 0.52, 0.24), 0, 0.44, 0.92), place(cyl(0.075, 0.085, 0.64, 6), -0.23, 0.5, 0.98), place(cyl(0.075, 0.085, 0.64, 6), 0.23, 0.5, 0.98)]);
+  const gate = mergeGeos([place(rbox(0.42, 0.52, 0.24), 0, 0.44, 0.92), place(cyl(0.075, 0.09, 0.64, 10), -0.23, 0.5, 0.98), place(cyl(0.075, 0.09, 0.64, 10), 0.23, 0.5, 0.98)]);
   const gateDoor = place(box(0.2, 0.3, 0.03), 0, 0.33, 1.045);
-  const gateRoof = mergeGeos([place(cone(0.1, 0.16, 6), -0.23, 0.9, 0.98), place(cone(0.1, 0.16, 6), 0.23, 0.9, 0.98)]);
+  const gateRoof = mergeGeos([place(hat(0.11, 0.18, 8), -0.23, 0.91, 0.98), place(hat(0.11, 0.18, 8), 0.23, 0.91, 0.98)]);
   const torch = mergeGeos(TORCHES.map((t) => place(new THREE.SphereGeometry(0.045, 6, 5), t.x, t.y, t.z)));
   const torchGlow = mergeGeos(TORCHES.map((t) => place(new THREE.SphereGeometry(0.13, 8, 6), t.x, t.y, t.z)));
   const senGlow = place(new THREE.SphereGeometry(0.24, 8, 6), 0, 1.1, 0);

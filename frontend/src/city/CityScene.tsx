@@ -19,6 +19,7 @@ import { makeRoofTexture, makeStoneTexture } from "@/src/map3d/textures";
 import { useTheme } from "@/src/theme";
 
 import { buildVillage, type Village, type VillageInput } from "./village";
+import { createSky, type Sky } from "./sky";
 import { Villagers } from "./villagers";
 
 type Props = { input: VillageInput; onPick?: (building: string | null) => void; style?: StyleProp<ViewStyle>; testID?: string; interactive?: boolean };
@@ -33,6 +34,7 @@ type Rig = {
   factory: EntityFactory;
   smoke: SmokeSystem;
   villagers: Villagers;
+  sky: Sky;
   village: Village | null;
   raf: number;
   lastMs: number;
@@ -45,7 +47,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
   const rig = useRef<Rig | null>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
-  const cam = useRef({ yaw: 0.6, pitch: 0.72, dist: 0, auto: true, lastTouch: 0 });
+  const cam = useRef({ yaw: 0.6, pitch: 0.62, dist: 0, auto: true, lastTouch: 0 });
   const size = useRef({ width: 1, height: 1 });
   const focused = useRef(true);
   const onPickRef = useRef(onPick);
@@ -98,6 +100,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
     const horizon = new THREE.Color(colors.skyHorizon).lerp(d.horizonTint, d.horizonMix);
     r.renderer.setClearColor(horizon, 1);
     (r.scene.fog as THREE.Fog).color.copy(horizon);
+    r.sky.apply(d, horizon);
     r.factory.setNight(d.night);
     r.night = d.night;
     if (r.village) for (const m of r.village.nightMats) m.emissiveIntensity = 0.15 + d.night * 1.4;
@@ -109,6 +112,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
         cancelAnimationFrame(rig.current.raf);
         rig.current.village?.dispose();
         rig.current.villagers.dispose();
+        rig.current.sky.dispose();
         rig.current.renderer.dispose();
       }
       const w = gl.drawingBufferWidth;
@@ -119,29 +123,33 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       renderer.setSize(w, h, false);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFShadowMap;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       const scene = new THREE.Scene();
-      scene.fog = new THREE.Fog(new THREE.Color(colors.skyHorizon), 14, 30);
-      const hemi = new THREE.HemisphereLight(0xb8c0cc, 0x3a3129, 0.7);
+      // haze only kicks in on the far hills so the town itself stays crisp and saturated
+      scene.fog = new THREE.Fog(new THREE.Color(colors.skyHorizon), 26, 70);
+      const hemi = new THREE.HemisphereLight(0xbfe1ff, 0x7c9a58, 1.0);
       scene.add(hemi);
-      const sun = new THREE.DirectionalLight(0xfbeed4, 1.55);
+      const sun = new THREE.DirectionalLight(0xfff3dc, 2.05);
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024);
-      sun.shadow.camera.left = sun.shadow.camera.bottom = -8;
-      sun.shadow.camera.right = sun.shadow.camera.top = 8;
+      sun.shadow.camera.left = sun.shadow.camera.bottom = -10;
+      sun.shadow.camera.right = sun.shadow.camera.top = 10;
       sun.shadow.camera.near = 1;
       sun.shadow.camera.far = 80;
       sun.shadow.normalBias = 0.03;
+      sun.shadow.radius = 3;
       scene.add(sun);
       scene.add(sun.target);
-      const camera = new THREE.PerspectiveCamera(40, w / Math.max(1, h), 0.1, 80);
+      const sky = createSky(70, 15);
+      scene.add(sky.group);
+      const camera = new THREE.PerspectiveCamera(40, w / Math.max(1, h), 0.1, 160);
       const pal = { own: new THREE.Color(colors.factionOwn), enemy: new THREE.Color(colors.factionEnemy), neutral: new THREE.Color(colors.factionNeutral), ally: new THREE.Color(colors.factionAlly), snow: new THREE.Color(colors.onSurface) };
       const factory = new EntityFactory(pal, { stone: makeStoneTexture(), roof: makeRoofTexture() });
-      const smoke = new SmokeSystem(new THREE.Color("#d8d2c8"));
+      const smoke = new SmokeSystem(new THREE.Color("#f0ece6"));
       scene.add(smoke.mesh);
       const villagers = new Villagers(pal.own, 1.45);
       scene.add(villagers.group);
-      const r: Rig = { gl, renderer, scene, camera, sun, hemi, factory, smoke, villagers, village: null, raf: 0, lastMs: Date.now(), daylightMinute: -1, night: 0 };
+      const r: Rig = { gl, renderer, scene, camera, sun, hemi, factory, smoke, villagers, sky, village: null, raf: 0, lastMs: Date.now(), daylightMinute: -1, night: 0 };
       rig.current = r;
       rebuild();
       const loop = () => {
@@ -163,16 +171,17 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
         applyDaylight(r, serverNow());
         // camera: slow auto-orbit until the Player touches the scene; first frame frames the whole walled town
         const c = cam.current;
-        if (!c.dist && r.village) c.dist = (r.village.wallR * 1.65 + 1.2) * (camera.aspect < 0.8 ? 1.35 : 1);
+        if (!c.dist && r.village) c.dist = (r.village.wallR * 1.55 + 1.2) * (camera.aspect < 0.8 ? 1.3 : 1);
         if (c.auto || nowMs - c.lastTouch > 6000) c.yaw += dt * 0.08;
         const cp = Math.cos(c.pitch);
-        const ty = 0.35;
+        const ty = 0.55;
         camera.position.set(Math.sin(c.yaw) * cp * c.dist, ty + Math.sin(c.pitch) * c.dist, Math.cos(c.yaw) * cp * c.dist);
         camera.lookAt(0, ty, 0);
         // animate
         factory.tick(t);
         smoke.update(t, 0, 0, 40);
         villagers.update(dt, t, r.night);
+        sky.tick(dt);
         const v = r.village;
         if (v) {
           for (const hub of v.animated.windmills) hub.rotation.z += dt * 0.9;
@@ -202,6 +211,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       r.village?.dispose();
       r.villagers.dispose();
       r.smoke.dispose();
+      r.sky.dispose();
       r.renderer.dispose();
       rig.current = null;
     },
@@ -246,7 +256,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       const dy = e.translationY - lastPan.current.y;
       lastPan.current = { x: e.translationX, y: e.translationY };
       cam.current.yaw -= dx * 0.008;
-      cam.current.pitch = Math.max(0.35, Math.min(1.25, cam.current.pitch + dy * 0.005));
+      cam.current.pitch = Math.max(0.26, Math.min(1.25, cam.current.pitch + dy * 0.005));
       cam.current.lastTouch = Date.now();
     });
   const lastScale = useRef(1);
