@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 22 backend + frontend verification GREEN. Backend: 11 passed + 1 initially skipped (queue-full, then reproduced after waiting) — all 4 geometry unit tests (tests/test_sentinel_geometry.py) pass; all 8 e2e checks in tests/test_iteration_22.py pass against the public URL with the demo JWT. Verified: (a) GET /api/worlds/world_1/settlements/stl_0484bd7cfcbd40dd/sentinels returns keys sentinels/natural/outer_unlocked/garrison_cap/command_level, with outer_unlocked=true, 4 INNER GUARDED (N/E/S/W) + OUTER N/NE BUILDING, plus 'N' appearing twice with rings INNER and OUTER. (b) POST {direction:'N'} → 409 SENTINEL_SLOT_TAKEN, POST {direction:'N', ring:'OUTER'} → 409 SENTINEL_SLOT_TAKEN, POST {direction:'XX'} → 400 INVALID_DIRECTION. (c) POST {direction:'SE', ring:'OUTER'} → 200 (after the two pre-existing OUTER N + NE construction jobs completed and freed a queue slot); GET now returns 7 sentinels with SE state BUILDING at (11,193). (d) GET /api/worlds/world_2/settlements/{demo_stl}/sentinels → 200 with natural=[]. (e) GET /api/worlds/world_1/map/chunk/0/5 → 200 with sentinels[] carrying the demo towers at (6,185),(9,188),(6,191),(3,188),(6,183),(11,183); every entry has ring and state. Frontend (390x844 Playwright, demo login → world_1 → daily-close → /sentinels): (1) sentinels-screen renders 4 inner buttons sentinel-build-N/E/S/W all opacity 0.4 with text ending '✓', and 8 outer buttons sentinel-build-outer-N/NE/E/SE/S/SW/W/NW where OUTER N, NE and SE (built during this run) are dimmed with '✓' while E/S/SW/W/NW are enabled. (2) The Stato section lists rows like 'N · r3 · 6,185' GUARDED, 'S · r3 · 6,191' GUARDED, 'W · r3 · 3,188' GUARDED, 'NE · r5 · 11,183' GRACE (Fanteria 120/661 for inners), 'N · r5 · 6,183' GRACE, 'SE · r5 · 11,193' BUILDING. Both 'N · r3' and 'N · r5' present (same direction, different rings). (3) /city (WebGL warmup 10s) shows the walled town with hills/sky, castle center with brazier torches, and the little pale spires/sentinel scaffolds around the castle circle (visible in iter22_city.jpg). Tapping the castle center → city-picked-name shows exactly 'Castello / Fortezza' (iter22_city_picked.jpg); city-back returns. (4) The Città tab body contains the localized string 'Sentinelle SE · r5' and does NOT contain the raw 'SENTINEL:OUTER:SE' — queue label is properly localized. (5) Console: 0 non-whitelisted errors across the full flow. (One 'GO_BACK not handled by any navigator' warning appeared, but that was a Playwright test artifact caused by using page.goto('/city') to skip the tab stack — not a real bug and not observed when navigating through tabs.)",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/worlds/{world_id}/settlements/{stl}/sentinels", "issue": "First POST OUTER SE returned 409 REJECT_QUEUE_FULL because the demo seed leaves both construction queues busy with the two BUILDING OUTER N + OUTER NE jobs (~3 min remaining). Endpoint correctly enforces the queue limit. Test re-ran successfully after the jobs completed. Consider bumping queues_per_settlement or scheduling the SE POST in a separate settlement if the test needs to be re-run repeatedly."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_22.py",
+    "/app/backend/tests/test_sentinel_geometry.py",
+    "/app/test_reports/pytest/iter22.xml",
+    "/app/test_reports/screens/iter22_sentinels_top.jpg",
+    "/app/test_reports/screens/iter22_sentinels_bottom.jpg",
+    "/app/test_reports/screens/iter22_city.jpg",
+    "/app/test_reports/screens/iter22_city_picked.jpg"
+  ],
+  "action_items": [
+    "INFO: Iteration 22 (natural boundary, 12 sentinel slots, city 3D towers, Città queue label) is verified end-to-end. No fixes required from main agent.",
+    "OPTIONAL: If further re-runs of the OUTER SE POST are needed on the demo, either wait for BUILDING jobs to finish (~3 min) or delete/reset the SE sentinel via QA — this is a data-state consideration only."
+  ],
+  "critical_code_review_comments": [
+    "app/domain/sentinels.py: 12-slot model (INNER cardinals + OUTER all 8) with ring_for defaulting cardinals to INNER and diagonals always OUTER is correctly enforced both in start_build and in the pytest geometry tests.",
+    "natural_directions correctly checks water (grid[y,x]==3) OR off-map (returns eligible=False for OUTER when advanced_perimeter research is missing) and correctly excludes mountains (grid==2). sync_natural_boundaries claims tiles with source NATURAL:<sid>:<ring>:<dir>, matching Bible §14.",
+    "start_build returns ApiError('NATURAL_BOUNDARY', 409) when the slot tile is water or off-map instead of trying to charge resources — good defensive path; also calls sync_natural_boundaries before the 409 so the sector is claimed even if the client requested a tower.",
+    "Frontend /sentinels correctly disables INNER buttons when ring:INNER + direction is taken and OUTER buttons when ring:OUTER + direction is taken (independent keys 'INNER:N' vs 'OUTER:N'), and the localized Città queue label transforms SENTINEL:OUTER:SE → 'Sentinelle SE · r5' (not the raw target string)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_22.py",
+    "/app/test_reports/iteration_22.json",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "success_rate": {"backend": "12/12 (100%) — 4 unit + 8 e2e (SE POST verified after queue freed)", "frontend": "4/4 flows verified with 0 non-whitelisted console errors"},
+  "seed_data_creation": "POST OUTER SE created a new BUILDING sentinel sen_* at (11,193) on demo world_1/stl_0484bd7cfcbd40dd. This consumes ~210/330/300/180/24 of demo resources and occupies 1 construction queue for 18 min.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 22 verified. To repeat POST OUTER SE, wait until the current BUILDING SE completes (or remove it via QA). Public URL: https://empire-lords-dragon.preview.emergentagent.com. Auth: field is access_token (NOT token) in POST /api/auth/login response. Sentinel slot label transform: 'SENTINEL:INNER:N' → 'Sentinelle N · r3', 'SENTINEL:OUTER:SE' → 'Sentinelle SE · r5'. Direct URL navigation to /city works but bypasses the tab stack (city-back triggers a harmless GO_BACK warning when there is no parent); prefer tab-settlement → settlement-village-expand for real user flows.",
+  "rca_of_issue": "N/A — no defects found. The single test skip on first run (POST OUTER SE returning 409 REJECT_QUEUE_FULL) was correct behaviour caused by the demo seed already having both construction queues occupied by OUTER N + OUTER NE BUILDING jobs. After waiting ~220s for the jobs to complete, POST OUTER SE returned 200 as expected and GET showed 7 sentinels."
+}

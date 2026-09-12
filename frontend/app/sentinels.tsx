@@ -19,7 +19,7 @@ const useStyles = makeStyles((c) => ({
 }));
 
 const INNER = ["N", "E", "S", "W"];
-const OUTER = ["NE", "SE", "SW", "NW"];
+const OUTER = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 export default function SentinelsScreen() {
   const s = useStyles();
@@ -33,12 +33,33 @@ export default function SentinelsScreen() {
   const { showError, show } = useToast();
   if (!worldId || !settlementId) return null;
   const cmd = settlement.data?.buildings?.["Comando Sentinelle"] ?? 0;
-  const taken = new Set((q.data?.sentinels ?? []).map((x) => x.direction));
-  const build = (dir: string) =>
+  const it = lang === "it";
+  const taken = new Set((q.data?.sentinels ?? []).map((x) => `${x.ring}:${x.direction}`));
+  const natural = new Map((q.data?.natural ?? []).map((n) => [`${n.ring}:${n.direction}`, n]));
+  const outerUnlocked = !!q.data?.outer_unlocked;
+  const build = (direction: string, ring: "INNER" | "OUTER") =>
     m.buildSentinel
-      .mutateAsync(dir)
-      .then(() => show(`${t("buildSentinel")} ${dir}`, "success"))
+      .mutateAsync({ direction, ring })
+      .then(() => show(`${t("buildSentinel")} ${direction}`, "success"))
       .catch(showError);
+  const slotGrid = (dirs: string[], ring: "INNER" | "OUTER", locked: boolean) => (
+    <View style={s.grid}>
+      {dirs.map((dir) => {
+        const key = `${ring}:${dir}`;
+        const nat = natural.get(key);
+        const disabled = locked || taken.has(key) || !!nat || cmd < 1 || m.buildSentinel.isPending;
+        return (
+          <Pressable key={key} style={[s.dir, (taken.has(key) || locked) && { opacity: 0.4 }, nat && { borderColor: colors.info, backgroundColor: colors.glass }]} disabled={disabled} onPress={() => build(dir, ring)} testID={ring === "INNER" ? `sentinel-build-${dir}` : `sentinel-build-outer-${dir}`}>
+            <Icon name={nat ? "waves" : "tower-fire"} size={18} color={nat ? colors.info : colors.brandPrimary} />
+            <T v="body">
+              {dir} · {ring === "INNER" ? "r3" : "r5"}
+              {nat ? (it ? " · confine naturale" : " · natural boundary") : taken.has(key) ? " ✓" : ""}
+            </T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
   return (
     <Screen
@@ -61,19 +82,29 @@ export default function SentinelsScreen() {
             <T v="caption">{lang === "it" ? "Nessun HP, nessuna mura. Senza presidio: grazia 24h poi rimozione." : "No HP, no walls. Unguarded: 24h grace, then removal."}</T>
           </Panel>
           <T v="heading">{t("buildSentinel")}</T>
-          <View style={s.grid}>
-            {[...INNER, ...OUTER].map((dir) => (
-              <Pressable key={dir} style={[s.dir, taken.has(dir) && { opacity: 0.4 }]} disabled={taken.has(dir) || cmd < 1 || m.buildSentinel.isPending} onPress={() => build(dir)} testID={`sentinel-build-${dir}`}>
-                <Icon name="tower-fire" size={18} color={colors.brandPrimary} />
-                <T v="body">
-                  {dir} {INNER.includes(dir) ? "· r3" : "· r5"}
-                </T>
-              </Pressable>
-            ))}
-          </View>
+          <T v="caption">{it ? "Anello interno · 4 Sentinelle a raggio 3: ognuna possiede uno spicchio del quadrato 7×7 intorno al castello." : "Inner ring · 4 Sentinels at radius 3: each owns a wedge of the 7×7 square around the castle."}</T>
+          {slotGrid(INNER, "INNER", false)}
+          <T v="caption">{it ? `Anello esterno · 8 Sentinelle a raggio 5 (fascia 4–5, fino a 11×11)${outerUnlocked ? "" : " — richiede la ricerca Perimetro Avanzato"}.` : `Outer ring · 8 Sentinels at radius 5 (band 4–5, up to 11×11)${outerUnlocked ? "" : " — requires the Perimetro Avanzato research"}.`}</T>
+          {slotGrid(OUTER, "OUTER", !outerUnlocked)}
+          {natural.size > 0 ? (
+            <Panel testID="sentinels-natural-panel">
+              <Row style={{ gap: 6 }}>
+                <Icon name="waves" size={18} color={colors.info} />
+                <T v="body">{it ? "Confine naturale" : "Natural boundary"}</T>
+              </Row>
+              <T v="caption">
+                {it
+                  ? "Dove la torre cadrebbe in acqua (o fuori mappa) la Sentinella non serve: quel settore è tuo senza costruire nulla, non ha presidio e non scade. La montagna non è un confine naturale."
+                  : "Where the tower would stand on water (or off the map) no Sentinel is needed: that sector is yours with nothing to build, no garrison and no expiry. Mountains are never a natural boundary."}
+              </T>
+              <T v="caption">
+                {[...natural.values()].map((n) => `${n.direction} (${n.ring === "INNER" ? "r3" : "r5"})${n.eligible ? "" : it ? " · non ancora attivo" : " · not yet active"}`).join(" · ")}
+              </T>
+            </Panel>
+          ) : null}
           {cmd < 1 ? (
             <T v="caption" style={{ color: colors.warning }}>
-              {lang === "it" ? "Richiede Comando Sentinelle (insediamento L3)." : "Requires Comando Sentinelle (settlement L3)."}
+              {it ? "Richiede Comando Sentinelle (insediamento L3)." : "Requires Comando Sentinelle (settlement L3)."}
             </T>
           ) : null}
           <T v="heading">{t("state")}</T>
@@ -82,7 +113,7 @@ export default function SentinelsScreen() {
             <Panel key={sen.sentinel_id} style={s.card} testID={`sentinel-card-${sen.sentinel_id}`}>
               <Row style={{ justifyContent: "space-between" }}>
                 <T v="heading">
-                  {sen.direction} · {sen.x},{sen.y}
+                  {sen.direction} · {sen.ring === "OUTER" ? "r5" : "r3"} · {sen.x},{sen.y}
                 </T>
                 <StatePill state={sen.state} testID={`sentinel-${sen.sentinel_id}-state`} />
               </Row>

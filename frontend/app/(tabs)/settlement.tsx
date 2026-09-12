@@ -271,7 +271,11 @@ export function JobLine({ job, onCancel }: { job: JobDto; onCancel?: () => void 
   const { colors } = useTheme();
   const { t } = useI18n();
   const s = useStyles();
-  const label = job.kind === "SETTLEMENT_UPGRADE" ? `${t("upgradeSettlement")} → L${job.target_level}` : job.kind === "RECRUIT" || job.kind === "SHIP" ? `${job.target} ×${job.count}` : `${job.target}${job.target_level ? ` → L${job.target_level}` : ""}`;
+  const sentinelLabel = (target: string) => {
+    const parts = target.split(":"); // SENTINEL:<ring>:<dir> (legacy jobs: SENTINEL:<dir>)
+    return `${t("sentinels")} ${parts[parts.length - 1]} · ${parts[1] === "OUTER" ? "r5" : "r3"}`;
+  };
+  const label = job.kind === "SETTLEMENT_UPGRADE" ? `${t("upgradeSettlement")} → L${job.target_level}` : job.kind === "RECRUIT" || job.kind === "SHIP" ? `${job.target} ×${job.count}` : job.kind === "SENTINEL_BUILD" ? sentinelLabel(job.target ?? "") : `${job.target}${job.target_level ? ` → L${job.target_level}` : ""}`;
   return (
     <View style={s.jobRow} testID={`job-${job.job_id}`}>
       <Row style={{ justifyContent: "space-between" }}>

@@ -132,8 +132,8 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       const sun = new THREE.DirectionalLight(0xfff3dc, 2.05);
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024);
-      sun.shadow.camera.left = sun.shadow.camera.bottom = -10;
-      sun.shadow.camera.right = sun.shadow.camera.top = 10;
+      sun.shadow.camera.left = sun.shadow.camera.bottom = -13;
+      sun.shadow.camera.right = sun.shadow.camera.top = 13;
       sun.shadow.camera.near = 1;
       sun.shadow.camera.far = 80;
       sun.shadow.normalBias = 0.03;
@@ -171,7 +171,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
         applyDaylight(r, serverNow());
         // camera: slow auto-orbit until the Player touches the scene; first frame frames the whole walled town
         const c = cam.current;
-        if (!c.dist && r.village) c.dist = (r.village.wallR * 1.55 + 1.2) * (camera.aspect < 0.8 ? 1.3 : 1);
+        if (!c.dist && r.village) c.dist = (r.village.wallR * 2.2 + 2) * (camera.aspect < 0.8 ? 1.5 : 0.85);
         if (c.auto || nowMs - c.lastTouch > 6000) c.yaw += dt * 0.08;
         const cp = Math.cos(c.pitch);
         const ty = 0.55;
@@ -193,6 +193,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
             v.animated.boat.position.y = 0.02 + Math.sin(t * 1.3) * 0.008;
             v.animated.boat.rotation.z = Math.sin(t * 1.1) * 0.04;
           }
+          v.tick(t, r.night);
         }
         renderer.render(scene, camera);
         gl.endFrameEXP();
@@ -272,7 +273,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       lastScale.current = e.scale;
       const v = rig.current?.village;
       const min = 3.5;
-      const max = (v?.wallR ?? 6) * 2.4 + 4;
+      const max = (v?.wallR ?? 6) * 3.8 + 8;
       cam.current.dist = Math.max(min, Math.min(max, cam.current.dist / f));
       cam.current.lastTouch = Date.now();
     });

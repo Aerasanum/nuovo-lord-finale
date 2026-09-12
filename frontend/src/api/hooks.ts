@@ -275,6 +275,9 @@ export type SentinelDto = {
   faction?: string;
 };
 
+/** Bible §14 Natural Boundary: a Sentinel slot on water / off the map — the sector is owned without a tower. */
+export type NaturalSlotDto = { direction: string; ring: "INNER" | "OUTER"; x: number; y: number; off_map: boolean; eligible: boolean; tiles?: number };
+
 export type InboxItem = {
   notification_id: string;
   event: string;
@@ -370,7 +373,7 @@ export function useArmy(worldId?: string | null, sid?: string | null) {
 }
 
 export function useSentinels(worldId?: string | null, sid?: string | null) {
-  return useQuery<{ sentinels: SentinelDto[]; garrison_cap: number; command_level: number }>({
+  return useQuery<{ sentinels: SentinelDto[]; natural: NaturalSlotDto[]; outer_unlocked: boolean; garrison_cap: number; command_level: number }>({
     queryKey: qk.sentinels(worldId || "", sid || ""),
     queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/sentinels`),
     enabled: !!worldId && !!sid,
@@ -497,7 +500,7 @@ export function useSettlementMutations(worldId: string, sid: string) {
   const cancelJob = useMutation({ mutationFn: (jobId: string) => post(`/worlds/${worldId}/jobs/${jobId}/cancel`, {}), onSettled: invalidate });
   const startResearch = useMutation({ mutationFn: (key: string) => post(`/worlds/${worldId}/settlements/${sid}/research/${encodeURIComponent(key)}/start`, { idempotency_key: idem() }), onSettled: invalidate });
   const recruit = useMutation({ mutationFn: (v: { unit: string; count: number }) => post(`/worlds/${worldId}/settlements/${sid}/recruit`, { ...v, idempotency_key: idem() }), onSettled: invalidate });
-  const buildSentinel = useMutation({ mutationFn: (direction: string) => post(`/worlds/${worldId}/settlements/${sid}/sentinels`, { direction, idempotency_key: idem() }), onSettled: invalidate });
+  const buildSentinel = useMutation({ mutationFn: (slot: { direction: string; ring: "INNER" | "OUTER" }) => post(`/worlds/${worldId}/settlements/${sid}/sentinels`, { direction: slot.direction, ring: slot.ring, idempotency_key: idem() }), onSettled: invalidate });
   return { upgradeBuilding, upgradeSettlement, cancelJob, startResearch, recruit, buildSentinel, invalidate };
 }
 

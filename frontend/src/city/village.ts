@@ -18,6 +18,7 @@ import { hat, settlementScale } from "../map3d/castle";
 import { disposeGroup, type EntityFactory } from "../map3d/entities";
 import type { SmokeEmitter } from "../map3d/smoke";
 import { type CityTextures, makeCityTextures } from "./cityTextures";
+import { buildSentinelTowers, type SentinelSlot } from "./sentinelTowers";
 
 export type VillageInput = {
   settlementId: string;
@@ -30,6 +31,8 @@ export type VillageInput = {
   crest: CrestDto | null;
   portEligible: boolean;
   terrain: string;
+  /** Sentinel slots to show around the walls (feature "Vista Sentinelle Città"; omit/empty → nothing drawn) */
+  sentinelSlots?: SentinelSlot[];
 };
 
 export type VillageAnchor = { name: string; x: number; z: number; r: number; level: number };
@@ -46,6 +49,8 @@ export type Village = {
   animated: { windmills: THREE.Object3D[]; crystal: THREE.Object3D | null; boat: THREE.Object3D | null; flags: THREE.Mesh[] };
   nightMats: THREE.MeshStandardMaterial[];
   pickables: THREE.Object3D[];
+  /** per-frame hooks of optional extras (sentinel towers: fire flicker, flags) */
+  tick: (t: number, night: number) => void;
   dispose: () => void;
 };
 
@@ -1152,6 +1157,10 @@ export function buildVillage(input: VillageInput, factory: EntityFactory, factio
 
   for (const m of P.build(mats)) group.add(m);
 
+  // ---- Sentinel towers around the walls (optional feature, self-contained in sentinelTowers.ts)
+  const towers = input.sentinelSlots?.length ? buildSentinelTowers(input.sentinelSlots, { wallR: R3, groundY, faction, tx: textures() }) : null;
+  if (towers) group.add(towers.group);
+
   // ---- animated pieces
   const animated: Village["animated"] = { windmills: [], crystal: null, boat: null, flags };
   const fLvl = built("Fattoria");
@@ -1228,6 +1237,11 @@ export function buildVillage(input: VillageInput, factory: EntityFactory, factio
       (f.material as THREE.Material).dispose();
     }
     for (const m of Object.values(mats)) m.dispose();
+    towers?.dispose();
   };
-  return { group, anchors: anchors.filter((a) => a.name), emitters, waypoints, ring: R1, wallR: R3, gate, farm, animated, nightMats, pickables, dispose };
+  const tick = (t: number, night: number) => {
+    towers?.tick(t, night);
+    for (let i = 0; i < flags.length; i++) flags[i].rotation.y = Math.sin(t * 2.2 + i * 1.3) * 0.3;
+  };
+  return { group, anchors: anchors.filter((a) => a.name), emitters, waypoints, ring: R1, wallR: R3, gate, farm, animated, nightMats, pickables, tick, dispose };
 }

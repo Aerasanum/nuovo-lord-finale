@@ -63,6 +63,61 @@ def sector_tiles_for(doc: dict, sentinel: dict) -> list[tuple[int, int]]:
     return sector_tiles((doc["x"], doc["y"]), sentinel["direction"], sentinel["ring"], int(t["inner_sentinel_radius_tiles"]), int(t["outer_sentinel_radius_tiles"]))
 
 
+def ring_for(direction: str, ring: str | None) -> str:
+    """12 slots per settlement (Bible §14): 4 INNER (N/E/S/W @ r3) + 8 OUTER (all directions @ r5). Diagonals are always
+    OUTER; cardinals default to INNER unless the OUTER ring is asked for explicitly."""
+    if direction not in INNER:
+        return "OUTER"
+    return "OUTER" if (ring or "").upper() == "OUTER" else "INNER"
+
+
+def slot_of(doc: dict, direction: str, ring: str) -> tuple[int, int, int]:
+    """(x, y, radius) of the Sentinel slot facing `direction` on `ring`."""
+    t = get_spec().territory
+    radius = int(t["inner_sentinel_radius_tiles" if ring == "INNER" else "outer_sentinel_radius_tiles"])
+    dx, dy = DIRS[direction]
+    return doc["x"] + dx * radius, doc["y"] + dy * radius, radius
+
+
+def all_slots() -> list[tuple[str, str]]:
+    return [(d, "INNER") for d in INNER] + [(d, "OUTER") for d in DIRS]
+
+
+def natural_directions(doc: dict, grid) -> list[dict]:
+    """Bible §14 Natural Boundary: only WATER (impassable on foot) or the map edge can replace the physical Sentinel —
+    mountains never. A direction whose slot tile is water/out of map needs no tower: its sector is a natural boundary.
+    Eligibility mirrors the build gates (inner ring: Comando Sentinelle; outer ring: Perimetro Avanzato)."""
+    cmd = int((doc.get("buildings") or {}).get("Comando Sentinelle", 0))
+    outer_ok = F.rget(doc.get("research", {}), "sentinel.advanced_perimeter") >= 1
+    out = []
+    for direction, ring in all_slots():
+        x, y, _r = slot_of(doc, direction, ring)
+        off_map = not (0 <= x < grid.shape[1] and 0 <= y < grid.shape[0])
+        if not (off_map or int(grid[y, x]) == 3):
+            continue
+        eligible = cmd >= 1 and (ring == "INNER" or outer_ok)
+        out.append({"direction": direction, "ring": ring, "x": x, "y": y, "off_map": off_map, "eligible": eligible})
+    return out
+
+
+async def sync_natural_boundaries(doc: dict) -> list[dict]:
+    """Claim (idempotently) the land tiles of every eligible natural-boundary sector as `NATURAL:<settlement>:<dir>`.
+    Water stays unowned (claim_tiles skips it); nothing to garrison, nothing expires. Returns the natural slots."""
+    grid = await load_terrain(doc["world_id"])
+    nat = natural_directions(doc, grid)
+    if not doc.get("owner_player_id"):
+        return nat
+    t = get_spec().territory
+    for n in nat:
+        src = f"NATURAL:{doc['_id']}:{n['ring']}:{n['direction']}"
+        if not n["eligible"]:
+            continue
+        tiles = sector_tiles((doc["x"], doc["y"]), n["direction"], n["ring"], int(t["inner_sentinel_radius_tiles"]), int(t["outer_sentinel_radius_tiles"]))
+        await territory.claim_tiles(doc["world_id"], tiles, doc["owner_player_id"], doc["_id"], src)
+        n["tiles"] = await db().territory_tiles.count_documents({"world_id": doc["world_id"], "source": src})
+    return nat
+
+
 def _combat_capable(garrison: dict[str, int]) -> bool:
     spec = get_spec()
     return any(int(c) >= 1 and spec.units_by_name[u]["atk"] > 0 for u, c in garrison.items())
@@ -86,12 +141,13 @@ def dto(s: dict) -> dict:
     }
 
 
-async def start_build(doc: dict, player: dict, direction: str, idempotency_key: str | None) -> dict:
+async def start_build(doc: dict, player: dict, direction: str, idempotency_key: str | None, ring: str | None = None) -> dict:
     spec = get_spec()
     sr = spec.sentinel_runtime
     direction = direction.upper()
     if direction not in DIRS:
         raise ApiError("INVALID_DIRECTION", "Direction must be one of N,NE,E,SE,S,SW,W,NW", 400)
+    ring = ring_for(direction, ring)
     if idempotency_key:
         existing = await db().jobs.find_one({"world_id": doc["world_id"], "player_id": player["_id"], "idempotency_key": idempotency_key})
         if existing:
@@ -99,26 +155,25 @@ async def start_build(doc: dict, player: dict, direction: str, idempotency_key: 
     cmd = int(doc["buildings"].get("Comando Sentinelle", 0))
     if cmd < 1:
         raise ApiError("SENTINEL_COMMAND_REQUIRED", "Comando Sentinelle required", 409)
-    ring = "INNER" if direction in INNER else "OUTER"
     if ring == "OUTER" and F.rget(doc.get("research", {}), "sentinel.advanced_perimeter") < 1:
         raise ApiError("ADVANCED_PERIMETER_REQUIRED", "Outer ring requires sentinel.advanced_perimeter", 409)
-    radius = int(spec.territory["inner_sentinel_radius_tiles" if ring == "INNER" else "outer_sentinel_radius_tiles"])
-    dx, dy = DIRS[direction]
-    x, y = doc["x"] + dx * radius, doc["y"] + dy * radius
+    x, y, _radius = slot_of(doc, direction, ring)
     grid = await load_terrain(doc["world_id"])
     if not (0 <= x < grid.shape[1] and 0 <= y < grid.shape[0]) or int(grid[y, x]) == 3:
-        raise ApiError("SENTINEL_TILE_INVALID", "Sentinel slot is water or out of map", 409, {"x": x, "y": y})
+        # Bible §14 Natural Boundary: water / map edge replaces the physical Sentinel — the sector is already yours
+        await sync_natural_boundaries(doc)
+        raise ApiError("NATURAL_BOUNDARY", "Water (or the map edge) is a natural boundary here: no sentinel needed", 409, {"x": x, "y": y, "direction": direction})
     owner = await territory.owner_of_tile(doc["world_id"], x, y)
     if owner and owner != player["_id"]:
         raise ApiError("TILE_OWNED_BY_OTHER", "Tile belongs to another player", 409)
-    if await db().sentinels.find_one({"world_id": doc["world_id"], "settlement_id": doc["_id"], "direction": direction, "state": {"$ne": "REMOVED"}}):
+    if await db().sentinels.find_one({"world_id": doc["world_id"], "settlement_id": doc["_id"], "direction": direction, "ring": ring, "state": {"$ne": "REMOVED"}}):
         raise ApiError("SENTINEL_SLOT_TAKEN", "A sentinel already exists in this direction", 409)
     if await db().sentinels.find_one({"world_id": doc["world_id"], "x": x, "y": y, "state": {"$ne": "REMOVED"}}):
         raise ApiError("SENTINEL_TILE_TAKEN", "Tile already hosts a sentinel", 409)
     cost = {r: int(sr["construction_cost"][r]) for r in F.RES}
     minutes = int(sr["construction_time_min"])  # fixed, no early-game discount
     queues = int(spec.construction_runtime["queues_per_settlement"])
-    target = f"SENTINEL:{direction}"
+    target = f"SENTINEL:{ring}:{direction}"
     flt: dict = {"_id": doc["_id"], "construction_active": {"$not": {"$gte": queues}}, "busy_targets": {"$ne": target}}
     inc: dict = {"construction_active": 1}
     for r, v in cost.items():

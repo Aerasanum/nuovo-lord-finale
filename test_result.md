@@ -841,3 +841,27 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots: world_2 map renders (home 534,546; Piramide at 301,301; minimap 600); world_1 home shows the 7x7 wedge territory with 4 sentinels."
+
+# ---- iteration 22 (main agent) — Natural boundary (water replaces the Sentinel), 12 sentinel slots, 3D sentinel towers in the city ----
+backend:
+  - task: "12 slots (4 INNER cardinals r3 + 8 OUTER all dirs r5): POST /worlds/{w}/settlements/{s}/sentinels {direction, ring?}; GET returns {sentinels, natural[], outer_unlocked, garrison_cap, command_level}; natural boundary sectors claimed as NATURAL:<sid>:<ring>:<dir> when the slot tile is water/off-map (mountain never); building on water → 409 NATURAL_BOUNDARY."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/sentinels.py, backend/app/api/routes_game.py, backend/tests/test_sentinel_geometry.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Demo home world_1 now has 4 inner GUARDED + outer N and NE BUILDING (Perimetro Avanzato granted via QA). pytest geometry tests pass (4)."
+frontend:
+  - task: "/sentinels screen: inner grid (sentinel-build-{dir}) + outer grid (sentinel-build-outer-{dir}, locked without research) + natural-boundary panel (sentinels-natural-panel); city 3D: sentinel towers around the walls per state (src/city/sentinelTowers.ts) + camera farther by default."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/sentinels.tsx, frontend/src/city/sentinelTowers.ts, village.ts, useVillageInput.ts, CityScene.tsx, app/(tabs)/settlement.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots: sentinels screen shows 4+8 slots with ✓ on built; city shows towers with lit braziers + empty slot posts outside the walls."

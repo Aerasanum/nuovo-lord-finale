@@ -238,18 +238,26 @@ async def ships(world_id: str, settlement_id: str, body: ShipsIn, c: Ctx = Depen
 # --------------------------------------------------------------------------- sentinels
 class SentinelIn(IdemIn):
     direction: str
+    ring: str | None = None  # INNER | OUTER — cardinals default to INNER, diagonals are always OUTER
 
 
 @router.get("/worlds/{world_id}/settlements/{settlement_id}/sentinels")
 async def list_sentinels(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
     doc = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
-    return {"sentinels": await sentinels.list_for_settlement(world_id, doc["_id"]), "garrison_cap": F.sentinel_garrison_cap(int(doc["buildings"].get("Comando Sentinelle", 0))), "command_level": int(doc["buildings"].get("Comando Sentinelle", 0))}
+    natural = await sentinels.sync_natural_boundaries(doc)  # Bible §14: water/map edge sectors are owned without a tower
+    return {
+        "sentinels": await sentinels.list_for_settlement(world_id, doc["_id"]),
+        "natural": natural,
+        "outer_unlocked": F.rget(doc.get("research", {}), "sentinel.advanced_perimeter") >= 1,
+        "garrison_cap": F.sentinel_garrison_cap(int(doc["buildings"].get("Comando Sentinelle", 0))),
+        "command_level": int(doc["buildings"].get("Comando Sentinelle", 0)),
+    }
 
 
 @router.post("/worlds/{world_id}/settlements/{settlement_id}/sentinels")
 async def build_sentinel(world_id: str, settlement_id: str, body: SentinelIn, c: Ctx = Depends(ctx)):
     doc = await _fresh_settlement(world_id, settlement_id, c.player["_id"])
-    job = await sentinels.start_build(doc, c.player, body.direction, body.idempotency_key)
+    job = await sentinels.start_build(doc, c.player, body.direction, body.idempotency_key, body.ring)
     return {"job": job_dto(job)}
 
 
