@@ -10,7 +10,7 @@ import { Crest } from "@/src/components/Crest";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatCountdown, langKey, regionFlag } from "@/src/game/grandeMondo";
-import { fmt, tDyn, useI18n } from "@/src/i18n";
+import { fmt, LANGS, normalizeLang, tDyn, useI18n } from "@/src/i18n";
 import { queryClient } from "@/src/query-client";
 import { useAuth } from "@/src/state/AuthContext";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -30,12 +30,13 @@ const useStyles = makeStyles((c) => ({
   seats: { fontFamily: fonts.body, fontWeight: "700", color: c.brandPrimary },
   seatsFull: { color: c.error },
   chosen: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: c.surfaceTertiary },
+  langRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44 },
 }));
 
 export default function WorldsScreen() {
   const s = useStyles();
   const { colors } = useTheme();
-  const { t } = useI18n();
+  const { t, lang, setLang } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { account, logout, selectWorld } = useAuth();
@@ -43,13 +44,17 @@ export default function WorldsScreen() {
   const { showError, show } = useToast();
   const [joining, setJoining] = useState<WorldDto | null>(null);
   const [region, setRegion] = useState<GmRegion | null>(null);
+  const [applyLang, setApplyLang] = useState(true);
   const [house, setHouse] = useState("");
   const [busy, setBusy] = useState(false);
 
   const openJoin = (w: WorldDto) => {
     setRegion(null);
+    setApplyLang(true);
     setJoining(w);
   };
+  const regionLang = region ? normalizeLang(region.lang) : null;
+  const regionLangLabel = regionLang ? LANGS.find((l) => l.code === regionLang)?.label ?? regionLang : "";
 
   const enter = async (worldId: string) => {
     await selectWorld(worldId);
@@ -63,6 +68,8 @@ export default function WorldsScreen() {
     try {
       await post(`/worlds/${joining.world_id}/join`, { house_name: house.trim(), ...(region ? { region_code: region.code } : {}) });
       show(t("founded"), "success");
+      // Bibbia GM: the region proposes its language; the player keeps the final say (Settings)
+      if (regionLang && applyLang && regionLang !== lang) setLang(regionLang);
       queryClient.invalidateQueries({ queryKey: qk.worlds });
       const wid = joining.world_id;
       setJoining(null);
@@ -99,14 +106,9 @@ export default function WorldsScreen() {
               <Row style={{ justifyContent: "space-between" }}>
                 <Row style={{ flex: 1 }}>
                   <Icon name={w.grande_mondo ? "earth" : "map"} size={22} color={colors.brandPrimary} />
-                  <T v="heading" style={{ flexShrink: 1 }}>
+                  <T v="heading" style={{ flex: 1 }} numberOfLines={1}>
                     {w.name}
                   </T>
-                  {w.grande_mondo ? (
-                    <View style={s.gmBadge} testID={`world-gm-badge-${w.world_id}`}>
-                      <T style={s.gmBadgeText}>{t("gmTitle").toUpperCase()}</T>
-                    </View>
-                  ) : null}
                 </Row>
                 {w.joined ? (
                   <Row style={{ gap: 6 }}>
@@ -117,6 +119,11 @@ export default function WorldsScreen() {
                   </Row>
                 ) : null}
               </Row>
+              {w.grande_mondo ? (
+                <View style={[s.gmBadge, { alignSelf: "flex-start", marginTop: 6 }]} testID={`world-gm-badge-${w.world_id}`}>
+                  <T style={s.gmBadgeText}>{t("gmTitle").toUpperCase()}</T>
+                </View>
+              ) : null}
               {w.grande_mondo ? (
                 <T v="caption" testID={`world-gm-sub-${w.world_id}`}>
                   {fmt(t("gmWorldSub"), { n: w.grande_mondo.regions.length, size: w.size })} · {w.grande_mondo.phase === "WAR" ? t("gmPhaseWar") : t("gmPhaseIsolation")} · {formatCountdown(w.grande_mondo.seconds_left)}
@@ -177,6 +184,14 @@ export default function WorldsScreen() {
                 </View>
                 <T v="caption" style={{ color: colors.brandPrimary }}>
                   {t("gmBack")}
+                </T>
+              </Pressable>
+            ) : null}
+            {region && regionLang && regionLang !== lang ? (
+              <Pressable style={s.langRow} onPress={() => setApplyLang((v) => !v)} testID="join-apply-lang" accessibilityRole="checkbox" accessibilityState={{ checked: applyLang }}>
+                <Icon name={applyLang ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={colors.brandPrimary} />
+                <T v="caption" style={{ flex: 1 }}>
+                  {fmt(t("gmSetLanguage"), { lang: regionLangLabel })}
                 </T>
               </Pressable>
             ) : null}

@@ -48,7 +48,7 @@ DEFAULTS = {
     "region_size": 600,
     "max_players_per_region": 100,
     "isolation_days": 120,
-    "war_days": 20,
+    "war_days": 30,  # owner decision (Sep 2026): 30 days, the Grande Piramide is ~970 tiles from every regional coast
     "pyramid_hold_hours": 168,
     "fog_gap": 64,  # open sea between two region squares (> caravan search radius 50: no cross-fog detection)
     "margin": 48,  # sea beyond the outer edge of the ring
@@ -284,4 +284,5 @@ def dto(world: dict, player: dict | None = None) -> dict | None:
         "regions": [region_dto(world, r) for r in world.get("regions") or []],
         "center": world.get("center"),
         "my_region": (player or {}).get("region_code"),
+        "view_all": bool((player or {}).get("view_all_regions")),
     }

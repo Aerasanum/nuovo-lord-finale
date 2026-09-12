@@ -8,7 +8,7 @@ import { Crest } from "@/src/components/Crest";
 import { useToast } from "@/src/components/overlay";
 import { Button, Countdown, Icon, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
-import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
+import { formatNumber, type Lang, localeOf, type StringKey, useI18n } from "@/src/i18n";
 import { missionLabel } from "@/src/map3d/MapLabels";
 import { useGame } from "@/src/state/useGame";
 import { radius, spacing, useTheme } from "@/src/theme";
@@ -127,7 +127,7 @@ export function MarchCard({ march, onClose, onRecall }: { march: MarchDto; onClo
 }
 
 /** Cargo / delivered / residue lines of an own caravan (Bible §13: overflow stays on the convoy and returns). */
-function CaravanCargoLines({ march, lang }: { march: MarchDto; lang: "it" | "en" }) {
+function CaravanCargoLines({ march, lang }: { march: MarchDto; lang: Lang }) {
   const { colors } = useTheme();
   const { t } = useI18n();
   const delivered = cargoTotal(march.delivered) > 0;
@@ -268,7 +268,7 @@ export function BattleHistory({ battles, viewerPlayerId, loading }: { battles: B
   const sum = (o: Record<string, number> | undefined | null) => Object.values(o ?? {}).reduce((a, b) => a + (b ?? 0), 0);
   const when = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleDateString(lang === "it" ? "it-IT" : "en-GB", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString(lang === "it" ? "it-IT" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(localeOf(lang), { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString(localeOf(lang), { hour: "2-digit", minute: "2-digit" });
   };
   return (
     <View style={styles.battleWrap} testID="map-selection-battles">

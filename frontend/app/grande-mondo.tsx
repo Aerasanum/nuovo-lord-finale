@@ -77,6 +77,11 @@ export default function GrandeMondoScreen() {
                   {formatCountdown(left)}
                 </T>
                 <ProgressBar value={progress} color={war ? colors.factionEnemy : colors.brandPrimary} />
+                {d.view_all ? (
+                  <T v="caption" style={{ color: colors.brandPrimary }} testID="gm-observer">
+                    {t("gmObserver")}
+                  </T>
+                ) : null}
                 {d.center ? <Button title={`${t("gmCenterPyramid")} · ${t("gmShowOnMap")}`} icon="pyramid" variant="secondary" onPress={() => showOnMap(d.center!.pyramid_anchor[0], d.center!.pyramid_anchor[1])} testID="gm-center-pyramid" /> : null}
               </Panel>
               <Panel style={s.card} testID="gm-rules">
@@ -102,7 +107,7 @@ export default function GrandeMondoScreen() {
             </>
           }
           renderItem={({ item: r }) => (
-            <Pressable style={[s.regionRow, { marginHorizontal: spacing.md }]} onPress={() => showOnMap(r.center[0], r.center[1])} disabled={d.fog_up && r.code !== d.my_region} testID={`gm-region-${r.code}`}>
+            <Pressable style={[s.regionRow, { marginHorizontal: spacing.md }]} onPress={() => showOnMap(r.center[0], r.center[1])} disabled={d.fog_up && !d.view_all && r.code !== d.my_region} testID={`gm-region-${r.code}`}>
               <T style={s.flag}>{regionFlag(r.code)}</T>
               <View style={{ flex: 1 }}>
                 <Row style={{ gap: 6 }}>
@@ -117,7 +122,7 @@ export default function GrandeMondoScreen() {
                   {tDyn(t, langKey(r.lang), r.lang)} · {r.player_count}/{r.player_slots} {t("gmPlayers")}
                 </T>
               </View>
-              {!d.fog_up || r.code === d.my_region ? <Icon name="map-marker-radius" size={20} color={colors.onSurfaceSecondary} /> : <Icon name="weather-fog" size={20} color={colors.muted} />}
+              {!d.fog_up || d.view_all || r.code === d.my_region ? <Icon name="map-marker-radius" size={20} color={colors.onSurfaceSecondary} /> : <Icon name="weather-fog" size={20} color={colors.muted} />}
             </Pressable>
           )}
         />

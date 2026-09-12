@@ -2,7 +2,33 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 import { storage } from "@/src/utils/storage";
 
-export type Lang = "it" | "en";
+import { de, deErrors, deResources } from "./locales/de";
+import { es, esErrors, esResources } from "./locales/es";
+import { fr, frErrors, frResources } from "./locales/fr";
+import { pt, ptErrors, ptResources } from "./locales/pt";
+import { ru, ruErrors, ruResources } from "./locales/ru";
+import { zh, zhErrors, zhResources } from "./locales/zh";
+
+/** Bibbia GM: it, fr, es, de, ru, zh-CN (+ en and pt for the bonus regions). The UI language is independent of the region. */
+export type Lang = "it" | "en" | "fr" | "es" | "de" | "ru" | "zh" | "pt";
+export const LANGS: { code: Lang; label: string; flag: string; locale: string }[] = [
+  { code: "it", label: "Italiano", flag: "🇮🇹", locale: "it-IT" },
+  { code: "en", label: "English", flag: "🇬🇧", locale: "en-GB" },
+  { code: "fr", label: "Français", flag: "🇫🇷", locale: "fr-FR" },
+  { code: "es", label: "Español", flag: "🇪🇸", locale: "es-ES" },
+  { code: "de", label: "Deutsch", flag: "🇩🇪", locale: "de-DE" },
+  { code: "ru", label: "Русский", flag: "🇷🇺", locale: "ru-RU" },
+  { code: "zh", label: "简体中文", flag: "🇨🇳", locale: "zh-CN" },
+  { code: "pt", label: "Português", flag: "🇵🇹", locale: "pt-PT" },
+];
+/** "zh-CN" → "zh", unknown → "en". */
+export function normalizeLang(code: string | null | undefined): Lang {
+  const base = (code || "").toLowerCase().split("-")[0];
+  return (LANGS.find((l) => l.code === base)?.code ?? "en") as Lang;
+}
+export function localeOf(lang: Lang): string {
+  return LANGS.find((l) => l.code === lang)?.locale ?? "en-GB";
+}
 
 const it = {
   appName: "Empire Lords Dragon",
@@ -52,6 +78,23 @@ const it = {
   gmBack: "Cambia regione",
   gmFogChip: "Nebbia",
   gmWarChip: "Guerra",
+  gmSetLanguage: "Imposta la lingua del gioco: {lang}",
+  gmObserver: "Osservatore: vedi tutte le regioni",
+  tpTitle: "Teletrasporto del castello",
+  tpIntro: "Il castello conquistato scambia posto con un castello vuoto della tua regione. Livelli, edifici, ricerche, esercito e risorse restano invariati: cambiano solo le coordinate.",
+  tpPrice: "Costo fisso",
+  tpCandidates: "Castelli vuoti disponibili",
+  tpNoCandidates: "Nessun castello vuoto disponibile nella tua regione.",
+  tpNeedsPort: "Questo castello ha un Porto: sono mostrati solo i castelli vuoti con accesso al mare.",
+  tpBlockedMarches: "Ci sono marce in viaggio da o verso questo castello: attendi che terminino.",
+  tpFromMother: "dal Castello Madre",
+  tpConfirmTitle: "Confermi il teletrasporto?",
+  tpConfirmBody: "{name} si sposterà da {from} a {to} per {price} Rubini. L'operazione è immediata e definitiva.",
+  tpDone: "Castello teletrasportato a {to}",
+  tpMotherHint: "Il Castello Madre non si può teletrasportare: scegli un castello conquistato.",
+  tpChoose: "Scegli",
+  evt_CASTLE_TELEPORTED: "Teletrasporto",
+  tpEvent: "Castello spostato da {from} a {to} ({price} Rubini)",
   region_IT: "Italia",
   region_FR: "Francia",
   region_ES: "Spagna",
@@ -882,6 +925,23 @@ const en: typeof it = {
   gmBack: "Change region",
   gmFogChip: "Fog",
   gmWarChip: "War",
+  gmSetLanguage: "Set the game language: {lang}",
+  gmObserver: "Observer: you see every region",
+  tpTitle: "Castle teleport",
+  tpIntro: "The conquered castle swaps places with an empty castle of your region. Levels, buildings, research, army and resources stay unchanged: only the coordinates move.",
+  tpPrice: "Fixed price",
+  tpCandidates: "Available empty castles",
+  tpNoCandidates: "No empty castle available in your region.",
+  tpNeedsPort: "This castle has a Harbour: only empty castles with sea access are listed.",
+  tpBlockedMarches: "Marches are travelling to or from this castle: wait for them to finish.",
+  tpFromMother: "from the Mother castle",
+  tpConfirmTitle: "Confirm the teleport?",
+  tpConfirmBody: "{name} will move from {from} to {to} for {price} Rubies. The operation is immediate and final.",
+  tpDone: "Castle teleported to {to}",
+  tpMotherHint: "The Mother castle cannot be teleported: pick a conquered castle.",
+  tpChoose: "Choose",
+  evt_CASTLE_TELEPORTED: "Teleport",
+  tpEvent: "Castle moved from {from} to {to} ({price} Rubies)",
   region_IT: "Italy",
   region_FR: "France",
   region_ES: "Spain",
@@ -1663,7 +1723,7 @@ const en: typeof it = {
 };
 
 export type StringKey = keyof typeof it;
-const dict: Record<Lang, typeof it> = { it, en };
+const dict: Record<Lang, Record<StringKey, string>> = { it, en, fr, es, de, ru, zh, pt };
 
 /** Human wording for the most common server error codes (falls back to the raw code/message). */
 export const API_ERRORS: Record<Lang, Record<string, string>> = {
@@ -1671,6 +1731,11 @@ export const API_ERRORS: Record<Lang, Record<string, string>> = {
     FOG_WALL: "Il muro di nebbia blocca ogni movimento fuori dalla tua regione fino alla Guerra delle Regioni.",
     REGION_FULL: "Questa regione ha raggiunto il limite di 100 giocatori: scegline un'altra.",
     REGION_REQUIRED: "Scegli prima una regione del Grande Mondo.",
+    TELEPORT_MOTHER: "Il Castello Madre non si può teletrasportare.",
+    TELEPORT_BUSY: "Ci sono marce in viaggio da o verso questo castello: attendi che terminino.",
+    TELEPORT_SLOT_UNAVAILABLE: "Questo castello vuoto non è più disponibile: scegline un altro.",
+    TELEPORT_NOT_AVAILABLE: "Il teletrasporto esiste solo nel Grande Mondo.",
+    INSUFFICIENT_RUBIES: "Rubini insufficienti.",
     CARAVAN_OUTGOING_MAX: "C'è già una carovana in viaggio da questo insediamento (una sola in uscita per volta).",
     OUTGOING_CAP_REACHED: "Hai già 5 marce in uscita da questo insediamento.",
     INSUFFICIENT_RESOURCES: "Risorse insufficienti.",
@@ -1701,6 +1766,11 @@ export const API_ERRORS: Record<Lang, Record<string, string>> = {
     FOG_WALL: "The fog wall blocks every movement outside your region until the War of the Regions.",
     REGION_FULL: "This region has reached its 100-player limit: pick another one.",
     REGION_REQUIRED: "Choose a region of the Grand World first.",
+    TELEPORT_MOTHER: "The Mother castle cannot be teleported.",
+    TELEPORT_BUSY: "Marches are travelling to or from this castle: wait for them to finish.",
+    TELEPORT_SLOT_UNAVAILABLE: "This empty castle is no longer available: pick another one.",
+    TELEPORT_NOT_AVAILABLE: "Teleport exists only in the Grand World.",
+    INSUFFICIENT_RUBIES: "Not enough Rubies.",
     CARAVAN_OUTGOING_MAX: "A caravan is already travelling from this settlement (only one outgoing at a time).",
     OUTGOING_CAP_REACHED: "This settlement already has 5 outgoing marches.",
     INSUFFICIENT_RESOURCES: "Not enough resources.",
@@ -1727,6 +1797,12 @@ export const API_ERRORS: Record<Lang, Record<string, string>> = {
     TARGET_IS_ALLY: "You cannot attack an ally.",
     RATE_LIMITED: "Too many requests: try again shortly.",
   },
+  fr: frErrors,
+  es: esErrors,
+  de: deErrors,
+  ru: ruErrors,
+  zh: zhErrors,
+  pt: ptErrors,
 };
 
 type Ctx = { lang: Lang; t: (k: StringKey) => string; setLang: (l: Lang) => void };
@@ -1735,13 +1811,13 @@ const I18nContext = createContext<Ctx>({ lang: "it", t: (k) => it[k], setLang: (
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("it");
   useEffect(() => {
-    storage.getItem<string>("eld.lang", "it").then((v) => setLangState(v === "en" ? "en" : "it"));
+    storage.getItem<string>("eld.lang", "it").then((v) => setLangState(v && LANGS.some((l) => l.code === v) ? (v as Lang) : "it"));
   }, []);
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
     storage.setItem("eld.lang", l);
   }, []);
-  const value = useMemo<Ctx>(() => ({ lang, setLang, t: (k) => dict[lang][k] ?? k }), [lang, setLang]);
+  const value = useMemo<Ctx>(() => ({ lang, setLang, t: (k) => dict[lang][k] ?? en[k] ?? k }), [lang, setLang]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
@@ -1772,6 +1848,12 @@ export function unlockLine(t: (k: StringKey) => string, u: { min_settlement_leve
 export const RESOURCE_LABELS: Record<Lang, Record<string, string>> = {
   it: { grain: "Grano", wood: "Legno", clay: "Argilla", iron: "Ferro", gold: "Oro" },
   en: { grain: "Grain", wood: "Wood", clay: "Clay", iron: "Iron", gold: "Gold" },
+  fr: frResources,
+  es: esResources,
+  de: deResources,
+  ru: ruResources,
+  zh: zhResources,
+  pt: ptResources,
 };
 
 export function formatDuration(totalSeconds: number): string {

@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Icon, Panel, Row, T } from "@/src/components/ui";
-import { useI18n } from "@/src/i18n";
+import { LANGS, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { spacing, useTheme } from "@/src/theme";
@@ -68,8 +68,9 @@ export default function SettingsScreen() {
             {t("language")}
           </T>
           <Row>
-            <Chip label="Italiano" selected={lang === "it"} onPress={() => setLang("it")} testID="settings-lang-it" />
-            <Chip label="English" selected={lang === "en"} onPress={() => setLang("en")} testID="settings-lang-en" />
+            {LANGS.map((l) => (
+              <Chip key={l.code} label={`${l.flag} ${l.label}`} selected={lang === l.code} onPress={() => setLang(l.code)} testID={`settings-lang-${l.code}`} />
+            ))}
           </Row>
         </Panel>
 

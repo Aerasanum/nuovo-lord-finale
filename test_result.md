@@ -905,3 +905,27 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots: card Grande Mondo 1 (9 regioni · mega-mappa 3232×3232 · Muro di nebbia · 119g 19h · 🇮🇹 Italia), mappa gm_1 con chip 'Nebbia · 119g 19h · 🇮🇹 IT', minimap regionale, nebbia grigia oltre il confine nord; schermata /grande-mondo con countdown, regole e 9 regioni."
+
+# ---- iteration 26 (main agent) — Sei lingue, Teletrasporto castello (Bibbia GM), Guerra 30 gg, account Osservatore ----
+backend:
+  - task: "teleport.py: GET/POST /worlds/{w}/settlements/{s}/teleport — candidati = PLAYER_SLOT FREE della regione del giocatore (solo port_eligible se il castello ha un Porto), ordinati per distanza dal Castello Madre; POST {slot_id, idempotency_key}: TELEPORT_MOTHER / TELEPORT_BUSY (marce in volo) / TELEPORT_SLOT_UNAVAILABLE / INSUFFICIENT_RUBIES; claim atomico slot→debit 2000 Rubini (ledger TELEPORT_CASTLE, idempotente per key)→swap coordinate (park off-map per unique index)→territorio/riserva slot/sentinelle ri-ancorate→teleport_log + cronaca CASTLE_TELEPORTED + inbox. grande_mondo DEFAULTS war_days 30 (+ gm_1.gm_config.war_days=30); dto.view_all; _fog_zones bypass per players.view_all_regions; scripts/observer_account.py (osservatore@empirelords.com / Demo12345!, gm_1 IT, view_all_regions, 3 castelli, 999.999 Rubini); scripts/translate_i18n.py (LLM gpt-5.4-mini via Emergent key → src/i18n/locales/*.ts)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/teleport.py, grande_mondo.py, backend/app/api/routes_game.py, scripts/observer_account.py, scripts/translate_i18n.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "httpx: mother → 409 TELEPORT_MOTHER; candidates 1 (Porto); teleport 200 from [1442,458] to [1596,618], replay same key → replayed true, same slot again → 409 TELEPORT_SLOT_UNAVAILABLE; chunk: vecchia posizione = PLAYER_SLOT FREE, nuova = PLAYER L14; teleport_log ok; base tiles 4 + riserva 49 tile."
+frontend:
+  - task: "i18n 8 lingue (it en fr es de ru zh pt): locales generati, LANGS/normalizeLang/localeOf, fallback en, selettori login (lang-<code>) e settings (settings-lang-<code>), sheet regione propone la lingua (join-apply-lang checkbox) applicata dopo il join; /teleport (teleport-screen, teleport-price, teleport-candidate-<slot>, teleport-choose-<slot>, teleport-confirm-sheet/-body/-confirm-button/-cancel-button, teleport-mother, teleport-empty) + pulsante settlement-teleport-button (solo GM, castelli non Madre); inbox CASTLE_TELEPORTED; map/grande-mondo rispettano view_all (osservatore senza nebbia); label piramide senza countdown se > 1 anno; card mondi: badge GRANDE MONDO sotto il titolo."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/i18n/index.tsx, src/i18n/locales/*.ts, app/login.tsx, app/settings.tsx, app/worlds.tsx, app/teleport.tsx, app/(tabs)/settlement.tsx, app/(tabs)/inbox.tsx, app/(tabs)/map.tsx, app/grande-mondo.tsx, src/map3d/MapLabels.tsx, src/api/hooks.ts, src/components/MarchCard.tsx"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots: login in francese con 8 pill lingua; card mondi in francese; osservatore vede la mappa senza nebbia (minimap intero mondo) e la Grande Piramide a 1617,1617; schermata teletrasporto con candidato e sheet di conferma."

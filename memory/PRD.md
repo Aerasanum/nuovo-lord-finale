@@ -233,5 +233,13 @@ Vedi `/app/memory/test_credentials.md` (demo@empirelords.com / Demo12345!, admin
 
 ### Prossime fasi Grande Mondo
 - Fase 2: Grande Piramide (controllo regionale, timer 168 h che NON si azzera tra Alleanze della stessa regione, fine anticipata → nebbia, premio) + Piramidi regionali (refactor pyramid.py per chiave world:region).
-- Fase 3: Teletrasporto castello conquistato ↔ castello vuoto della propria regione (2000 Rubini, atomico, idempotente, registro).
-- Fase 4: sei lingue (fr es de ru zh-CN pt + it en) e selettore lingua indipendente dalla regione.
+- Fase 3 (FATTA, iter. 26): Teletrasporto castello.
+- Fase 4 (FATTA, iter. 26): sei lingue + selettore.
+
+
+### Sei lingue + Teletrasporto castello + Guerra 30 gg + Osservatore — iteration 26 — testing agent backend 12/12 + frontend OK
+- **Lingue (Bibbia GM)**: it, en, fr, es, de, ru, zh (zh-CN), pt. Dizionari generati da `backend/scripts/translate_i18n.py` (LLM gpt-5.4-mini via Emergent key, cache `scripts/i18n_cache/`, rieseguibile con `--only-missing` dopo nuove chiavi) in `frontend/src/i18n/locales/<lang>.ts` (chiavi UI + errori API + risorse). `LANGS`, `normalizeLang`, `localeOf`, fallback inglese; selettori con bandiera nel login e in Impostazioni; la scelta della regione propone la sua lingua (checkbox nel foglio di adesione), il giocatore può cambiarla quando vuole senza cambiare regione.
+- **Teletrasporto (Bibbia GM)**: `GET/POST /worlds/{w}/settlements/{s}/teleport` — castello conquistato (mai il Castello Madre) ↔ castello vuoto (slot FREE) della propria regione, 2000 Rubini fissi (ledger `TELEPORT_CASTLE`, idempotente per key), atomico (claim slot → debito → swap), solo slot con accesso al mare se il castello ha un Porto, rifiutato con marce in volo (`TELEPORT_BUSY`). Seguono il castello: territorio base, Sentinelle ri-ancorate (slot in acqua → rimossa, presidio torna in città), confini naturali; la riserva dello slot vuoto va alle vecchie coordinate. Registro `teleport_log`, cronaca e inbox `CASTLE_TELEPORTED`. UI: pulsante ⇄ nella scheda Città (solo GM, castelli non Madre) → `/teleport` con candidati (distanza dal Madre, terreno, ⚓) e foglio di conferma.
+- **Guerra delle Regioni = 30 giorni** (decisione Manuel): `grande_mondo.DEFAULTS.war_days=30` + `gm_1.gm_config.war_days=30`.
+- **Account Osservatore** (`scripts/observer_account.py`): `osservatore@empirelords.com / Demo12345!` — gm_1, regione IT, `view_all_regions` (vede tutte le regioni e la Grande Piramide senza nebbia; camera libera; le regole di movimento restano), home L30 + 2 villaggi, 999.999 Rubini.
+- Nota: dopo un teletrasporto lo slot vuoto (stesso id) si trova alle vecchie coordinate e resta FREE: ri-sceglierlo riporta il castello indietro (altri 2000 Rubini) — comportamento voluto.

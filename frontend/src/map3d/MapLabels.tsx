@@ -48,7 +48,7 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
               <T numberOfLines={1} style={[styles.name, { color: colors.onSurface, fontWeight: "700" }]}>
                 {l.name}
               </T>
-              {l.endsAt ? <Countdown endsAt={l.endsAt} style={[styles.level, { color: accent }]} /> : <T style={[styles.level, { color: accent }]}>{t(l.status === "OPEN" ? "pyramidOpenShort" : "pyramidDormantShort")}</T>}
+              {l.endsAt && new Date(l.endsAt).getTime() - Date.now() < 365 * 86400_000 ? <Countdown endsAt={l.endsAt} style={[styles.level, { color: accent }]} /> : <T style={[styles.level, { color: accent }]}>{t(l.status === "OPEN" ? "pyramidOpenShort" : "pyramidDormantShort")}</T>}
             </View>
           );
         }

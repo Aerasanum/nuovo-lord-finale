@@ -24,6 +24,8 @@ const useStyles = makeStyles((c) => ({
 }));
 
 const EVENT_ICON: Record<string, IconName> = {
+  GRANDE_MONDO_PHASE: "weather-fog",
+  CASTLE_TELEPORTED: "swap-horizontal-bold",
   PYRAMID_STATE_CHANGED: "pyramid",
   PYRAMID_ATTACK_INCOMING: "alert-octagon",
   BUILD_JOB_STATE: "hammer",
@@ -57,7 +59,7 @@ const FILTERS: Record<string, string[] | null> = {
   queues: ["BUILD_JOB_STATE", "SETTLEMENT_UPGRADE_STATE", "RESEARCH_JOB_STATE", "RECRUITMENT_JOB_STATE"],
   marches: ["MARCH_DEPARTED", "MARCH_ARRIVED", "MARCH_RETURNED", "CARAVAN_STATE"],
   alliance: ["ALLIANCE_INVITE", "DIPLOMACY_STATE_CHANGED", "MERCENARY_OFFER", "MERCENARY_CONTRACT_ACTIVE", "MERCENARY_CONTRACT_ENDED", "EMERALD_TREASURY_MOVEMENT", "NEGOTIATION_MESSAGE"],
-  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED"],
+  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED"],
 };
 
 export default function InboxScreen() {
@@ -92,6 +94,8 @@ export default function InboxScreen() {
     switch (n.event) {
       case "GRANDE_MONDO_PHASE":
         return `${p.phase === "WAR" ? t("gmFogFallen") : t("gmFogReturned")} · ${t("gmCycle")} ${p.cycle}`;
+      case "CASTLE_TELEPORTED":
+        return fmt(t("tpEvent"), { from: (p.from ?? []).join(","), to: (p.to ?? []).join(","), price: p.price_rubies ?? 2000 });
       case "BUILD_JOB_STATE":
         return `${p.target ?? t("evt_BUILD_JOB_STATE")}${p.target_level ? ` ${t("level")} ${p.target_level}` : ""} · ${jobState(p.state)}`;
       case "SETTLEMENT_UPGRADE_STATE":

@@ -45,7 +45,7 @@ export default function SettlementScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { selectSettlement } = useAuth();
-  const { worldId, settlementId, settlement, settlements, player, rubies } = useGame();
+  const { worldId, settlementId, settlement, settlements, player, rubies, world } = useGame();
   const buildings = useBuildings(worldId, settlementId);
   const daily = useDaily(worldId);
   const m = useSettlementMutations(worldId ?? "", settlementId ?? "");
@@ -142,6 +142,11 @@ export default function SettlementScreen() {
               </Row>
               <Row>
                 {player?.shield_active ? <Icon name="shield-check" size={22} color={colors.success} /> : null}
+                {world?.kind === "GRANDE_MONDO" && !d.is_mother ? (
+                  <Pressable style={s.hdrBtn} onPress={() => router.push("/teleport")} testID="settlement-teleport-button" accessibilityLabel={t("tpTitle")}>
+                    <Icon name="swap-horizontal-bold" size={22} color={colors.brandPrimary} />
+                  </Pressable>
+                ) : null}
                 <Pressable style={s.hdrBtn} onPress={() => router.push("/skins")} testID="settlement-skins-button" accessibilityLabel={t("castleSkin")}>
                   <Icon name="palette" size={22} color={colors.brandPrimary} />
                 </Pressable>

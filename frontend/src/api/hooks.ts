@@ -347,8 +347,31 @@ export type GrandeMondoDto = {
   regions: GmRegion[];
   center: { x: number; y: number; radius: number; pyramid_anchor: [number, number] } | null;
   my_region: string | null;
+  view_all: boolean;
 };
 export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
+
+export type TeleportCandidate = { slot_id: string; x: number; y: number; terrain: string | null; landmass: string | null; port_eligible: boolean; distance_from_mother: number };
+export type TeleportCandidatesDto = { settlement_id: string; from: [number, number]; region_code: string; mother: [number, number]; price_rubies: number; rubies: number; needs_port: boolean; blocked: string | null; candidates: TeleportCandidate[]; total: number };
+export type TeleportResult = { settlement_id: string; from: [number, number]; to: [number, number]; x: number; y: number; price_rubies: number; rubies: number; replayed: boolean };
+
+export function useTeleportCandidates(worldId?: string | null, sid?: string | null, enabled = true) {
+  return useQuery<TeleportCandidatesDto>({ queryKey: ["teleport", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/teleport`), enabled: !!worldId && !!sid && enabled });
+}
+
+export function useTeleportMutation(worldId: string, sid: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (slot_id: string) => post<TeleportResult>(`/worlds/${worldId}/settlements/${sid}/teleport`, { slot_id, idempotency_key: idem() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.me(worldId) });
+      qc.invalidateQueries({ queryKey: ["settlement"] });
+      qc.invalidateQueries({ queryKey: ["teleport"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+      qc.invalidateQueries({ queryKey: qk.sentinels(worldId, sid) });
+    },
+  });
+}
 
 export function useGrandeMondo(worldId?: string | null, enabled = true) {
   return useQuery<GrandeMondoDto & { server_time: string }>({ queryKey: ["grande-mondo", worldId || ""], queryFn: () => get(`/worlds/${worldId}/grande-mondo`).then(sync), enabled: !!worldId && enabled, refetchInterval: 30000 });

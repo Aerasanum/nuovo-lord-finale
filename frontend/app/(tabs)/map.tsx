@@ -83,7 +83,8 @@ export default function MapScreen() {
   // Grande Mondo: while the fog wall is up the map is confined to the active settlement's region (Bibbia GM)
   const gm = world?.grande_mondo ?? null;
   const myRegion = useMemo(() => (active ? regionAt(gm, active.x, active.y) : null) ?? regionByCode(gm, gm?.my_region), [gm, active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
-  const viewBounds = useMemo(() => (gm?.fog_up && myRegion ? regionBounds(myRegion) : null), [gm?.fog_up, myRegion]);
+  const fogView = !!gm?.fog_up && !gm?.view_all; // observers (QA) see the whole Grande Mondo
+  const viewBounds = useMemo(() => (fogView && myRegion ? regionBounds(myRegion) : null), [fogView, myRegion]);
   const gmLeft = secondsLeft(gm, realmNow);
   // fog fell / returned: foreign castles become visible / hidden → refetch chunks and the far LOD
   const phaseRef = useRef<string | null>(null);
@@ -190,7 +191,7 @@ export default function MapScreen() {
           style={s.iconBtn}
           onPress={() => {
             // fog up: the Grande Piramide lies beyond the wall → frame the regional Pyramid instead
-            const target = gm?.fog_up && myRegion?.pyramid_anchor ? myRegion.pyramid_anchor : pyramid.data?.anchor ?? [200, 200];
+            const target = fogView && myRegion?.pyramid_anchor ? myRegion.pyramid_anchor : pyramid.data?.anchor ?? [200, 200];
             engineRef.current?.centerOn(target[0], target[1], 44);
           }}
           testID="map-center-pyramid-button"

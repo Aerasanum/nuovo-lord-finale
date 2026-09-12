@@ -12,7 +12,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, worlds
+from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, teleport, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -109,6 +109,24 @@ async def join(world_id: str, body: JoinIn, account_id: str = CurrentAccount):
     player = await worlds.join_world(world, account_id, body.house_name, region_code=body.region_code)
     world = await worlds.get_world(world_id)
     return {"player": player_dto(player), "world": world_dto(world, player)}
+
+
+class TeleportIn(BaseModel):
+    slot_id: str
+    idempotency_key: str | None = Field(default=None, max_length=80)
+
+
+@router.get("/worlds/{world_id}/settlements/{settlement_id}/teleport")
+async def teleport_candidates(settlement_id: str, c: Ctx = Depends(ctx)):
+    """Bibbia GM: empty castles of the player's region the conquered castle may swap with (2000 Rubies)."""
+    doc = await get_owned_settlement(c.world["_id"], settlement_id, c.player["_id"])
+    return await teleport.candidates(c.world, {**c.player, "account_id": c.account_id}, doc)
+
+
+@router.post("/worlds/{world_id}/settlements/{settlement_id}/teleport")
+async def teleport_castle(settlement_id: str, body: TeleportIn, c: Ctx = Depends(ctx)):
+    doc = await get_owned_settlement(c.world["_id"], settlement_id, c.player["_id"])
+    return await teleport.teleport(c.world, c.player, c.account_id, doc, body.slot_id, body.idempotency_key)
 
 
 @router.get("/worlds/{world_id}/grande-mondo")
@@ -325,8 +343,8 @@ def overview_factor(size: int) -> int:
 
 async def _fog_zones(c: Ctx) -> set[int] | None:
     """Zones the viewer may observe while the Grande Mondo fog is up (None = no fog / classic realm)."""
-    if not grande_mondo.fog_up(c.world):
-        return None
+    if not grande_mondo.fog_up(c.world) or c.player.get("view_all_regions"):
+        return None  # observers (QA fixture flag) see the whole Grande Mondo; the movement rules still apply to them
     xy = [(int(s["x"]), int(s["y"])) async for s in db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}, {"x": 1, "y": 1})]
     return grande_mondo.visible_zones(c.world, xy)
 

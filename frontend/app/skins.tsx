@@ -66,7 +66,7 @@ export default function SkinsScreen() {
           <CastlePreview skin={sel} level={level} crest={house.data?.house.crest ?? null} testID="skins-preview" />
           <Row style={{ justifyContent: "space-between", marginTop: spacing.sm }}>
             <T v="caption">
-              {t("skinPreview")}: {CASTLE_SKINS[sel]?.name[lang] ?? sel}
+              {t("skinPreview")}: {CASTLE_SKINS[sel]?.name[lang === "it" ? "it" : "en"] ?? sel}
             </T>
             <T v="caption" testID="skins-level">
               {t("yourLevel")} {level}
@@ -89,7 +89,7 @@ export default function SkinsScreen() {
                     ))}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <T v="label">{def?.name[lang] ?? k.id}</T>
+                    <T v="label">{def?.name[lang === "it" ? "it" : "en"] ?? k.id}</T>
                     <T v="caption" testID={`skin-card-${k.id}-req`}>
                       {k.unlocked ? `${t("settlementLevel")} ≥ ${k.min_level}` : `${t("skinUnlockAt")} ${k.min_level}`}
                     </T>

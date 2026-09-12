@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/src/components/overlay";
 import { Button, Icon, Row, T } from "@/src/components/ui";
-import { useI18n } from "@/src/i18n";
+import { LANGS, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -21,7 +21,7 @@ const useStyles = makeStyles((c) => ({
   tabActive: { backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
   divider: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.xs },
   line: { flex: 1, height: 1, backgroundColor: c.divider },
-  lang: { flexDirection: "row", gap: spacing.sm, justifyContent: "center", marginTop: spacing.md },
+  lang: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "center", marginTop: spacing.md },
   langBtn: { paddingHorizontal: 12, height: 32, borderRadius: radius.pill, justifyContent: "center", borderWidth: 1, borderColor: c.border },
   langActive: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
 }));
@@ -94,10 +94,10 @@ export default function LoginScreen() {
           <Button testID="login-google-button" title={t("continueGoogle")} variant="secondary" icon="google" onPress={() => loginWithGoogle().catch(showError)} />
         </View>
         <View style={s.lang}>
-          {(["it", "en"] as const).map((l) => (
-            <Pressable key={l} style={[s.langBtn, lang === l && s.langActive]} onPress={() => setLang(l)} testID={`lang-${l}`}>
+          {LANGS.map(({ code: l, flag, label }) => (
+            <Pressable key={l} style={[s.langBtn, lang === l && s.langActive]} onPress={() => setLang(l)} testID={`lang-${l}`} accessibilityLabel={label}>
               <T v="caption" style={lang === l ? { color: colors.onBrandTertiary } : undefined}>
-                {t(`lang_${l}`)}
+                {flag} {label}
               </T>
             </Pressable>
           ))}
