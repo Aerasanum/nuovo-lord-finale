@@ -11,7 +11,7 @@ import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
-import { formatDuration, formatNumber, RESOURCE_LABELS, unlockLine, useI18n } from "@/src/i18n";
+import { formatDuration, formatNumber, RESOURCE_LABELS, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -25,7 +25,7 @@ const useStyles = makeStyles((c) => ({
   bCardAvail: { borderColor: c.brandSecondary },
   lvl: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
   lvlText: { color: c.onBrandTertiary, fontSize: 12, fontWeight: "700" },
-  hdrBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  hdrBtn: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
   rubies: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 44, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
   jobRow: { gap: 6, paddingVertical: 6 },
   queueDots: { flexDirection: "row", gap: 4 },
@@ -83,7 +83,7 @@ export default function SettlementScreen() {
         ) : undefined
       }
       right={
-        <Row>
+        <Row style={{ gap: 0 }}>
           <Pressable style={s.rubies} onPress={() => router.push("/wallet")} testID="settlement-wallet-button" accessibilityLabel={t("wallet")}>
             <Icon name="diamond" size={14} color={colors.brandPrimary} />
             <T v="caption" style={{ color: colors.onSurface, fontWeight: "700" }} testID="settlement-rubies">
@@ -136,7 +136,7 @@ export default function SettlementScreen() {
                     {t("settlementLevel")} {d.level}
                   </T>
                   <T v="caption">
-                    {t("terrain")}: {d.terrain} (+{d.terrain_defender_bonus_pct}%) · {d.x},{d.y} · {t("developmentScore")} {formatNumber(d.development_score)}
+                    {t("terrain")}: {tDyn(t, d.terrain, d.terrain)} (+{d.terrain_defender_bonus_pct}%) · {d.x},{d.y} · {t("developmentScore")} {formatNumber(d.development_score)}
                   </T>
                 </View>
               </Row>

@@ -70,6 +70,17 @@ async def grant(body: GrantIn):
     if body.level is not None:
         sets["level"] = int(body.level)
         sets["buildings.Castello / Fortezza"] = int(body.level)
+    # Bible invariant: no building may exceed the settlement level — a grant that lifts a building above the current
+    # level lifts the settlement (and its Castello) with it, so QA fixtures can never produce impossible states
+    if body.buildings:
+        cur = await db().settlements.find_one({"_id": body.settlement_id}, {"level": 1})
+        if not cur:
+            raise ApiError("SETTLEMENT_NOT_FOUND", "Settlement not found", 404)
+        top = max(int(v) for b, v in body.buildings.items() if b != "Santuario Mitico")
+        lvl = int(sets.get("level", cur["level"]))
+        if top > lvl:
+            sets["level"] = min(30, top)
+            sets["buildings.Castello / Fortezza"] = min(30, top)
     if body.end_pvp_shield:
         s = await db().settlements.find_one({"_id": body.settlement_id}, {"owner_player_id": 1})
         if not s or not s.get("owner_player_id"):

@@ -1,23 +1,20 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { idem, useArmy, useMissions, useStartMission } from "@/src/api/hooks";
 import { MissionBanner } from "@/src/components/MissionArt";
 import { Screen, useToast } from "@/src/components/overlay";
+import { UnitStepper } from "@/src/components/UnitStepper";
 import { Button, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { eligibleUnits, localBlocker, missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
-import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { makeStyles, spacing, useTheme } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  unitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: c.border },
-  stepBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: c.borderStrong, backgroundColor: c.surfaceSecondary },
-  input: { width: 72, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: c.borderStrong, color: c.onSurface, textAlign: "center", backgroundColor: c.surfaceSecondary },
-  maxBtn: { paddingHorizontal: 10, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: c.brandTertiary },
   kv: { flexDirection: "row", justifyContent: "space-between" },
 }));
 
@@ -97,30 +94,11 @@ export default function NewMissionScreen() {
             </T>
           </Row>
           {Object.keys(eligible).length === 0 ? <T v="caption">—</T> : null}
-          {Object.entries(eligible).map(([u, avail]) => (
-            <View key={u} style={s.unitRow} testID={`mission-unit-${u}`}>
-              <View style={{ flex: 1 }}>
-                <T v="label" style={{ color: colors.onSurface }}>
-                  {u}
-                </T>
-                <T v="caption">
-                  {t("available")}: {formatNumber(avail)}
-                </T>
-              </View>
-              <Pressable style={s.stepBtn} onPress={() => setUnit(u, (units[u] ?? 0) - 10)} testID={`mission-unit-${u}-minus`}>
-                <Icon name="minus" size={18} color={colors.onSurface} />
-              </Pressable>
-              <TextInput style={s.input} keyboardType="number-pad" value={String(units[u] ?? 0)} onChangeText={(v) => setUnit(u, Number(v.replace(/\D/g, "")))} testID={`mission-unit-${u}-input`} />
-              <Pressable style={s.stepBtn} onPress={() => setUnit(u, (units[u] ?? 0) + 10)} testID={`mission-unit-${u}-plus`}>
-                <Icon name="plus" size={18} color={colors.onSurface} />
-              </Pressable>
-              <Pressable style={s.maxBtn} onPress={() => setUnit(u, avail)} testID={`mission-unit-${u}-max`}>
-                <T v="caption" style={{ color: colors.brandPrimary }}>
-                  MAX
-                </T>
-              </Pressable>
-            </View>
-          ))}
+          <View style={{ gap: spacing.sm }}>
+            {Object.entries(eligible).map(([u, avail]) => (
+              <UnitStepper key={u} unit={u} available={avail} value={units[u] ?? 0} onChange={(n) => setUnit(u, n)} testIDPrefix="mission-unit" />
+            ))}
+          </View>
         </Panel>
 
         {blocker ? (

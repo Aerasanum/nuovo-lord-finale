@@ -1,23 +1,21 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useArmy, useMarchMutations, usePublicSettlement, usePyramid } from "@/src/api/hooks";
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen, useToast } from "@/src/components/overlay";
+import { UnitStepper } from "@/src/components/UnitStepper";
 import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
-import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { makeStyles, spacing, useTheme } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
   content: { padding: spacing.md, gap: spacing.md },
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  unitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6 },
-  input: { width: 84, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: c.borderStrong, backgroundColor: c.surfaceTertiary, color: c.onSurface, paddingHorizontal: spacing.sm, fontFamily: fonts.body, fontSize: 15, textAlign: "right" },
-  small: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: c.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border },
   kv: { flexDirection: "row", justifyContent: "space-between" },
 }));
 
@@ -136,28 +134,11 @@ export default function MarchComposer() {
           </Row>
           {army.isLoading ? <Loading /> : null}
           {Object.keys(available).length === 0 && !army.isLoading ? <T v="caption">—</T> : null}
-          {Object.entries(available).map(([u, have]) => (
-            <View key={u} style={s.unitRow} testID={`march-unit-${u}`}>
-              <View style={{ flex: 1 }}>
-                <T v="body" style={{ color: colors.onSurface }}>
-                  {u}
-                </T>
-                <T v="caption">
-                  {t("available")}: {formatNumber(have)}
-                </T>
-              </View>
-              <Pressable style={s.small} onPress={() => setUnit(u, (units[u] ?? 0) - 10)} testID={`march-unit-${u}-minus`}>
-                <Icon name="minus" size={18} />
-              </Pressable>
-              <TextInput style={s.input} keyboardType="number-pad" value={String(units[u] ?? 0)} onChangeText={(v) => setUnit(u, parseInt(v.replace(/[^0-9]/g, "") || "0", 10))} testID={`march-unit-${u}-input`} />
-              <Pressable style={s.small} onPress={() => setUnit(u, (units[u] ?? 0) + 10)} testID={`march-unit-${u}-plus`}>
-                <Icon name="plus" size={18} />
-              </Pressable>
-              <Pressable style={s.small} onPress={() => setUnit(u, have)} testID={`march-unit-${u}-max`}>
-                <T v="caption">MAX</T>
-              </Pressable>
-            </View>
-          ))}
+          <View style={{ gap: spacing.sm }}>
+            {Object.entries(available).map(([u, have]) => (
+              <UnitStepper key={u} unit={u} available={have} value={units[u] ?? 0} onChange={(n) => setUnit(u, n)} testIDPrefix="march-unit" />
+            ))}
+          </View>
         </Panel>
 
         <Panel testID="march-preview">

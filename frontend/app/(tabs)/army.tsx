@@ -8,6 +8,7 @@ import { useArmy, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { UNIT_ICON } from "@/src/game/units";
 import { formatDuration, formatNumber, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -25,21 +26,6 @@ const useStyles = makeStyles((c) => ({
   gCell: { paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.surfaceTertiary, justifyContent: "center", borderWidth: 1, borderColor: c.border },
 }));
 
-const UNIT_ICON: Record<string, any> = {
-  Fanteria: "sword",
-  Arciere: "bow-arrow",
-  Cavalleria: "horse-variant",
-  Catapulta: "bomb",
-  "Carro di Conquista": "flag-variant",
-  Orso: "paw",
-  Leone: "paw",
-  Falco: "bird",
-  Lupo: "dog-side",
-  "Elefante da Guerra": "elephant",
-  Drago: "fire",
-  Angelo: "creation",
-  Demone: "skull",
-};
 
 export default function ArmyScreen() {
   const s = useStyles();

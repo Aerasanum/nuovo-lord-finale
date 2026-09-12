@@ -791,3 +791,16 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots OK for demo (L3) and max (L30) villages in panel + full screen, pick → castle card, settings screen, inbox battles filter. WebGL is slow in headless browsers: allow 6-10 s after opening Città/city."
+
+# ---- iteration 19b (main agent) ----
+frontend:
+  - task: "UnitStepper card (mission-unit-{u}, -minus/-input/-plus/-half/-max/-value; march-unit-{u} same) replaces the cramped inline stepper in /mission/new and /march/new. Città header: terrain label translated, buttons 40px so the settlement name fits. Backend/QA: qa/grant lifts settlement level to the highest granted building (Bible invariant); demo settlements repaired to L10."
+    implemented: true
+    working: true
+    file: "frontend/src/components/UnitStepper.tsx, src/game/units.ts, app/mission/new.tsx, app/march/new.tsx, app/(tabs)/settlement.tsx, backend/app/api/routes_qa.py, backend/scripts/repair_building_levels.py"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Screenshot at 360px: mission composer cards readable; Città shows L10 with consistent buildings."
