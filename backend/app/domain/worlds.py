@@ -209,7 +209,8 @@ def player_dto(p: dict) -> dict:
     }
 
 
-async def join_world(world: dict, account_id: str, house_name: str) -> dict:
+async def join_world(world: dict, account_id: str, house_name: str, slot_id: str | None = None) -> dict:
+    """Join a realm; the spawn slot is picked deterministically among the FREE ones (QA tools may pin `slot_id`)."""
     spec = get_spec()
     house_name = house_name.strip()
     if not (3 <= len(house_name) <= 24):
@@ -225,7 +226,7 @@ async def join_world(world: dict, account_id: str, house_name: str) -> dict:
     crest = house.default_crest(house_name)
     # deterministic-but-random spawn: claim ONE free slot atomically
     slot = await db().settlements.find_one_and_update(
-        {"world_id": world["_id"], "kind": "PLAYER_SLOT", "slot_status": "FREE"},
+        {"world_id": world["_id"], "kind": "PLAYER_SLOT", "slot_status": "FREE", **({"_id": slot_id} if slot_id else {})},
         {"$set": {"slot_status": "CLAIMING", "claim_token": player_id}},
         sort=[("_id", 1)],
         return_document=True,
