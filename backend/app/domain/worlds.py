@@ -18,7 +18,7 @@ from app.domain import conquest, house, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
-from app.domain.worldgen import N, generate_world
+from app.domain.worldgen import N, GenConfig, generate_world
 
 log = logging.getLogger("worlds")
 
@@ -40,19 +40,24 @@ def world_dto(w: dict) -> dict:
     }
 
 
-async def create_world(name: str | None = None, seed: int | None = None) -> dict:
+async def create_world(name: str | None = None, seed: int | None = None, gen_overrides: dict | None = None) -> dict:
+    """Generate and open a new realm. `gen_overrides` (size / spacing / pyramid anchor) tune the landmass layout for
+    this world only — see worldgen.GenConfig; Bible counts, timers and costs are untouched."""
     spec = get_spec()
+    cfg = GenConfig.from_spec(spec, gen_overrides)
     count = await db().worlds.count_documents({})
     world_id = f"world_{count + 1}"
     if seed is None:
         seed = int(hashlib.sha256(world_id.encode()).hexdigest(), 16) % 1_000_000
     now = clock.now()
+    size = cfg.size
     doc = {
         "_id": world_id,
         "name": name or f"Regno {count + 1}",
         "status": "GENERATING",
         "seed": seed,
-        "size": int(spec.world["map_size_x"]),
+        "size": size,
+        "gen_config": cfg.to_doc(),
         "player_slots": int(spec.world["player_slots"]),
         "player_count": 0,
         "spec_version": spec.version,
@@ -60,23 +65,25 @@ async def create_world(name: str | None = None, seed: int | None = None) -> dict
         "created_at": now,
         "opened_at": None,
     }
+    if list(cfg.pyramid_anchor) != [int(v) for v in spec.world["pyramid_anchor"]]:
+        doc["pyramid_config"] = {"anchor": list(cfg.pyramid_anchor)}  # the monument sits in the middle of the realm
     try:
         await db().worlds.insert_one(doc)
     except DuplicateKeyError:
         raise ApiError("WORLD_EXISTS", "World already exists", 409)
     try:
-        gen = await asyncio.get_running_loop().run_in_executor(None, generate_world, seed, spec)
+        gen = await asyncio.get_running_loop().run_in_executor(None, generate_world, seed, spec, cfg)
     except Exception as e:  # noqa: BLE001
         await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "FAILED", "error": str(e)}})
         raise ApiError("MAP_GENERATION_CONSTRAINT_FAILED", "World generation failed", 500, {"error": str(e)})
     # chunks
     chunks = []
-    n_chunks = (N + CHUNK - 1) // CHUNK
+    n_chunks = (size + CHUNK - 1) // CHUNK
     for cy in range(n_chunks):
         for cx in range(n_chunks):
             block = np.full((CHUNK, CHUNK), 3, dtype=np.uint8)
-            h = min(CHUNK, N - cy * CHUNK)
-            w = min(CHUNK, N - cx * CHUNK)
+            h = min(CHUNK, size - cy * CHUNK)
+            w = min(CHUNK, size - cx * CHUNK)
             block[:h, :w] = gen.terrain[cy * CHUNK : cy * CHUNK + h, cx * CHUNK : cx * CHUNK + w]
             chunks.append({"_id": f"{world_id}:{cx}:{cy}", "world_id": world_id, "cx": cx, "cy": cy, "terrain": block.tobytes()})
     await db().map_chunks.insert_many(chunks)
@@ -118,7 +125,7 @@ async def create_world(name: str | None = None, seed: int | None = None) -> dict
                     slot_tiles.append((d["x"] + dx, d["y"] + dy, d["_id"]))
     tile_docs = []
     for x, y, sid in slot_tiles:
-        if 0 <= x < N and 0 <= y < N and gen.terrain[y, x] != 3:
+        if 0 <= x < size and 0 <= y < size and gen.terrain[y, x] != 3:
             tile_docs.append({"_id": f"{world_id}:{x}:{y}", "world_id": world_id, "x": x, "y": y, "chunk_cx": x // CHUNK, "chunk_cy": y // CHUNK, "owner_player_id": None, "settlement_id": sid, "source": "SLOT_RESERVATION"})
     if tile_docs:
         try:

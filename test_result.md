@@ -817,3 +817,27 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots OK: map vivid (green plain, pine forests, blue water, softened castles), city bright with sky/clouds when tilted (drag up), pick castle → card. WebGL headless is slow: allow 6-10 s after opening Mappa/Città/city."
+
+# ---- iteration 21 (main agent) — Sentinel sectors as wedges, allied borders merged, configurable realm size (Regno 2 600×600) ----
+backend:
+  - task: "sentinels.sector_tiles wedge geometry (INNER 90° wedge of the 7x7 square, 12 tiles each incl. one diagonal; OUTER 45° wedge of the ring band 4..5, 8-10 tiles) + scripts/recompute_sentinel_sectors.py; worldgen.GenConfig (size/spacing/pyramid anchor) with S=size/400 landmass scaling, deterministic for 400 (verified identical to previous generator); POST /api/worlds accepts size/hard_min_player_distance/preferred_player_distance/neutral_min_distance/neutral_preferred_distance (admin); world doc stores gen_config + pyramid_config.anchor; pathfinding/territory/marches/sentinels/routes chunk+overview bounds use the world size."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/sentinels.py, worldgen.py, worlds.py, pathfinding.py, territory.py, marches.py, backend/app/api/routes_game.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Regno 2 (world_2) created 600x600 in 1.9 s: 100 slots, 800 neutrals, min player distance 20, neutral 7. Demo joined as 'Casa Demo Due'. pytest test_runtime -k sentinel passes."
+frontend:
+  - task: "MapEngine world size from world DTO (MapView3D worldSize prop, rendered once me.world.size is known), pyramid anchor from pyramid DTO; territory ribbon not drawn between OWN and ALLY tiles."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts, MapView.tsx, territory.ts, app/(tabs)/map.tsx, daylight.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots: world_2 map renders (home 534,546; Piramide at 301,301; minimap 600); world_1 home shows the 7x7 wedge territory with 4 sentinels."

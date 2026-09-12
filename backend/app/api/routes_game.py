@@ -80,11 +80,18 @@ async def list_worlds(account_id: str = CurrentAccount):
 class CreateWorldIn(BaseModel):
     name: str | None = None
     seed: int | None = None
+    # optional landmass layout overrides (worldgen.GenConfig): bigger realm / more room between castles
+    size: int | None = Field(default=None, ge=256, le=1024)
+    hard_min_player_distance: int | None = Field(default=None, ge=4, le=60)
+    preferred_player_distance: int | None = Field(default=None, ge=4, le=80)
+    neutral_min_distance: int | None = Field(default=None, ge=2, le=40)
+    neutral_preferred_distance: int | None = Field(default=None, ge=2, le=60)
 
 
 @router.post("/worlds", dependencies=[Depends(require_admin)])
 async def create_world(body: CreateWorldIn):
-    return world_dto(await worlds.create_world(body.name, body.seed))
+    overrides = {k: v for k, v in body.model_dump(exclude={"name", "seed"}).items() if v is not None}
+    return world_dto(await worlds.create_world(body.name, body.seed, overrides or None))
 
 
 class JoinIn(BaseModel):
@@ -249,7 +256,7 @@ async def build_sentinel(world_id: str, settlement_id: str, body: SentinelIn, c:
 # --------------------------------------------------------------------------- map
 @router.get("/worlds/{world_id}/map/chunk/{cx}/{cy}")
 async def map_chunk(world_id: str, cx: int, cy: int, c: Ctx = Depends(ctx)):
-    n_chunks = math.ceil(400 / CHUNK)
+    n_chunks = math.ceil(int(c.world.get("size") or 400) / CHUNK)
     if not (0 <= cx < n_chunks and 0 <= cy < n_chunks):
         raise ApiError("CHUNK_OUT_OF_RANGE", "Chunk out of range", 400)
     chunk = await db().map_chunks.find_one({"world_id": world_id, "cx": cx, "cy": cy})
@@ -289,11 +296,11 @@ async def map_overview(world_id: str, c: Ctx = Depends(ctx)):
     """Low-resolution world terrain (1 cell = 4x4 tiles) + all player settlements, for far-zoom LOD rendering."""
     import numpy as np
 
-    from app.domain.pathfinding import N, load_terrain
+    from app.domain.pathfinding import load_terrain
 
     if world_id not in _overview_cache:
         grid = await load_terrain(world_id)
-        n = N // OVERVIEW_FACTOR
+        n = int(grid.shape[0]) // OVERVIEW_FACTOR
         blocks = grid[: n * OVERVIEW_FACTOR, : n * OVERVIEW_FACTOR].reshape(n, OVERVIEW_FACTOR, n, OVERVIEW_FACTOR)
         counts = np.stack([(blocks == code).sum(axis=(1, 3)) for code in range(4)], axis=-1).astype(np.float32)
         counts *= np.array([1.0, 1.15, 1.35, 1.05], dtype=np.float32)  # plain, forest, mountain, water — keep relief readable
@@ -304,7 +311,7 @@ async def map_overview(world_id: str, c: Ctx = Depends(ctx)):
     return {
         "world_id": world_id,
         "factor": OVERVIEW_FACTOR,
-        "size": 400 // OVERVIEW_FACTOR,
+        "size": int(c.world.get("size") or 400) // OVERVIEW_FACTOR,
         "terrain_b64": base64.b64encode(_overview_cache[world_id]).decode("ascii"),
         "settlements": players,
         "server_time": clock.iso(clock.now()),

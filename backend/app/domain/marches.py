@@ -342,7 +342,7 @@ def _adjacent_water(grid, x: int, y: int) -> list[tuple[int, int]]:
     out = []
     for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
         nx, ny = x + dx, y + dy
-        if 0 <= nx < 400 and 0 <= ny < 400 and int(grid[ny, nx]) == 3:
+        if 0 <= nx < grid.shape[1] and 0 <= ny < grid.shape[0] and int(grid[ny, nx]) == 3:
             out.append((nx, ny))
     return out
 

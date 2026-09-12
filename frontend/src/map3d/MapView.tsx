@@ -12,6 +12,8 @@ import { MapLabels } from "./MapLabels";
 
 type Props = {
   worldId: string;
+  /** realm size in tiles (world DTO) — the GL scene is created only once it is known */
+  worldSize: number;
   home?: { x: number; y: number } | null;
   marches?: MarchDto[];
   pyramid?: PyramidDto | null;
@@ -22,7 +24,7 @@ type Props = {
   showLabels?: boolean;
 };
 
-export function MapView3D({ worldId, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true }: Props) {
+export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true }: Props) {
   const { colors } = useTheme();
   const engineRef = useRef<MapEngine | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
@@ -61,6 +63,8 @@ export function MapView3D({ worldId, home, marches, pyramid, onSelect, onEngine,
         onSelect,
         onCameraChange,
         onLabels: setLabels,
+        worldSize,
+        pyramidXY: pyramid?.anchor ? [pyramid.anchor[0], pyramid.anchor[1]] : undefined,
       });
       engineRef.current = engine;
       if (home) {
@@ -73,7 +77,7 @@ export function MapView3D({ worldId, home, marches, pyramid, onSelect, onEngine,
       onEngine?.(engine);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fetchChunk, fetchOverview],
+    [fetchChunk, fetchOverview, worldSize],
   );
 
   useEffect(() => {

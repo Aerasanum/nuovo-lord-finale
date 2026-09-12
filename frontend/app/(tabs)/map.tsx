@@ -50,7 +50,7 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { selectSettlement } = useAuth();
-  const { worldId, settlementId, settlement, settlements, player } = useGame();
+  const { worldId, settlementId, settlement, settlements, player, world } = useGame();
   const marches = useMarches(worldId);
   const caravanSearch = useCaravanSearch(worldId, settlementId);
   const pyramid = usePyramid(worldId);
@@ -93,7 +93,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      <MapView3D worldId={worldId} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} />
+      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} /> : null}
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>

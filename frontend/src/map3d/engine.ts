@@ -28,11 +28,9 @@ import { makeDetailTexture, makeRoofTexture, makeStoneTexture } from "./textures
 import { createWater } from "./water";
 
 export const CHUNK = 32;
-export const WORLD = 400;
-const N_CHUNKS = Math.ceil(WORLD / CHUNK);
+const DEFAULT_WORLD = 400; // spec.world.map_size_x — each realm carries its own size (world DTO)
 const OV_FACTOR = 4;
 const OV_PER_CHUNK = CHUNK / OV_FACTOR;
-const OV_SIZE = WORLD / OV_FACTOR;
 const OV_SCALE_Y = 1.2;
 
 export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidDto };
@@ -49,6 +47,10 @@ type EngineOpts = {
   onSelect: (sel: Selection | null) => void;
   onCameraChange?: (cam: { tx: number; tz: number; dist: number }) => void;
   onLabels?: (labels: MapLabel[]) => void;
+  /** realm size in tiles (world DTO `size`); defaults to the spec 400 */
+  worldSize?: number;
+  /** pyramid anchor (pyramid DTO `anchor`); defaults to the centre of the realm */
+  pyramidXY?: [number, number];
 };
 
 type ChunkNode = {
@@ -76,7 +78,7 @@ const PIN_ZOOM = 70;
 const MARCH_LOD_DIST = 100; // Bible §41.3: marches are a mid-zoom detail; far zoom shows settlements/territory only
 const MARCH_LABEL_DIST = 60;
 const SMOKE_DIST = 48; // chimney / torch smoke is a close-up detail
-const PYRAMID_XY: [number, number] = [200, 200]; // spec.world.pyramid_anchor (server DTO confirms it)
+
 
 function hexToColor(hex: string): THREE.Color {
   return new THREE.Color(hex);
@@ -87,7 +89,7 @@ function easeOutCubic(t: number): number {
 }
 
 /** Local tile indices (within the chunk) occupied by settlements / sentinels — kept clear of trees and props. */
-function blockedTiles(data: ChunkDto): Set<number> {
+function blockedTiles(data: ChunkDto, pyr: [number, number]): Set<number> {
   const out = new Set<number>();
   const ox = data.cx * CHUNK;
   const oz = data.cy * CHUNK;
@@ -102,11 +104,15 @@ function blockedTiles(data: ChunkDto): Set<number> {
   };
   for (const s of data.settlements) mark(s.x, s.y, s.kind === "PLAYER_SLOT" ? 0 : s.level >= 10 ? 2 : 1);
   for (const s of data.sentinels) mark(s.x, s.y, 0);
-  mark(PYRAMID_XY[0], PYRAMID_XY[1], Math.ceil(PYRAMID_HALF) + 1); // Pyramid plateau stays clear of flora (Bible §21)
+  mark(pyr[0], pyr[1], Math.ceil(PYRAMID_HALF) + 1); // Pyramid plateau stays clear of flora (Bible §21)
   return out;
 }
 
 export class MapEngine {
+  readonly world: number;
+  private nChunks: number;
+  private ovSize: number;
+  private pyr: [number, number];
   private gl: ExpoWebGLRenderingContext;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -165,6 +171,10 @@ export class MapEngine {
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
+    this.world = opts.worldSize ?? DEFAULT_WORLD;
+    this.nChunks = Math.ceil(this.world / CHUNK);
+    this.ovSize = this.world / OV_FACTOR;
+    this.pyr = opts.pyramidXY ?? [Math.floor(this.world / 2), Math.floor(this.world / 2)];
     this.gl = opts.gl;
     this.width = opts.width;
     this.height = opts.height;
@@ -240,7 +250,7 @@ export class MapEngine {
     this.scene.add(this.smoke.mesh);
     this.flora = new FloraFactory({ forest: this.palette.forest, plain: this.palette.plain, rock: this.palette.rock.clone().offsetHSL(0, 0, 0.08), wood: hexToColor(c.resourceWood) });
 
-    this.water = createWater(WORLD, this.palette.water, this.palette.water.clone().offsetHSL(0.01, 0.05, 0.12), this.palette.horizon.clone().lerp(skyColor, 0.5), sunDir, sunColor);
+    this.water = createWater(this.world, this.palette.water, this.palette.water.clone().offsetHSL(0.01, 0.05, 0.12), this.palette.horizon.clone().lerp(skyColor, 0.5), sunDir, sunColor);
     this.scene.add(this.water.mesh);
 
     this.selectionRing = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: this.palette.own, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false }));
@@ -327,8 +337,8 @@ export class MapEngine {
     const fz = -Math.cos(yaw);
     this.cam.tx += (-rx * dx + fx * dy) * k;
     this.cam.tz += (-rz * dx + fz * dy) * k;
-    this.cam.tx = Math.max(-10, Math.min(WORLD + 10, this.cam.tx));
-    this.cam.tz = Math.max(-10, Math.min(WORLD + 10, this.cam.tz));
+    this.cam.tx = Math.max(-10, Math.min(this.world + 10, this.cam.tx));
+    this.cam.tz = Math.max(-10, Math.min(this.world + 10, this.cam.tz));
     this.updateCamera();
   }
 
@@ -351,8 +361,8 @@ export class MapEngine {
     if (before) {
       const after = this.groundHit(px!, py!);
       if (after) {
-        this.cam.tx = Math.max(-10, Math.min(WORLD + 10, this.cam.tx + before.x - after.x));
-        this.cam.tz = Math.max(-10, Math.min(WORLD + 10, this.cam.tz + before.z - after.z));
+        this.cam.tx = Math.max(-10, Math.min(this.world + 10, this.cam.tx + before.x - after.x));
+        this.cam.tz = Math.max(-10, Math.min(this.world + 10, this.cam.tz + before.z - after.z));
         this.updateCamera();
       }
     }
@@ -374,7 +384,7 @@ export class MapEngine {
     if (!hit) return;
     const tx = Math.floor(hit.x);
     const tz = Math.floor(hit.z);
-    if (tx < 0 || tz < 0 || tx >= WORLD || tz >= WORLD) {
+    if (tx < 0 || tz < 0 || tx >= this.world || tz >= this.world) {
       this.select(null);
       return;
     }
@@ -398,8 +408,8 @@ export class MapEngine {
     // the Pyramid is a 15×15 monument: pick on its apex/body or on any footprint tile
     {
       const py = this.pyramid.group.position.y;
-      const dp = Math.min(screenDist(PYRAMID_XY[0] + 0.5, py + PYRAMID_TOP, PYRAMID_XY[1] + 0.5), screenDist(PYRAMID_XY[0] + 0.5, py + PYRAMID_TOP * 0.5, PYRAMID_XY[1] + 0.5));
-      const inside = Math.abs(hit.x - (PYRAMID_XY[0] + 0.5)) <= PYRAMID_HALF && Math.abs(hit.z - (PYRAMID_XY[1] + 0.5)) <= PYRAMID_HALF;
+      const dp = Math.min(screenDist(this.pyr[0] + 0.5, py + PYRAMID_TOP, this.pyr[1] + 0.5), screenDist(this.pyr[0] + 0.5, py + PYRAMID_TOP * 0.5, this.pyr[1] + 0.5));
+      const inside = Math.abs(hit.x - (this.pyr[0] + 0.5)) <= PYRAMID_HALF && Math.abs(hit.z - (this.pyr[1] + 0.5)) <= PYRAMID_HALF;
       if (inside || dp < TOUCH_PX * 1.6) {
         const d = inside ? TOUCH_PX * 0.9 : dp; // a march marker tapped directly still wins
         if (!best || d < best.d) best = { d, pyr: true };
@@ -425,7 +435,7 @@ export class MapEngine {
     if (!best && this.overview) consider(this.overview.data.settlements);
     const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: boolean } | null;
     if (b?.m) this.select({ x: Math.floor(b.mx!), y: Math.floor(b.mz!), march: b.m });
-    else if (b?.pyr) this.select({ x: PYRAMID_XY[0], y: PYRAMID_XY[1], pyramid: this.pyramidDto ?? undefined });
+    else if (b?.pyr) this.select({ x: this.pyr[0], y: this.pyr[1], pyramid: this.pyramidDto ?? undefined });
     else if (b?.s) this.select({ x: b.s.x, y: b.s.y, settlement: b.s });
     else if (b?.sen) this.select({ x: b.sen.x, y: b.sen.y, sentinel: b.sen });
     else this.select({ x: tx, y: tz });
@@ -433,7 +443,7 @@ export class MapEngine {
 
   select(sel: Selection | null) {
     this.selected = sel;
-    const isPyr = !!sel && sel.x === PYRAMID_XY[0] && sel.y === PYRAMID_XY[1] && !sel.march && !sel.settlement && !sel.sentinel;
+    const isPyr = !!sel && sel.x === this.pyr[0] && sel.y === this.pyr[1] && !sel.march && !sel.settlement && !sel.sentinel;
     if (sel && isPyr && !sel.pyramid && this.pyramidDto) sel.pyramid = this.pyramidDto;
     this.selScale = isPyr ? (PYRAMID_HALF + 1.9) / 0.8 : 1;
     if (sel) {
@@ -447,6 +457,10 @@ export class MapEngine {
   /** Pyramid cycle state from the server → monument look + label; the anchor is fixed (spec.world.pyramid_anchor). */
   setPyramid(dto: PyramidDto | null) {
     this.pyramidDto = dto;
+    if (dto?.anchor && (dto.anchor[0] !== this.pyr[0] || dto.anchor[1] !== this.pyr[1])) {
+      this.pyr = [dto.anchor[0], dto.anchor[1]];
+      this.placePyramid();
+    }
     this.pyramid.setLook({ state: dto?.state ?? "DORMANT_INITIAL", faction: dto?.faction ?? "NEUTRAL" });
     if (this.selected?.pyramid && dto) this.select({ ...this.selected, pyramid: dto });
     this.dirty = true;
@@ -454,7 +468,7 @@ export class MapEngine {
   }
 
   private placePyramid() {
-    this.pyramid.group.position.set(PYRAMID_XY[0] + 0.5, this.heightAt(PYRAMID_XY[0], PYRAMID_XY[1]), PYRAMID_XY[1] + 0.5);
+    this.pyramid.group.position.set(this.pyr[0] + 0.5, this.heightAt(this.pyr[0], this.pyr[1]), this.pyr[1] + 0.5);
     this.dirty = true;
   }
 
@@ -547,18 +561,18 @@ export class MapEngine {
     const u = (px - r.x) / r.w;
     const v = (py - r.y) / r.h;
     if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-    return { x: Math.floor(u * WORLD), y: Math.floor(v * WORLD) };
+    return { x: Math.floor(u * this.world), y: Math.floor(v * this.world) };
   }
 
   private createMinimap() {
     const scene = new THREE.Scene();
-    const cam = new THREE.OrthographicCamera(-WORLD / 2, WORLD / 2, WORLD / 2, -WORLD / 2, 1, 500);
-    cam.position.set(WORLD / 2, 200, WORLD / 2);
+    const cam = new THREE.OrthographicCamera(-this.world / 2, this.world / 2, this.world / 2, -this.world / 2, 1, 500);
+    cam.position.set(this.world / 2, 200, this.world / 2);
     cam.up.set(0, 0, -1);
-    cam.lookAt(WORLD / 2, 0, WORLD / 2);
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), new THREE.MeshBasicMaterial({ color: this.palette.water.clone().multiplyScalar(1.5) }));
+    cam.lookAt(this.world / 2, 0, this.world / 2);
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(this.world, this.world), new THREE.MeshBasicMaterial({ color: this.palette.water.clone().multiplyScalar(1.5) }));
     sea.rotation.x = -Math.PI / 2;
-    sea.position.set(WORLD / 2, -0.5, WORLD / 2);
+    sea.position.set(this.world / 2, -0.5, this.world / 2);
     scene.add(sea);
     const statics = new THREE.Group();
     scene.add(statics);
@@ -590,7 +604,7 @@ export class MapEngine {
     mm.statics.clear();
     // unlit pass → lift the terrain palette so land reads clearly against the sea at thumbnail size
     const bright = Object.fromEntries(Object.entries(this.palette).map(([k, c]) => [k, c.clone().multiplyScalar(1.6)])) as unknown as TerrainPalette;
-    const geo = buildTerrainGeometry({ ox: 0, oz: 0, w: OV_SIZE, h: OV_SIZE, step: 1, sampler: this.ovSampler, palette: bright, scaleXZ: OV_FACTOR, scaleY: 0, noiseScale: OV_FACTOR });
+    const geo = buildTerrainGeometry({ ox: 0, oz: 0, w: this.ovSize, h: this.ovSize, step: 1, sampler: this.ovSampler, palette: bright, scaleXZ: OV_FACTOR, scaleY: 0, noiseScale: OV_FACTOR });
     if (geo) mm.statics.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true })));
     const players = this.overview?.data.settlements ?? [];
     if (players.length) {
@@ -610,7 +624,7 @@ export class MapEngine {
     const pyrGeo = new THREE.CircleGeometry(9, 4);
     pyrGeo.rotateX(-Math.PI / 2);
     const pyr = new THREE.Mesh(pyrGeo, new THREE.MeshBasicMaterial({ color: this.palette.own.clone().offsetHSL(0, 0.1, 0.15) }));
-    pyr.position.set(PYRAMID_XY[0] + 0.5, 1.2, PYRAMID_XY[1] + 0.5);
+    pyr.position.set(this.pyr[0] + 0.5, 1.2, this.pyr[1] + 0.5);
     mm.statics.add(pyr);
   }
 
@@ -640,7 +654,7 @@ export class MapEngine {
       // rays above the horizon (far top corners) fall back to a point `2·dist` ahead so the footprint stays bounded
       const x = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.x : this.cam.tx + (px < this.width / 2 ? -1 : 1) * d * 1.2;
       const z = hit && Math.hypot(hit.x - this.cam.tx, hit.z - this.cam.tz) < d * 3 ? hit.z : this.cam.tz - d * 1.2;
-      pos.setXYZ(i, Math.max(-5, Math.min(WORLD + 5, x)), 0, Math.max(-5, Math.min(WORLD + 5, z)));
+      pos.setXYZ(i, Math.max(-5, Math.min(this.world + 5, x)), 0, Math.max(-5, Math.min(this.world + 5, z)));
     });
     pos.needsUpdate = true;
     mm.center.position.set(this.cam.tx, 2.5, this.cam.tz);
@@ -728,7 +742,7 @@ export class MapEngine {
   }
 
   private tileAt(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 3;
+    if (x < 0 || y < 0 || x >= this.world || y >= this.world) return 3;
     const key = `${Math.floor(x / CHUNK)}:${Math.floor(y / CHUNK)}`;
     const g = this.terrainGrid.get(key);
     if (!g) return -1;
@@ -736,8 +750,8 @@ export class MapEngine {
   }
 
   private overviewTileAt(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= OV_SIZE || y >= OV_SIZE) return 3;
-    return this.overview ? this.overview.grid[y * OV_SIZE + x] : -1;
+    if (x < 0 || y < 0 || x >= this.ovSize || y >= this.ovSize) return 3;
+    return this.overview ? this.overview.grid[y * this.ovSize + x] : -1;
   }
 
   heightAt(x: number, y: number): number {
@@ -758,11 +772,11 @@ export class MapEngine {
         const grid = base64ToBytes(data.terrain_b64);
         const tiles = new Map<string, THREE.Mesh>();
         this.overview = { data, grid, tiles, pins: null };
-        for (let cy = 0; cy < N_CHUNKS; cy++) {
-          for (let cx = 0; cx < N_CHUNKS; cx++) {
+        for (let cy = 0; cy < this.nChunks; cy++) {
+          for (let cx = 0; cx < this.nChunks; cx++) {
             const ox = cx * OV_PER_CHUNK;
             const oz = cy * OV_PER_CHUNK;
-            const geo = buildTerrainGeometry({ ox, oz, w: Math.min(OV_PER_CHUNK, OV_SIZE - ox), h: Math.min(OV_PER_CHUNK, OV_SIZE - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: OV_FACTOR, scaleY: OV_SCALE_Y, noiseScale: OV_FACTOR });
+            const geo = buildTerrainGeometry({ ox, oz, w: Math.min(OV_PER_CHUNK, this.ovSize - ox), h: Math.min(OV_PER_CHUNK, this.ovSize - oz), step: 1, sampler: this.ovSampler, palette: this.palette, scaleXZ: OV_FACTOR, scaleY: OV_SCALE_Y, noiseScale: OV_FACTOR });
             if (!geo) continue;
             const mesh = new THREE.Mesh(geo, this.mats.overview);
             mesh.position.y = -0.03;
@@ -816,8 +830,8 @@ export class MapEngine {
   private visibleChunkKeys(): { key: string; cx: number; cy: number; d: number }[] {
     const radius = Math.min(this.cam.dist * 1.35 + 24, STREAM_RADIUS_CAP);
     const out: { key: string; cx: number; cy: number; d: number }[] = [];
-    for (let cy = 0; cy < N_CHUNKS; cy++) {
-      for (let cx = 0; cx < N_CHUNKS; cx++) {
+    for (let cy = 0; cy < this.nChunks; cy++) {
+      for (let cx = 0; cx < this.nChunks; cx++) {
         const d = this.chunkDistance(cx, cy);
         if (d <= radius) out.push({ key: `${cx}:${cy}`, cx, cy, d });
       }
@@ -906,7 +920,7 @@ export class MapEngine {
       this.labelsDirty = true;
     }
     if (showGrid && node.grid === undefined) {
-      const geo = buildGridGeometry(node.cx * CHUNK, node.cy * CHUNK, Math.min(CHUNK, WORLD - node.cx * CHUNK), Math.min(CHUNK, WORLD - node.cy * CHUNK), this.sampler);
+      const geo = buildGridGeometry(node.cx * CHUNK, node.cy * CHUNK, Math.min(CHUNK, this.world - node.cx * CHUNK), Math.min(CHUNK, this.world - node.cy * CHUNK), this.sampler);
       node.grid = geo ? new THREE.LineSegments(geo, this.mats.grid) : null;
       if (node.grid) node.group.add(node.grid);
     }
@@ -920,7 +934,7 @@ export class MapEngine {
     if (node.terrain[lod]) return;
     const ox = node.cx * CHUNK;
     const oz = node.cy * CHUNK;
-    const geo = buildTerrainGeometry({ ox, oz, w: Math.min(CHUNK, WORLD - ox), h: Math.min(CHUNK, WORLD - oz), step: LOD_STEPS[lod], sampler: this.sampler, palette: this.palette });
+    const geo = buildTerrainGeometry({ ox, oz, w: Math.min(CHUNK, this.world - ox), h: Math.min(CHUNK, this.world - oz), step: LOD_STEPS[lod], sampler: this.sampler, palette: this.palette });
     if (!geo) return;
     const mesh = new THREE.Mesh(geo, this.mats.terrain);
     mesh.receiveShadow = true;
@@ -935,7 +949,7 @@ export class MapEngine {
     this.terrainGrid.set(key, base64ToBytes(data.terrain_b64));
     const group = new THREE.Group();
     group.visible = false;
-    const blocked = blockedTiles(data);
+    const blocked = blockedTiles(data, this.pyr);
     const ground = (wx: number, wz: number) => this.groundAt(wx, wz);
     const flora = [this.flora.buildFull(data.cx, data.cy, this.sampler, blocked, ground), this.flora.buildSparse(data.cx, data.cy, this.sampler, blocked, ground)];
     for (const f of flora) {
@@ -966,7 +980,7 @@ export class MapEngine {
     this.scene.add(group);
     const node: ChunkNode = { key, cx: data.cx, cy: data.cy, group, terrain: [null, null], flora, territory, entities, emitters, data, lastUsed: now, lod: -1 };
     this.chunks.set(key, node);
-    if (data.cx === Math.floor(PYRAMID_XY[0] / CHUNK) && data.cy === Math.floor(PYRAMID_XY[1] / CHUNK)) this.placePyramid();
+    if (data.cx === Math.floor(this.pyr[0] / CHUNK) && data.cy === Math.floor(this.pyr[1] / CHUNK)) this.placePyramid();
     this.applyLod(node, this.chunkDistance(data.cx, data.cy));
     // neighbours share corner heights: rebuild their terrain so seams close
     for (const [dx, dy] of [
@@ -1070,7 +1084,7 @@ export class MapEngine {
     if (this.overview) for (const s of this.overview.data.settlements) push(s);
     {
       const d = this.pyramidDto;
-      v.set(PYRAMID_XY[0] + 0.5, this.pyramid.group.position.y + PYRAMID_TOP + 0.6, PYRAMID_XY[1] + 0.5).project(this.camera);
+      v.set(this.pyr[0] + 0.5, this.pyramid.group.position.y + PYRAMID_TOP + 0.6, this.pyr[1] + 0.5).project(this.camera);
       if (!(v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1)) {
         out.push({
           d: -2000, // the monument always keeps its label

@@ -15,10 +15,11 @@ import numpy as np
 
 from app.core.spec import Spec, get_spec
 
-N = 400
+BASE_N = 400  # reference size the generator geometry was tuned on; other sizes scale the landmass layout by size/BASE_N
+N = BASE_N  # default world size (spec.world.map_size_x)
 PLAIN, FOREST, MOUNTAIN, WATER = 0, 1, 2, 3
 TERRAIN_NAMES = ["plain", "forest", "mountain", "water"]
-SEA_MIN_TILES = 1500  # a navigable sea; smaller water bodies are lakes (not coast, no ports)
+SEA_MIN_TILES = 1500  # a navigable sea at 400x400; smaller water bodies are lakes (not coast, no ports) — scales with area
 
 
 class MapGenerationError(Exception):
@@ -31,6 +32,45 @@ LAST_REJECT: list[str] = []
 def _reject(reason: str):
     LAST_REJECT.append(reason)
     return None
+
+
+@dataclass(frozen=True)
+class GenConfig:
+    """Per-world generation parameters. Defaults come from the spec (Bible); a world may override size and spacing
+    (bigger realm, more room between castles) — counts (player slots, neutrals), timers and costs never change."""
+
+    size: int = BASE_N
+    hard_min_player_distance: int = 8
+    preferred_player_distance: int = 10
+    neutral_min_distance: int = 4
+    neutral_preferred_distance: int = 4
+    pyramid_anchor: tuple[int, int] = (200, 200)
+
+    @staticmethod
+    def from_spec(spec: Spec, overrides: dict | None = None) -> GenConfig:
+        sp = spec.spawn
+        o = overrides or {}
+        size = int(o.get("size", spec.world["map_size_x"]))
+        default_anchor = tuple(int(v) for v in spec.world["pyramid_anchor"]) if size == int(spec.world["map_size_x"]) else (size // 2, size // 2)
+        nmin = int(o.get("neutral_min_distance", sp["neutral_min_distance"]))
+        return GenConfig(
+            size=size,
+            hard_min_player_distance=int(o.get("hard_min_player_distance", sp["hard_min_player_distance"])),
+            preferred_player_distance=int(o.get("preferred_player_distance", sp["preferred_player_distance"])),
+            neutral_min_distance=nmin,
+            neutral_preferred_distance=int(o.get("neutral_preferred_distance", nmin)),
+            pyramid_anchor=tuple(int(v) for v in o.get("pyramid_anchor", default_anchor)),  # type: ignore[arg-type]
+        )
+
+    def to_doc(self) -> dict:
+        return {
+            "size": self.size,
+            "hard_min_player_distance": self.hard_min_player_distance,
+            "preferred_player_distance": self.preferred_player_distance,
+            "neutral_min_distance": self.neutral_min_distance,
+            "neutral_preferred_distance": self.neutral_preferred_distance,
+            "pyramid_anchor": list(self.pyramid_anchor),
+        }
 
 
 @dataclass
@@ -97,7 +137,7 @@ def dilate_chebyshev(mask: np.ndarray, r: int) -> np.ndarray:
             for dx in (-1, 0, 1):
                 if dy == 0 and dx == 0:
                     continue
-                acc |= p[1 + dy : 1 + dy + N, 1 + dx : 1 + dx + N]
+                acc |= p[1 + dy : 1 + dy + out.shape[0], 1 + dx : 1 + dx + out.shape[1]]
         out = acc
     return out
 
@@ -130,8 +170,8 @@ def label_components(mask: np.ndarray) -> tuple[np.ndarray, list[int]]:
     return labels, sizes
 
 
-def _ellipse_field(cx: float, cy: float, rx: float, ry: float) -> np.ndarray:
-    yy, xx = np.mgrid[0:N, 0:N]
+def _ellipse_field(n: int, cx: float, cy: float, rx: float, ry: float) -> np.ndarray:
+    yy, xx = np.mgrid[0:n, 0:n]
     return ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2
 
 
@@ -143,12 +183,12 @@ def _threshold_top_k(field: np.ndarray, allowed: np.ndarray, k: int) -> np.ndarr
     return allowed & (field >= t)
 
 
-def _segment_mask(x1: float, y1: float, x2: float, y2: float, half_w: np.ndarray | float) -> np.ndarray:
-    yy, xx = np.mgrid[0:N, 0:N]
+def _segment_mask(n: int, x1: float, y1: float, x2: float, y2: float, half_w: np.ndarray | float) -> np.ndarray:
+    yy, xx = np.mgrid[0:n, 0:n]
     dx, dy = x2 - x1, y2 - y1
     seg_len2 = dx * dx + dy * dy
     if seg_len2 == 0:
-        t = np.zeros((N, N))
+        t = np.zeros((n, n))
     else:
         t = np.clip(((xx - x1) * dx + (yy - y1) * dy) / seg_len2, 0, 1)
     px, py = x1 + t * dx, y1 + t * dy
@@ -157,27 +197,32 @@ def _segment_mask(x1: float, y1: float, x2: float, y2: float, half_w: np.ndarray
 
 
 # ----------------------------------------------------------------------------- generation
-def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
+def _try_generate(seed: int, spec: Spec, cfg: GenConfig) -> WorldGen | None:
     rng = np.random.default_rng(seed)
     gen = spec.generator
     terr = spec.terrain
+    N = cfg.size  # noqa: N806 — local world size shadows the module default on purpose
+    S = N / BASE_N  # linear scale of the landmass layout; areas scale by S²
+    A = S * S
+    px0, py0 = cfg.pyramid_anchor
     total_tiles = N * N
-    land_target = int(total_tiles * (1 - terr["water"]["target_pct"] / 100.0))  # 128000
-    island_target = int(rng.integers(gen["island_land_tiles_range"][0] + 500, gen["island_land_tiles_range"][1] - 500))
+    land_target = int(total_tiles * (1 - terr["water"]["target_pct"] / 100.0))  # 128000 at 400x400
+    isl_lo, isl_hi = int(gen["island_land_tiles_range"][0] * A), int(gen["island_land_tiles_range"][1] * A)
+    rng.integers(isl_lo + int(500 * A), isl_hi - int(500 * A))  # keeps the RNG sequence of the original generator (seed reproducibility)
     island_sep = int(gen["island_min_water_separation_tiles"])
 
-    # ---- islands first (three separate masks, each 8000-12000 land tiles) ----
+    # ---- islands first (three separate masks, each 8000-12000 land tiles at 400x400) ----
     island_specs = [
-        (200.0 + rng.uniform(-40, 40), 30.0 + rng.uniform(-4, 4), 125.0, 30.0),  # north
-        (52.0 + rng.uniform(-6, 6), 345.0 + rng.uniform(-10, 10), 50.0, 72.0),  # south-west
-        (348.0 + rng.uniform(-6, 6), 345.0 + rng.uniform(-10, 10), 50.0, 72.0),  # south-east
+        ((200.0 + rng.uniform(-40, 40)) * S, (30.0 + rng.uniform(-4, 4)) * S, 125.0 * S, 30.0 * S),  # north
+        ((52.0 + rng.uniform(-6, 6)) * S, (345.0 + rng.uniform(-10, 10)) * S, 50.0 * S, 72.0 * S),  # south-west
+        ((348.0 + rng.uniform(-6, 6)) * S, (345.0 + rng.uniform(-10, 10)) * S, 50.0 * S, 72.0 * S),  # south-east
     ]
     islands: list[np.ndarray] = []
     for cx, cy, rx, ry in island_specs:
-        island_target = int(rng.integers(gen["island_land_tiles_range"][0] + 500, gen["island_land_tiles_range"][1] - 500))
+        island_target = int(rng.integers(isl_lo + int(500 * A), isl_hi - int(500 * A)))
         noise = fbm((N, N), rng, octaves=4, base_freq=8)
-        fld = 1.0 - _ellipse_field(cx, cy, rx, ry) + 0.45 * (noise - 0.5)
-        window = _ellipse_field(cx, cy, rx * 1.35, ry * 1.35) <= 1.0
+        fld = 1.0 - _ellipse_field(N, cx, cy, rx, ry) + 0.45 * (noise - 0.5)
+        window = _ellipse_field(N, cx, cy, rx * 1.35, ry * 1.35) <= 1.0
         mask = _threshold_top_k(fld, window, island_target)
         labels, sizes = label_components(mask)
         if not sizes:
@@ -185,7 +230,7 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
         main = int(np.argmax(sizes))
         mask = labels == main
         cnt = int(mask.sum())
-        if not (gen["island_land_tiles_range"][0] <= cnt <= gen["island_land_tiles_range"][1]):
+        if not (isl_lo <= cnt <= isl_hi):
             return _reject("L179: if not (gen['island_land_tiles_range'][0] <= cnt <= gen['island_land_t")
         islands.append(mask)
     islands_all = islands[0] | islands[1] | islands[2]
@@ -196,38 +241,38 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
                 return _reject("L186: if (dilate_chebyshev(islands[i], island_sep) & islands[j]).any():")
     forbidden = dilate_chebyshev(islands_all, island_sep)
 
-    # ---- mainland: union of 6-9 perturbed ellipses, must contain (200,200) ----
+    # ---- mainland: union of 6-9 perturbed ellipses, must contain the pyramid anchor ----
     k = int(rng.integers(gen["mainland_mountain_chains_range"][0] + 3, 10))  # 6..9 ellipses
-    fields = [_ellipse_field(200, 212, 190, 150)]
+    fields = [_ellipse_field(N, 200 * S, 212 * S, 190 * S, 150 * S)]
     for _ in range(k - 1):
-        cx = 200 + rng.uniform(-110, 110)
-        cy = 212 + rng.uniform(-90, 90)
-        fields.append(_ellipse_field(cx, cy, rng.uniform(45, 95), rng.uniform(40, 85)))
+        cx = (200 + rng.uniform(-110, 110)) * S
+        cy = (212 + rng.uniform(-90, 90)) * S
+        fields.append(_ellipse_field(N, cx, cy, rng.uniform(45, 95) * S, rng.uniform(40, 85) * S))
     d = np.min(np.stack(fields), axis=0)
     noise = fbm((N, N), rng, octaves=5, base_freq=5)
     land_field = 1.0 - d + 0.55 * (noise - 0.5)
     plateau = np.zeros((N, N), dtype=bool)
-    plateau[200 - 12 : 200 + 13, 200 - 12 : 200 + 13] = True  # pyramid platform reserved in the landmask
+    plateau[py0 - 12 : py0 + 13, px0 - 12 : px0 + 13] = True  # pyramid platform reserved in the landmask
     land_field[plateau] = 10.0
     allowed = ~forbidden
     mainland_target = land_target - int(islands_all.sum())
     mainland = _threshold_top_k(land_field, allowed, mainland_target)
     labels, sizes = label_components(mainland)
-    if not sizes or labels[200, 200] == -1:
+    if not sizes or labels[py0, px0] == -1:
         return _reject("L207: if not sizes or labels[200, 200] == -1:")
-    main_id = int(labels[200, 200])
+    main_id = int(labels[py0, px0])
     mainland = labels == main_id
     # refine threshold so that the main component reaches the target (max 6 passes)
     for _ in range(6):
         cnt = int(mainland.sum())
-        if abs(cnt - mainland_target) <= 600:
+        if abs(cnt - mainland_target) <= 600 * A:
             break
         mainland_target_adj = mainland_target + (mainland_target - cnt)
         cand = _threshold_top_k(land_field, allowed, max(1000, mainland_target_adj))
         labels, sizes = label_components(cand)
-        if labels[200, 200] == -1:
+        if labels[py0, px0] == -1:
             return _reject("L219: if labels[200, 200] == -1:")
-        mainland = labels == int(labels[200, 200])
+        mainland = labels == int(labels[py0, px0])
         mainland_target = mainland_target_adj
     land = mainland | islands_all
     water_pct = 100.0 * (total_tiles - int(land.sum())) / total_tiles
@@ -253,26 +298,26 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
         y, x = ml_pts[rng.integers(len(ml_pts))]
         heading = rng.uniform(0, 2 * math.pi)
         for _seg in range(int(rng.integers(6, 11))):
-            seg_len = rng.uniform(28, 48)
+            seg_len = rng.uniform(28, 48) * S
             heading += rng.uniform(-0.6, 0.6)
             nx, ny = x + math.cos(heading) * seg_len, y + math.sin(heading) * seg_len
             half_w = rng.uniform(wmin, wmax) / 2.0
-            chain_mask |= _segment_mask(x, y, nx, ny, half_w)
+            chain_mask |= _segment_mask(N, x, y, nx, ny, half_w)
             x, y = nx, ny
     for isl in islands:
         pts = np.argwhere(isl)
         y, x = pts[rng.integers(len(pts))]
         heading = rng.uniform(0, 2 * math.pi)
         for _seg in range(int(rng.integers(3, 6))):
-            seg_len = rng.uniform(14, 26)
+            seg_len = rng.uniform(14, 26) * S
             heading += rng.uniform(-0.5, 0.5)
             nx, ny = x + math.cos(heading) * seg_len, y + math.sin(heading) * seg_len
             half_w = rng.uniform(wmin, wmax) / 2.0
-            chain_mask |= _segment_mask(x, y, nx, ny, half_w)
+            chain_mask |= _segment_mask(N, x, y, nx, ny, half_w)
             x, y = nx, ny
     chain_mask &= land & ~plateau
     mnoise = fbm((N, N), rng, octaves=4, base_freq=10)
-    halo = dilate_chebyshev(chain_mask, 9) & land & ~plateau & ~chain_mask
+    halo = dilate_chebyshev(chain_mask, max(9, round(9 * S))) & land & ~plateau & ~chain_mask
     need = mountain_target - int(chain_mask.sum())
     mountain = chain_mask.copy()
     if need > 0:
@@ -290,7 +335,7 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
 
     # ---- forests: 20-30 seeds, best-first region growing on FBM ----
     forest_target = int(total_tiles * terr["forest"]["target_pct"] / 100.0)
-    n_seeds = int(rng.integers(gen["forest_cluster_seed_range"][0], gen["forest_cluster_seed_range"][1] + 1))
+    n_seeds = int(round(int(rng.integers(gen["forest_cluster_seed_range"][0], gen["forest_cluster_seed_range"][1] + 1)) * A))
     fnoise = fbm((N, N), rng, octaves=4, base_freq=12)
     growable = (terrain == PLAIN) & ~plateau
     weights = rng.uniform(0.5, 1.5, size=n_seeds)
@@ -347,7 +392,7 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
         return _reject("L316: if not (terr['plain']['range_pct'][0] <= plain_pct <= terr['plain']['r")
 
     # ---- anchors ----
-    anchors = _place_anchors(rng, spec, terrain, region)
+    anchors = _place_anchors(rng, spec, cfg, terrain, region)
     if anchors is None:
         return _reject("L321: if anchors is None:")
 
@@ -365,11 +410,14 @@ def _try_generate(seed: int, spec: Spec) -> WorldGen | None:
 
 
 def _port_eligible_mask(terrain: np.ndarray) -> np.ndarray:
-    """Plain/forest tiles with a cardinal neighbour on a sea (water body >= SEA_MIN_TILES; ponds/lakes are not coast)."""
+    """Plain/forest tiles with a cardinal neighbour on a sea (water body >= SEA_MIN_TILES scaled by area; ponds/lakes
+    are not coast)."""
+    n = terrain.shape[0]
+    sea_min = int(SEA_MIN_TILES * (n / BASE_N) ** 2)
     labels, sizes = label_components(terrain == WATER)
-    sea_ids = {i for i, sz in enumerate(sizes) if sz >= SEA_MIN_TILES}
+    sea_ids = {i for i, sz in enumerate(sizes) if sz >= sea_min}
     water = np.isin(labels, list(sea_ids)) if sea_ids else terrain == WATER
-    adj = np.zeros((N, N), dtype=bool)
+    adj = np.zeros(terrain.shape, dtype=bool)
     adj[1:, :] |= water[:-1, :]
     adj[:-1, :] |= water[1:, :]
     adj[:, 1:] |= water[:, :-1]
@@ -377,15 +425,18 @@ def _port_eligible_mask(terrain: np.ndarray) -> np.ndarray:
     return ((terrain == PLAIN) | (terrain == FOREST)) & adj
 
 
-def _place_anchors(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, region: np.ndarray) -> list[Anchor] | None:
+def _place_anchors(rng: np.random.Generator, spec: Spec, cfg: GenConfig, terrain: np.ndarray, region: np.ndarray) -> list[Anchor] | None:
     sp = spec.spawn
-    hard_min = int(sp["hard_min_player_distance"])
-    pref = int(sp["preferred_player_distance"])
-    nmin = int(sp["neutral_min_distance"])
+    hard_min = cfg.hard_min_player_distance
+    pref = cfg.preferred_player_distance
+    nmin = cfg.neutral_min_distance
+    npref = max(nmin, cfg.neutral_preferred_distance)
     pyr_excl = int(sp["pyramid_exclusion_chebyshev"])
-    px, py = spec.world["pyramid_anchor"]
+    px, py = cfg.pyramid_anchor
+    N = terrain.shape[0]  # noqa: N806
 
     near_any = np.zeros((N, N), dtype=bool)  # Chebyshev <= nmin-1 of any anchor
+    near_any_pref = np.zeros((N, N), dtype=bool)  # Chebyshev <= npref-1 of any anchor (preferred neutral spacing)
     near_player_pref = np.zeros((N, N), dtype=bool)  # Chebyshev <= pref-1 of a player anchor
     near_player_hard = np.zeros((N, N), dtype=bool)  # Chebyshev <= hard_min-1 of a player anchor
     pyramid_block = np.zeros((N, N), dtype=bool)
@@ -427,6 +478,7 @@ def _place_anchors(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, re
                         continue
                     anchors.append(Anchor("PLAYER_SLOT", x, y, tn, reg["id"], bool(port_mask[y, x])))
                     mark(near_any, x, y, nmin - 1)
+                    mark(near_any_pref, x, y, npref - 1)
                     mark(near_player_hard, x, y, hard_min - 1)
                     mark(near_player_pref, x, y, pref - 1)
                     placed += 1
@@ -466,6 +518,7 @@ def _place_anchors(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, re
                         continue
                     anchors.append(Anchor("NEUTRAL", x, y, tn, reg["id"], True))
                     mark(near_any, x, y, nmin - 1)
+                    mark(near_any_pref, x, y, npref - 1)
                     remaining[tn] -= 1
                     ports_placed += 1
                     sectors_used.add(s)
@@ -481,15 +534,19 @@ def _place_anchors(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, re
             cand = np.argwhere(rmask & (terrain == tname[tn]) & ~pyramid_block & ~near_any)
             rng.shuffle(cand)
             placed = 0
-            for y, x in cand:
+            for strict in (True, False):  # preferred spacing first, then fall back to the hard minimum
+                for y, x in cand:
+                    if placed >= quota:
+                        break
+                    y, x = int(y), int(x)
+                    if near_any[y, x] or (strict and near_any_pref[y, x]):
+                        continue
+                    anchors.append(Anchor("NEUTRAL", x, y, tn, reg["id"], bool(port_mask[y, x])))
+                    mark(near_any, x, y, nmin - 1)
+                    mark(near_any_pref, x, y, npref - 1)
+                    placed += 1
                 if placed >= quota:
                     break
-                y, x = int(y), int(x)
-                if near_any[y, x]:
-                    continue
-                anchors.append(Anchor("NEUTRAL", x, y, tn, reg["id"], bool(port_mask[y, x])))
-                mark(near_any, x, y, nmin - 1)
-                placed += 1
             if placed < quota:
                 return _reject("L459: if placed < quota:")
 
@@ -518,14 +575,15 @@ def _place_anchors(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, re
     return anchors
 
 
-def generate_world(base_seed: int, spec: Spec | None = None) -> WorldGen:
+def generate_world(base_seed: int, spec: Spec | None = None, cfg: GenConfig | None = None) -> WorldGen:
     spec = spec or get_spec()
+    cfg = cfg or GenConfig.from_spec(spec)
     max_attempts = int(spec.generator["max_seed_attempts"])
     rejected = 0
     for attempt in range(max_attempts):
         seed = base_seed * 1000 + attempt
         try:
-            result = _try_generate(seed, spec)
+            result = _try_generate(seed, spec, cfg)
         except MapGenerationError:
             result = None
         if result is not None:

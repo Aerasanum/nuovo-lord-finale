@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 21 backend + frontend verification GREEN. Backend: 13/13 pytest tests pass on /app/backend/tests/test_iteration_21.py (public URL, demo JWT + admin key). Verified GET /api/worlds lists world_1 (size 400, OPEN, 100 slots) and world_2 (size 600, OPEN, 100 slots); chunk API bounds are correct — world_2/map/chunk/18/18 → 200 with 32*32 terrain_b64 + sentinels[] + territory[]; world_2/map/chunk/19/0 → 400 CHUNK_OUT_OF_RANGE; world_1/map/chunk/13/0 → 400 CHUNK_OUT_OF_RANGE. Overview: world_1 size 100 (100*100 bytes), world_2 size 150 (150*150 bytes). Pyramid endpoint /api/worlds/{id}/pyramid returns anchor [200,200] for world_1 and [300,300] for world_2. Sentinel wedge geometry on world_1: GET /api/worlds/world_1/settlements/stl_0484bd7cfcbd40dd/sentinels returns 4 GUARDED sentinels exactly at (6,185),(9,188),(6,191),(3,188); GET /api/worlds/world_1/map/chunk/0/5 returns OWN territory tiles that cover the full 7x7 square around (6,188) — all 49 sample tiles including corners (3,185)(9,191) and sentinel tiles are OWN. Admin auth: POST /api/worlds without X-Admin-Key → 401; with admin key + {size:100} → 422 validation error (size ge 256). Regressions pass: GET /api/worlds/world_1/marches → 200; GET /api/worlds/world_1/settlements/stl_0484bd7cfcbd40dd → 200 with x=6,y=188. Frontend (390x844 Playwright, demo login): (1) worlds screen shows both world-card-world_1 (400x400, Entra, Casa Demo, 52/100) and world-card-world_2 (600x600, Entra, Casa Demo Due, 1/100). (2) world-enter-world_2 → daily-close closes reward chest → map-3d-view attached, terrain and Casa Demo Due L1 castle rendered; HUD shows '534,546 · +30 · 03:38 · Notte'; map-center-pyramid-button → after ~9s HUD reads '301,301 · +44' and Piramide label with '89g 23h' timer visible, big black stepped pyramid rendered on grass. (3) world-enter-world_1 → daily-close → map-center-home-button → 2 zoom-in → HUD reads '7,189 · +15' (adjacent to home 6,188), the 4 Sentinelle towers (yellow torches on stone) are visible around Casa Demo L10 castle with the neighboring Casa Demo L10 at 5,183 also on-screen, and the yellow territory border forms a single closed square around the castle+sentinels — NO cross-shape, matching the wedge acceptance. (4) Console: zero page errors, zero non-whitelisted console errors during the full session (only textShadow/shadow* deprecation warnings, whitelisted per request).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_21.py",
+    "/app/test_reports/pytest/iter21.xml",
+    "/app/test_reports/screens/iter21_worlds.jpg",
+    "/app/test_reports/screens/iter21_w2_initial.jpg",
+    "/app/test_reports/screens/iter21_w2_pyramid.jpg",
+    "/app/test_reports/screens/iter21_w1_sentinels_z1.jpg",
+    "/app/test_reports/screens/iter21_w1_sentinels_z2.jpg"
+  ],
+  "action_items": [
+    "INFO: Iteration 21 (Sentinel wedges + world_2 600x600 + POST /api/worlds admin route) is fully verified end-to-end. No fixes required from main agent."
+  ],
+  "critical_code_review_comments": [
+    "Chunk endpoint correctly rejects out-of-range indices for both worlds (400 CHUNK_OUT_OF_RANGE) — bounds computed from world size (size/32) as expected.",
+    "POST /api/worlds properly gates on X-Admin-Key and validates body via Pydantic (422 for size<256). No new world created during testing.",
+    "Sentinel wedge implementation (backend) produces the full 7x7 = 49 OWN tiles around the mother castle when all 4 sentinels are GUARDED, and the frontend renders exactly one square perimeter around them (no cross-shape), confirming the wedge geometry acceptance criteria.",
+    "Pyramid anchor endpoint returns per-world coordinates ([200,200] w1, [300,300] w2), and world_2 map/overview is 150x150 (600/4) with correct terrain_b64 length."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_21.py",
+    "/app/test_reports/iteration_21.json"
+  ],
+  "success_rate": {"backend": "13/13 (100%)", "frontend": "3/3 flows (worlds cards, world_2 pyramid recenter, world_1 sentinel wedges) verified with 0 console/page errors"},
+  "seed_data_creation": "None. No admin POST issued with a valid body; no worlds created. Read-only verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 21 backend+frontend green. Public URL is https://empire-lords-dragon.preview.emergentagent.com. Demo credentials still valid; world_2 slot #1 is 'Casa Demo Due'. Pyramid endpoint is /api/worlds/{world_id}/pyramid (anchor as [x,y] list). Sentinels endpoint is /api/worlds/{world_id}/settlements/{stl_id}/sentinels (returns 4 items with x,y,state). Territory tiles come inside chunk DTO (field 'territory' with x,y,faction=OWN|ALLY|...). For frontend the WebGL scenes need ~9-10s warmup before the map-3d-view is fully rendered; use daily-close first if the daily chest appears on world entry. HUD coord format is like '534,546 · +30' — first token is 'x,y'.",
+  "rca_of_issue": "N/A — no defects found. All 13 backend endpoints and 3 UI flows meet the iteration 21 acceptance criteria."
+}

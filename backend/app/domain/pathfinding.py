@@ -10,20 +10,28 @@ import numpy as np
 from app.core.db import db
 from app.core.spec import get_spec
 
-N = 400
+N = 400  # default world size; each world carries its own `size` (grid.shape) — never assume 400 in callers
 CHUNK = 32
 _cache: dict[str, np.ndarray] = {}
+
+
+async def world_size(world_id: str) -> int:
+    if world_id in _cache:
+        return int(_cache[world_id].shape[0])
+    w = await db().worlds.find_one({"_id": world_id}, {"size": 1})
+    return int((w or {}).get("size") or N)
 
 
 async def load_terrain(world_id: str) -> np.ndarray:
     if world_id in _cache:
         return _cache[world_id]
-    grid = np.full((N, N), 3, dtype=np.uint8)
+    n = await world_size(world_id)
+    grid = np.full((n, n), 3, dtype=np.uint8)
     async for c in db().map_chunks.find({"world_id": world_id}):
         cx, cy = c["cx"], c["cy"]
         arr = np.frombuffer(c["terrain"], dtype=np.uint8).reshape(CHUNK, CHUNK)
-        h = min(CHUNK, N - cy * CHUNK)
-        w = min(CHUNK, N - cx * CHUNK)
+        h = min(CHUNK, n - cy * CHUNK)
+        w = min(CHUNK, n - cx * CHUNK)
         grid[cy * CHUNK : cy * CHUNK + h, cx * CHUNK : cx * CHUNK + w] = arr[:h, :w]
     _cache[world_id] = grid
     return grid
@@ -46,11 +54,12 @@ def astar(grid: np.ndarray, start: tuple[int, int], goal: tuple[int, int], naval
     Land: water impassable. Naval: only water passable (cost 1 per tile)."""
     sx, sy = start
     gx, gy = goal
-    if not (0 <= gx < N and 0 <= gy < N):
+    n_y, n_x = grid.shape
+    if not (0 <= gx < n_x and 0 <= gy < n_y):
         return None
 
     def passable(x: int, y: int) -> bool:
-        if not (0 <= x < N and 0 <= y < N):
+        if not (0 <= x < n_x and 0 <= y < n_y):
             return False
         code = int(grid[y, x])
         return (code == 3) if naval else (code != 3)

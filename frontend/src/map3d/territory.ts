@@ -48,8 +48,14 @@ export function buildTerritory(tiles: Tile[], bounds: { x0: number; y0: number; 
       const h01 = cornerH(t.x, t.y + 1) + FILL_LIFT;
       const h11 = cornerH(t.x + 1, t.y + 1) + FILL_LIFT;
       quad(fill, fillCol, c, [t.x, h00, t.y], [t.x + 1, h10, t.y], [t.x, h01, t.y + 1], [t.x + 1, h11, t.y + 1]);
-      // border ribbon on every edge whose neighbour (inside this chunk) is not the same faction
-      const open = (nx: number, ny: number) => nx >= bounds.x0 && ny >= bounds.y0 && nx < bounds.x1 && ny < bounds.y1 && set.get(`${nx}:${ny}`)?.faction !== t.faction;
+      // border ribbon on every edge whose neighbour (inside this chunk) is not on the same side — own and allied land
+      // count as one region (Bible §14 ALLIED_SHARED_BORDER: separate owners, no wall between them)
+      const side = (f: Tile["faction"]) => (f === "OWN" || f === "ALLY" ? "FRIEND" : f);
+      const open = (nx: number, ny: number) => {
+        if (!(nx >= bounds.x0 && ny >= bounds.y0 && nx < bounds.x1 && ny < bounds.y1)) return false;
+        const n = set.get(`${nx}:${ny}`);
+        return !n || side(n.faction) !== side(t.faction);
+      };
       const lift = BORDER_LIFT - FILL_LIFT;
       if (open(t.x, t.y - 1)) quad(border, borderCol, c, [t.x, h00 + lift, t.y], [t.x + 1, h10 + lift, t.y], [t.x, h00 + lift, t.y + BORDER_W], [t.x + 1, h10 + lift, t.y + BORDER_W]);
       if (open(t.x, t.y + 1)) quad(border, borderCol, c, [t.x, h01 + lift, t.y + 1 - BORDER_W], [t.x + 1, h11 + lift, t.y + 1 - BORDER_W], [t.x, h01 + lift, t.y + 1], [t.x + 1, h11 + lift, t.y + 1]);

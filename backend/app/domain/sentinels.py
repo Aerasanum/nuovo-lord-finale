@@ -3,6 +3,7 @@ No HP, no walls, no repair. States BUILDING -> GUARDED | UNGUARDED_GRACE -> REMO
 idempotent through a generation counter (regarrison before deadline supersedes the pending expiry)."""
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 
 from app.core import clock
@@ -16,20 +17,50 @@ from app.domain.settlements import new_id
 
 DIRS = {"N": (0, -1), "NE": (1, -1), "E": (1, 0), "SE": (1, 1), "S": (0, 1), "SW": (-1, 1), "W": (-1, 0), "NW": (-1, -1)}
 INNER = ("N", "E", "S", "W")
+OUTER_ORDER = ("E", "SE", "S", "SW", "W", "NW", "N", "NE")  # by increasing atan2 angle (screen y grows southwards)
 
 
-def sector_tiles(anchor: tuple[int, int], sentinel: tuple[int, int]) -> list[tuple[int, int]]:
-    """Provisional sector geometry: tiles on the straight line anchor->sentinel plus Chebyshev radius 1 around it."""
+def sector_tiles(anchor: tuple[int, int], direction: str, ring: str, inner_r: int, outer_r: int) -> list[tuple[int, int]]:
+    """Sector geometry (Bible §14, "settore" of a Sentinel):
+    - INNER sentinel at Chebyshev radius `inner_r` facing D → the 90° wedge of the (2r+1)² square around the anchor that
+      faces D (each wedge takes one diagonal, clockwise: N+NE, E+SE, S+SW, W+NW → 12 tiles each at r=3): the four inner
+      sentinels together cover the whole square.
+    - OUTER sentinel at radius `outer_r` → the 45° wedge of the ring band (inner_r+1 .. outer_r) facing D: the eight
+      outer sentinels together cover the whole (2·outer_r+1)² square minus the inner square.
+    The anchor tile itself is never part of a sector (it is BASE territory). Water/foreign tiles are filtered by the
+    claim (single-owner invariant), not here."""
     ax, ay = anchor
-    sx, sy = sentinel
-    tiles: set[tuple[int, int]] = set()
-    steps = max(abs(sx - ax), abs(sy - ay))
-    for i in range(1, steps + 1):
-        tiles.add((ax + round((sx - ax) * i / steps), ay + round((sy - ay) * i / steps)))
-    for dx in (-1, 0, 1):
-        for dy in (-1, 0, 1):
-            tiles.add((sx + dx, sy + dy))
-    return sorted(tiles)
+    out: list[tuple[int, int]] = []
+    if ring == "INNER":
+        for dy in range(-inner_r, inner_r + 1):
+            for dx in range(-inner_r, inner_r + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                if direction == "N":
+                    ok = dy < 0 and (abs(dx) < -dy or (dx > 0 and dx == -dy))  # + NE diagonal
+                elif direction == "E":
+                    ok = dx > 0 and (abs(dy) < dx or (dy > 0 and dy == dx))  # + SE diagonal
+                elif direction == "S":
+                    ok = dy > 0 and (abs(dx) < dy or (dx < 0 and -dx == dy))  # + SW diagonal
+                else:  # W
+                    ok = dx < 0 and (abs(dy) < -dx or (dy < 0 and dy == dx))  # + NW diagonal
+                if ok:
+                    out.append((ax + dx, ay + dy))
+        return sorted(out)
+    for dy in range(-outer_r, outer_r + 1):
+        for dx in range(-outer_r, outer_r + 1):
+            d = max(abs(dx), abs(dy))
+            if d <= inner_r:
+                continue
+            k = int(round(math.atan2(dy, dx) / (math.pi / 4))) % 8
+            if OUTER_ORDER[k] == direction:
+                out.append((ax + dx, ay + dy))
+    return sorted(out)
+
+
+def sector_tiles_for(doc: dict, sentinel: dict) -> list[tuple[int, int]]:
+    t = get_spec().territory
+    return sector_tiles((doc["x"], doc["y"]), sentinel["direction"], sentinel["ring"], int(t["inner_sentinel_radius_tiles"]), int(t["outer_sentinel_radius_tiles"]))
 
 
 def _combat_capable(garrison: dict[str, int]) -> bool:
@@ -75,7 +106,7 @@ async def start_build(doc: dict, player: dict, direction: str, idempotency_key: 
     dx, dy = DIRS[direction]
     x, y = doc["x"] + dx * radius, doc["y"] + dy * radius
     grid = await load_terrain(doc["world_id"])
-    if not (0 <= x < 400 and 0 <= y < 400) or int(grid[y, x]) == 3:
+    if not (0 <= x < grid.shape[1] and 0 <= y < grid.shape[0]) or int(grid[y, x]) == 3:
         raise ApiError("SENTINEL_TILE_INVALID", "Sentinel slot is water or out of map", 409, {"x": x, "y": y})
     owner = await territory.owner_of_tile(doc["world_id"], x, y)
     if owner and owner != player["_id"]:
@@ -158,7 +189,7 @@ async def apply_build_complete(job: dict) -> None:
     if s["state"] != "BUILDING":
         return
     await db().sentinels.update_one({"_id": s["_id"]}, {"$set": {"built_at": clock.now()}})
-    tiles = sector_tiles((doc["x"], doc["y"]), (s["x"], s["y"]))
+    tiles = sector_tiles_for(doc, s)
     await territory.claim_tiles(doc["world_id"], tiles, s["owner_player_id"], doc["_id"], f"SENTINEL:{s['_id']}")
     # building_complete_without_garrison -> 24h grace starts at completion
     await _start_grace(s, "BUILT_WITHOUT_GARRISON")

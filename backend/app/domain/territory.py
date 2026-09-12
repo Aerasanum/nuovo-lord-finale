@@ -7,7 +7,6 @@ from pymongo.errors import BulkWriteError, DuplicateKeyError
 from app.core.db import db
 from app.domain.pathfinding import load_terrain
 
-N = 400
 CHUNK = 32
 
 
@@ -19,7 +18,7 @@ async def claim_tiles(world_id: str, tiles: list[tuple[int, int]], owner: str, s
     grid = await load_terrain(world_id)
     docs = []
     for x, y in tiles:
-        if not (0 <= x < N and 0 <= y < N) or int(grid[y, x]) == 3:
+        if not (0 <= x < grid.shape[1] and 0 <= y < grid.shape[0]) or int(grid[y, x]) == 3:
             continue  # water is never land ownership
         docs.append(_tile_doc(world_id, x, y, owner, settlement_id, source))
     if not docs:
