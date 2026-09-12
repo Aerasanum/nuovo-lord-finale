@@ -35,7 +35,6 @@ const useStyles = makeStyles((c) => ({
   dayChest: { minWidth: 52 },
   panel: { marginHorizontal: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong, gap: spacing.sm },
   reward: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 4 },
-  bank: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.border },
   check: { position: "absolute", top: 4, right: 4 },
 }));
 
@@ -90,8 +89,8 @@ export default function DailyScreen() {
       });
   };
 
-  const kindIcon = (k: DailyReward["kind"]): IconName => (k === "CHEST" ? "treasure-chest" : k === "SPEEDUP" ? "fast-forward" : "sack");
-  const dayShort = (r: DailyReward) => (r.kind === "SPEEDUP" ? `${r.speedup_minutes! >= 60 ? `${r.speedup_minutes! / 60}h` : `${r.speedup_minutes}m`}` : r.kind === "CHEST" ? "×3 +8h" : `×${r.day === 1 ? "1" : r.day === 3 ? "1.5" : "2"}`);
+  const kindIcon = (k: DailyReward["kind"]): IconName => (k === "CHEST" ? "treasure-chest" : "sack");
+  const dayShort = (r: DailyReward) => `×${Number.isInteger(r.mult) ? r.mult : r.mult.toFixed(2).replace(/0$/, "")}`;
   // day state: claimed days of the current streak sit before the day to claim (or include it once claimed today)
   const claimedThrough = d ? (d.claimable ? d.day - 1 : d.day) : 0;
   const shown = granted ?? null;
@@ -118,14 +117,6 @@ export default function DailyScreen() {
               {d ? ` · ${t("dailyStreak")} ${d.streak} ${t("dailyDays")}` : ""}
             </T>
           </View>
-          {d ? (
-            <View style={s.bank} testID="daily-speedup-bank" accessibilityLabel={t("dailySpeedupBank")}>
-              <Icon name="fast-forward" size={14} color={colors.brandPrimary} />
-              <T v="caption" style={{ color: colors.onSurface, fontWeight: "700" }}>
-                {d.speedup_minutes} {t("minutesShort")}
-              </T>
-            </View>
-          ) : null}
         </View>
 
         {/* keeps the strip below the chest + pedestal */}
@@ -177,23 +168,11 @@ export default function DailyScreen() {
                       </View>
                     ))
                   : null}
-                {shown.speedup_minutes ? (
-                  <View style={s.reward} testID="daily-reward-speedup">
-                    <Icon name="fast-forward" size={18} color={colors.brandPrimary} />
-                    <T v="body" style={{ flex: 1 }}>
-                      {t("dailySpeedup")}
-                    </T>
-                    <T v="mono" style={{ color: colors.brandPrimary }}>
-                      +{shown.speedup_minutes} {t("minutesShort")}
-                    </T>
-                  </View>
-                ) : null}
                 {shown.discarded && Object.keys(shown.discarded).length ? (
                   <T v="caption" style={{ color: colors.warning }} testID="daily-discarded">
                     {t("dailyDiscarded")}
                   </T>
                 ) : null}
-                <T v="caption">{t("dailySpeedupHint")}</T>
                 <T v="caption" style={{ color: colors.brandPrimary }} testID="daily-tomorrow">
                   {fmt(t("dailyTomorrow"), { day: (shown.day % 7) + 1 })}
                 </T>
@@ -207,26 +186,19 @@ export default function DailyScreen() {
                     <Row>
                       <Icon name={kindIcon(d.rewards[d.day - 1].kind)} size={20} color={colors.brandPrimary} />
                       <T v="label" style={{ flex: 1 }} testID="daily-today-label">
-                        {t("dailyToday")} · {t("dailyDay")} {d.day} · {d.rewards[d.day - 1].kind === "SPEEDUP" ? t("dailySpeedup") : d.rewards[d.day - 1].kind === "CHEST" ? t("dailyChest") : t("dailyResources")}
+                        {t("dailyToday")} · {t("dailyDay")} {d.day} · {d.rewards[d.day - 1].kind === "CHEST" ? t("dailyChest") : t("dailyResources")} {dayShort(d.rewards[d.day - 1])}
                       </T>
                     </Row>
-                    {d.rewards[d.day - 1].resources ? (
-                      <Row style={{ flexWrap: "wrap", gap: spacing.sm }}>
-                        {(Object.keys(d.rewards[d.day - 1].resources!) as (keyof NonNullable<DailyReward["resources"]>)[]).map((r) => (
-                          <Row key={r} style={{ gap: 3 }}>
-                            <Icon name={RES_ICONS[r]} size={14} color={resourceColor(colors, r)} />
-                            <T v="caption" style={{ color: colors.onSurface }}>
-                              {formatNumber(d.rewards[d.day - 1].resources![r] ?? 0)}
-                            </T>
-                          </Row>
-                        ))}
-                      </Row>
-                    ) : null}
-                    {d.rewards[d.day - 1].speedup_minutes ? (
-                      <T v="caption" style={{ color: colors.onSurface }}>
-                        ⏩ +{d.rewards[d.day - 1].speedup_minutes} {t("minutesShort")}
-                      </T>
-                    ) : null}
+                    <Row style={{ flexWrap: "wrap", gap: spacing.sm }}>
+                      {(Object.keys(d.rewards[d.day - 1].resources) as (keyof DailyReward["resources"])[]).map((r) => (
+                        <Row key={r} style={{ gap: 3 }}>
+                          <Icon name={RES_ICONS[r]} size={14} color={resourceColor(colors, r)} />
+                          <T v="caption" style={{ color: colors.onSurface }}>
+                            {formatNumber(d.rewards[d.day - 1].resources[r] ?? 0)}
+                          </T>
+                        </Row>
+                      ))}
+                    </Row>
                     <T v="caption">{t("dailyWarehouseNote")}</T>
                     <Button title={playing ? t("dailyOpening") : t("dailyClaim")} icon="treasure-chest" loading={m.claim.isPending} disabled={playing} onPress={claim} testID="daily-claim" />
                   </>
@@ -244,7 +216,6 @@ export default function DailyScreen() {
                         <Countdown endsAt={d.next_reset_at} testID="daily-next-reset" />
                       </Row>
                     ) : null}
-                    <T v="caption">{t("dailySpeedupHint")}</T>
                   </>
                 )}
               </Animated.View>

@@ -1,20 +1,18 @@
 """
 Daily login reward (product addition, not in the Bible — keeps every Bible invariant: no free Rubies, resources are
-credited through the warehouse cap, speed-ups never touch locked jobs):
+credited through the warehouse cap):
 
   7-day streak cycle, realm day = UTC+1 calendar day (same clock as the map daylight). Missing a day resets to day 1.
-    D1 resources ×1.0   D2 speed-up 30 min   D3 resources ×1.5   D4 speed-up 1 h
-    D5 resources ×2.0   D6 speed-up 2 h      D7 chest: resources ×3 + speed-up 8 h
+  Resources only (Player decision — no speed-ups, nothing that touches the queues):
+    D1 ×1.0   D2 ×1.25   D3 ×1.5   D4 ×1.75   D5 ×2.0   D6 ×2.5   D7 chest ×4.0
   Resource base = 8 % of the capital's warehouse capacity per resource (scales with progression, never overflows).
-  Speed-ups accumulate as `players.speedup_minutes` and are spent on a running job (construction/research/recruit)
-  with POST /jobs/{id}/speedup — same completion path as the scheduler (idempotent).
 """
 from datetime import timedelta
 
 from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
-from app.domain import construction, economy, scheduler, settlements
+from app.domain import economy
 from app.domain import formulas as F
 
 REALM_UTC_OFFSET_HOURS = 1
@@ -23,12 +21,12 @@ RESOURCES = tuple(F.RES)  # grain, wood, clay, iron, gold
 
 CYCLE: list[dict] = [
     {"day": 1, "kind": "RESOURCES", "mult": 1.0},
-    {"day": 2, "kind": "SPEEDUP", "minutes": 30},
+    {"day": 2, "kind": "RESOURCES", "mult": 1.25},
     {"day": 3, "kind": "RESOURCES", "mult": 1.5},
-    {"day": 4, "kind": "SPEEDUP", "minutes": 60},
+    {"day": 4, "kind": "RESOURCES", "mult": 1.75},
     {"day": 5, "kind": "RESOURCES", "mult": 2.0},
-    {"day": 6, "kind": "SPEEDUP", "minutes": 120},
-    {"day": 7, "kind": "CHEST", "mult": 3.0, "minutes": 480},
+    {"day": 6, "kind": "RESOURCES", "mult": 2.5},
+    {"day": 7, "kind": "CHEST", "mult": 4.0},
 ]
 
 
@@ -48,13 +46,8 @@ async def _capital(player: dict) -> dict | None:
 
 
 def _preview(cap: int, entry: dict) -> dict:
-    out = {"day": entry["day"], "kind": entry["kind"], "resources": None, "speedup_minutes": None}
-    if entry["kind"] in ("RESOURCES", "CHEST"):
-        amt = int(cap * RESOURCE_BASE_PCT * entry["mult"])
-        out["resources"] = {r: amt for r in RESOURCES}
-    if entry["kind"] in ("SPEEDUP", "CHEST"):
-        out["speedup_minutes"] = int(entry["minutes"])
-    return out
+    amt = int(cap * RESOURCE_BASE_PCT * entry["mult"])
+    return {"day": entry["day"], "kind": entry["kind"], "mult": entry["mult"], "resources": {r: amt for r in RESOURCES}}
 
 
 def _state(player: dict) -> tuple[int, bool, int]:
@@ -79,7 +72,6 @@ async def status(player: dict) -> dict:
         "claimable": claimable,
         "streak": streak,
         "next_reset_at": _next_reset_iso(),
-        "speedup_minutes": int(player.get("speedup_minutes", 0)),
         "rewards": [_preview(cap, e) for e in CYCLE],
         "capital_settlement_id": cap_doc["_id"] if cap_doc else None,
     }
@@ -97,41 +89,11 @@ async def claim(player: dict) -> dict:
     cap_doc = await _capital(player)
     cap = int(F.warehouse_capacity(cap_doc.get("buildings", {}), cap_doc.get("research", {})) if cap_doc else 0)
     reward = _preview(cap, CYCLE[day - 1])
-    granted: dict = {"day": day, "kind": reward["kind"], "resources": None, "discarded": None, "speedup_minutes": None}
-    if reward["resources"] and cap_doc:
+    granted: dict = {"day": day, "kind": reward["kind"], "mult": reward["mult"], "resources": None, "discarded": None}
+    if cap_doc:
         discarded = await economy.credit(cap_doc["_id"], reward["resources"], "daily_login")
         granted["resources"] = reward["resources"]
         granted["discarded"] = {k: v for k, v in discarded.items() if v}
-    if reward["speedup_minutes"]:
-        await db().players.update_one({"_id": player["_id"]}, {"$inc": {"speedup_minutes": int(reward["speedup_minutes"])}})
-        granted["speedup_minutes"] = int(reward["speedup_minutes"])
     await db().audit.insert_one({"world_id": player["world_id"], "type": "daily_login_claim", "player_id": player["_id"], "day": day, "streak": streak + 1, "granted": granted, "at": clock.now()})
     fresh = await db().players.find_one({"_id": player["_id"]})
     return {"granted": granted, "status": await status(fresh)}
-
-
-async def speedup(player: dict, job: dict, minutes: int) -> dict:
-    """Spend speed-up minutes on a RUNNING job; completing early runs the scheduler's own handler (idempotent)."""
-    have = int(player.get("speedup_minutes", 0))
-    minutes = int(minutes)
-    if minutes <= 0 or minutes > have:
-        raise ApiError("INSUFFICIENT_SPEEDUP", "Not enough speed-up minutes", 409, {"have": have})
-    if job.get("status") != "RUNNING":
-        raise ApiError("JOB_NOT_RUNNING", "Job is not running", 409)
-    now = clock.now()
-    remaining = max(0.0, (clock.aware(job["ends_at"]) - now).total_seconds() / 60.0)
-    use = int(min(minutes, max(1, round(remaining))))
-    new_end = clock.aware(job["ends_at"]) - timedelta(minutes=use)
-    finish_now = new_end <= now
-    claimed = await db().jobs.find_one_and_update({"_id": job["_id"], "status": "RUNNING", "ends_at": job["ends_at"]}, {"$set": {"ends_at": now if finish_now else new_end}}, return_document=True)
-    if not claimed:
-        raise ApiError("JOB_NOT_RUNNING", "Job changed, retry", 409)
-    await db().players.update_one({"_id": player["_id"]}, {"$inc": {"speedup_minutes": -use}})
-    await db().audit.insert_one({"world_id": job["world_id"], "type": "speedup_spent", "player_id": player["_id"], "job_id": job["_id"], "minutes": use, "at": now})
-    await scheduler.cancel(f"job_complete:{job['_id']}")
-    if finish_now:
-        await construction.on_job_complete({"payload": {"job_id": job["_id"]}})
-    else:
-        await scheduler.schedule(job["world_id"], "BUILD_RESEARCH_RECRUIT_COMPLETE", new_end, claimed.get("settlement_id", job["_id"]), f"job_complete:{job['_id']}", {"job_id": job["_id"]})
-    fresh = await db().jobs.find_one({"_id": job["_id"]})
-    return {"job": settlements.job_dto(fresh) if fresh else None, "spent_minutes": use, "speedup_minutes": have - use}

@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
-import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, tDyn, unlockLine, useI18n } from "@/src/i18n";
@@ -85,7 +84,6 @@ export default function BuildingDetail() {
               </T>
               <Row style={{ justifyContent: "space-between", marginTop: spacing.sm }}>
                 <Countdown endsAt={b.job.ends_at} />
-                <SpeedupButton job={b.job} />
                 <FinishNowButton job={b.job} />
                 <Button title={t("cancel")} variant="danger" onPress={() => m.cancelJob.mutateAsync(b.job!.job_id).then(() => router.back()).catch(showError)} testID="building-cancel-button" />
               </Row>

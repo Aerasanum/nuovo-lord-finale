@@ -63,10 +63,6 @@ async def set_specialization(world_id: str, body: SpecIn, c: Ctx = Depends(ctx))
 
 
 # ------------------------------------------------------------------------------------------------ daily login reward
-class SpeedupIn(BaseModel):
-    minutes: int = Field(ge=1, le=100000)
-
-
 @router.get("/worlds/{world_id}/daily")
 async def daily_status(world_id: str, c: Ctx = Depends(ctx)):
     return await daily.status(c.player)
@@ -75,11 +71,3 @@ async def daily_status(world_id: str, c: Ctx = Depends(ctx)):
 @router.post("/worlds/{world_id}/daily/claim")
 async def daily_claim(world_id: str, c: Ctx = Depends(ctx)):
     return await daily.claim(c.player)
-
-
-@router.post("/worlds/{world_id}/jobs/{job_id}/speedup")
-async def job_speedup(world_id: str, job_id: str, body: SpeedupIn, c: Ctx = Depends(ctx)):
-    job = await _job(world_id, job_id)
-    if job.get("player_id") != c.player["_id"]:
-        raise ApiError("FORBIDDEN", "Not your job", 403)
-    return await daily.speedup(c.player, job, body.minutes)

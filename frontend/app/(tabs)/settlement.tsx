@@ -5,10 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { BuildingEntry, JobDto } from "@/src/api/hooks";
 import { useBuildings, useDaily, useSettlementMutations } from "@/src/api/hooks";
+import { CityScene } from "@/src/city/CityScene";
+import { useVillageInput } from "@/src/city/useVillageInput";
 import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
-import { SpeedupButton } from "@/src/components/SpeedupButton";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, RESOURCE_LABELS, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -31,6 +32,10 @@ const useStyles = makeStyles((c) => ({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
   dotActive: { backgroundColor: c.brandPrimary },
   quick: { flexDirection: "row", gap: spacing.sm },
+  villageBox: { position: "relative" },
+  village: { height: 270 },
+  villageExpand: { position: "absolute", top: spacing.sm, right: spacing.sm, width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.md, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong },
+  villageCaption: { position: "absolute", left: spacing.sm, bottom: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.border },
 }));
 
 export default function SettlementScreen() {
@@ -45,6 +50,7 @@ export default function SettlementScreen() {
   const daily = useDaily(worldId);
   const m = useSettlementMutations(worldId ?? "", settlementId ?? "");
   const { showError, show } = useToast();
+  const village = useVillageInput();
   const d = settlement.data;
 
   if (!worldId || !settlementId) return null;
@@ -94,8 +100,8 @@ export default function SettlementScreen() {
           <Pressable style={s.hdrBtn} onPress={() => router.push("/queues")} testID="settlement-queues-button">
             <Icon name="timer-sand" size={22} color={colors.onSurfaceSecondary} />
           </Pressable>
-          <Pressable style={s.hdrBtn} onPress={() => router.push("/worlds")} testID="settlement-worlds-button">
-            <Icon name="earth" size={22} color={colors.onSurfaceSecondary} />
+          <Pressable style={s.hdrBtn} onPress={() => router.push("/settings")} testID="settlement-settings-button" accessibilityLabel={t("settings")}>
+            <Icon name="cog-outline" size={22} color={colors.onSurfaceSecondary} />
           </Pressable>
         </Row>
       }
@@ -104,6 +110,20 @@ export default function SettlementScreen() {
         <Loading />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]} refreshControl={<RefreshControl refreshing={settlement.isRefetching} onRefresh={() => settlement.refetch()} tintColor={colors.brandPrimary} />}>
+          {/* living 3D village */}
+          {village ? (
+            <View style={s.villageBox} testID="settlement-village">
+              <CityScene input={village} onPick={(name) => name && name !== "Castello / Fortezza" && router.push({ pathname: "/building/[name]", params: { name } })} style={s.village} testID="settlement-village-scene" />
+              <Pressable style={s.villageExpand} onPress={() => router.push("/city")} testID="settlement-village-expand" accessibilityLabel={t("cityExpand")}>
+                <Icon name="arrow-expand" size={20} color={colors.onSurface} />
+              </Pressable>
+              <View style={s.villageCaption}>
+                <T v="caption" style={{ color: colors.onSurface }} numberOfLines={1}>
+                  {t("cityTitle")} · {Math.min(30, 3 + Math.round(d.level * 0.85))} {t("cityPopulation")}
+                </T>
+              </View>
+            </View>
+          ) : null}
           {/* header stats */}
           <Panel testID="settlement-header">
             <Row style={{ justifyContent: "space-between" }}>
@@ -259,7 +279,6 @@ export function JobLine({ job, onCancel }: { job: JobDto; onCancel?: () => void 
           {label}
         </T>
         <Countdown endsAt={job.ends_at} testID={`job-${job.job_id}-countdown`} />
-        <SpeedupButton job={job} />
         <FinishNowButton job={job} />
         {onCancel ? (
           <Pressable onPress={onCancel} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }} testID={`job-${job.job_id}-cancel`}>

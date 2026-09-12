@@ -767,3 +767,27 @@ frontend:
       - working: true
         agent: "main"
         comment: "Screenshots: Cronaca, Storia della Casata, Esercito, Inbox all readable in Italian (no PYRAMID_*, JSON, 'Tier undefined', 'military.archery_unlock', 'infantry')."
+
+# ---- iteration 19 (main agent) — living 3D village, settings/logout, resources-only daily, inbox filters ----
+backend:
+  - task: "Daily login now resources only: GET /worlds/{w}/daily rewards[] have kind RESOURCES|CHEST + mult (1/1.25/1.5/1.75/2/2.5/4), no speedup fields; POST /daily/claim grants resources only; /jobs/{id}/speedup endpoint REMOVED (404)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/daily.py, api/routes_premium.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "smoke_new_endpoints.py: GET /daily 200 with mult fields, no speedup_minutes."
+frontend:
+  - task: "Living 3D village in the Città tab (settlement-village panel with settlement-village-expand → /city full screen: city-screen, city-back, city-title, city-hint; tap a building → city-picked card with city-picked-name and city-picked-open → /building/[name]); villagers walk, castle + houses + walls scale with level (demo L3 ≈ 6 inhabitants; max L30 ≈ 29). Settings screen /settings from settlement-settings-button (gear in Città header): settings-account/settings-email, settings-lang-it/en, settings-change-world, settings-house, settings-logout → back to login. Daily vault resources only (no ⏩ bank, strip shows ×1..×4). Inbox filter chips inbox-filter-all/battles/queues/marches/alliance/realm with unread counts; inbox-empty shows a category-specific text."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/city/*, app/city.tsx, app/settings.tsx, app/(tabs)/settlement.tsx, app/(tabs)/inbox.tsx, app/daily.tsx, src/api/hooks.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshots OK for demo (L3) and max (L30) villages in panel + full screen, pick → castle card, settings screen, inbox battles filter. WebGL is slow in headless browsers: allow 6-10 s after opening Città/city."

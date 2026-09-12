@@ -37,6 +37,7 @@ export type SettlementDto = {
   owner_house_name?: string | null;
   owner_house_crest?: CrestDto | null;
   owner_alliance_tag?: string | null;
+  skin?: string | null;
   faction: "OWN" | "ALLY" | "ENEMY" | "NEUTRAL" | "RESERVED_SLOT";
   wall_level: number;
   garrison_total?: number | null;
@@ -418,7 +419,7 @@ export function useBattle(worldId?: string | null, id?: string | null) {
 }
 
 export function useInbox(worldId?: string | null) {
-  return useQuery<{ items: InboxItem[]; unread: number; server_time: string }>({ queryKey: qk.inbox(worldId || ""), queryFn: () => get(`/worlds/${worldId}/inbox`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
+  return useQuery<{ items: InboxItem[]; unread: number; server_time: string }>({ queryKey: qk.inbox(worldId || ""), queryFn: () => get(`/worlds/${worldId}/inbox?limit=200`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
 }
 
 export function usePublicSettlement(worldId?: string | null, id?: string | null) {
@@ -669,10 +670,10 @@ export function useWallet(enabled = true) {
 export function useSpecialization(worldId?: string | null) {
   return useQuery<SpecializationDto>({ queryKey: ["specialization", worldId], queryFn: () => get(`/worlds/${worldId}/specialization`), enabled: !!worldId });
 }
-// ---- daily login reward + speed-up minutes ----
-export type DailyReward = { day: number; kind: "RESOURCES" | "SPEEDUP" | "CHEST"; resources: Partial<Resources> | null; speedup_minutes: number | null };
-export type DailyStatus = { day: number; claimable: boolean; streak: number; next_reset_at: string; speedup_minutes: number; rewards: DailyReward[]; capital_settlement_id: string | null };
-export type DailyGrant = { day: number; kind: DailyReward["kind"]; resources: Partial<Resources> | null; discarded: Partial<Resources> | null; speedup_minutes: number | null };
+// ---- daily login reward (resources only) ----
+export type DailyReward = { day: number; kind: "RESOURCES" | "CHEST"; mult: number; resources: Partial<Resources> };
+export type DailyStatus = { day: number; claimable: boolean; streak: number; next_reset_at: string; rewards: DailyReward[]; capital_settlement_id: string | null };
+export type DailyGrant = { day: number; kind: DailyReward["kind"]; mult: number; resources: Partial<Resources> | null; discarded: Partial<Resources> | null };
 export function useDaily(worldId?: string | null) {
   return useQuery<DailyStatus>({ queryKey: ["daily", worldId], queryFn: () => get(`/worlds/${worldId}/daily`), enabled: !!worldId, refetchInterval: 60000 });
 }
@@ -685,7 +686,6 @@ export function useDailyMutations(worldId: string) {
   };
   return {
     claim: useMutation({ mutationFn: () => post<{ granted: DailyGrant; status: DailyStatus }>(`/worlds/${worldId}/daily/claim`, {}), onSettled: invalidate }),
-    speedup: useMutation({ mutationFn: (v: { jobId: string; minutes: number }) => post<{ job: JobDto | null; spent_minutes: number; speedup_minutes: number }>(`/worlds/${worldId}/jobs/${v.jobId}/speedup`, { minutes: v.minutes }), onSettled: invalidate }),
   };
 }
 

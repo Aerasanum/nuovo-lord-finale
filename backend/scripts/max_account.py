@@ -125,7 +125,7 @@ async def bootstrap() -> dict:
     )
     await db().players.update_one(
         {"_id": player["_id"]},
-        {"$set": {"prestige": 50_000, "speedup_minutes": 100_000, "intro_seen_at": now, "shield_ended_at": now, "shield_end_reason": "QA_MAX"}},
+        {"$set": {"prestige": 50_000, "intro_seen_at": now, "shield_ended_at": now, "shield_end_reason": "QA_MAX"}},
     )
     await db().accounts.update_one({"_id": acc["_id"]}, {"$set": {"rubies": 999_999}})
     await db().audit.insert_one({"world_id": WORLD, "type": "qa_max_account", "player_id": player["_id"], "settlement_id": home["_id"], "at": now})
@@ -147,7 +147,7 @@ def build_report(boot: dict | None) -> str:
     P("## Account Max (QA)")
     P(f"- **Login**: `{EMAIL}` / `{PASSWORD}` — mondo `{WORLD}`, Casata «{HOUSE}»")
     if boot:
-        P(f"- Insediamento madre `{boot['settlement_id']}` a ({boot['xy'][0]},{boot['xy'][1]}) — Metropoli L30, 20 edifici L30 + Santuario Mitico L5, 114 ricerche al massimo, risorse = cap Magazzino ({fmt_n(boot['cap'])} per risorsa), Mura L30, 3 Drago / 3 Angelo / 3 Demone (cap per Metropoli), esercito standard completo, 300 navi, 999.999 Rubini, 100.000 min di accelerazione.")
+        P(f"- Insediamento madre `{boot['settlement_id']}` a ({boot['xy'][0]},{boot['xy'][1]}) — Metropoli L30, 20 edifici L30 + Santuario Mitico L5, 114 ricerche al massimo, risorse = cap Magazzino ({fmt_n(boot['cap'])} per risorsa), Mura L30, 3 Drago / 3 Angelo / 3 Demone (cap per Metropoli), esercito standard completo, 300 navi, 999.999 Rubini.")
     P("")
 
     # ---------------- settlement chain

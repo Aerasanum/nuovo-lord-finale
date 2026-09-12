@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 19 GREEN. BACKEND (pytest /app/backend/tests/test_iteration_19.py, 5/5 passed): (1) GET /api/worlds/world_1/daily as demo → 200; 'speedup_minutes' absent at top level AND in every reward; rewards has 7 entries, each kind∈{RESOURCES,CHEST}; mult sequence = {1, 1.25, 1.5, 1.75, 2, 2.5, 4}; every reward carries resources dict with exactly {grain, wood, clay, iron, gold}. (2) POST /api/worlds/world_1/daily/claim → 409 ALREADY_CLAIMED (demo had already claimed today), clean ApiError JSON. (3) POST /api/worlds/world_1/jobs/anything/speedup (with body and without body) → 404 (route removed, never 500). (4) GET /api/worlds/world_1/inbox?limit=200 → 200, items list (≤200), unread integer, items carry event + notification_id + severity + created_at_utc. FRONTEND (Playwright 390x844, demo@empirelords.com): (a) Città tab: settlement-village panel + settlement-village-scene GL canvas + caption 'Il tuo villaggio · 6 abitanti' + settlement-village-expand + settlement-settings-button (gear) + settlement-daily-button all present; visible village renders castle + surrounding wooden houses + walls. (b) /city (via settlement-village-expand): city-screen + city-title 'Casa Demo' + subtitle 'Livello insediamento 3 · abitanti 6' + city-hint 'Trascina per ruotare · pizzica per zoomare · tocca un edificio per aprirlo' + city-scene GL canvas render fine (larger, redder castle in center); mouse-drag on the canvas rotates without crash; center tap opens city-picked card with city-picked-name = 'Castello / Fortezza'; city-picked-close hides it; city-back returns to Città. (c) Settings/logout via gear: settings-screen shows settings-email = demo@empirelords.com, settings-world = 'Mondo: Regno 1', title 'Profilo e impostazioni'; tap settings-lang-en → title switches to 'Profile & settings' (also 'Change world', 'Sign out', 'Language' labels); tap settings-lang-it restores. settings-change-world + settings-logout both present; settings-logout returns to login-email-input; re-login as demo works cleanly (tab-map visible). (d) Daily vault via map-daily-button (demo already claimed today so DailyGate did NOT auto-open — expected): daily-screen renders, daily-day-1..7 labels are '×1 ×1.25 ×1.5 ×1.75 ×2 ×2.5 ×4' — no minutes/'h' anywhere in the strip, no daily-speedup-bank in DOM, no ⏩ character anywhere on the screen; 'Ricompensa di oggi già reclamata' + 'Prossima ricompensa tra 10h 22m'. (e) Army tab (tab-army): renders Guarnigione + all unit cards (Fanteria/Arciere/Cavalleria/Catapulta) with no ⏩ pill anywhere in the DOM. (f) Inbox: tab-inbox → inbox-filters row shows all six chips (inbox-filter-all/battles/queues/marches/alliance/realm); Tutte (307), Battaglie (22), Code (22) chips visible with counts; tapping each filter yields a properly scoped list (Battaglie: 'Rapporto di battaglia · Attacco · Piramide', Code: 'Missione/costruzione', Marce: 'Rinforzo → Piramide' items, Alleanza: 'Messaggio di trattativa · [MERC]', Regno: 'Tesoreria'); inbox-filter-all restores full list. (g) Regression: switching Città ↔ Mappa 3× does not crash; chat dock still visible; no red-screen; zero console errors; only the whitelisted shadow*/textShadow*/pointerEvents deprecations and GPU-stall warnings appear (expected). Deprecated Expo packages check: reviewed files do NOT import expo-av / expo-barcode-scanner / expo-background-fetch — none detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_19.py",
+    "/app/test_reports/pytest/iter19.xml",
+    "/app/test_reports/screens/iter19_citta.jpg",
+    "/app/test_reports/screens/iter19_city.jpg",
+    "/app/test_reports/screens/iter19_city_picked.jpg",
+    "/app/test_reports/screens/iter19_settings_it.jpg",
+    "/app/test_reports/screens/iter19_settings_en.jpg",
+    "/app/test_reports/screens/iter19_daily.jpg",
+    "/app/test_reports/screens/iter19_army.jpg",
+    "/app/test_reports/screens/iter19_inbox.jpg"
+  ],
+  "action_items": [
+    "INFO: no defects observed this iteration. All iteration-19 acceptance criteria (Settings/logout, living 3D village + /city drag & pick, daily resources-only, /jobs/*/speedup removed → 404, inbox filter chips, Army tab clean of ⏩) are verified live end-to-end.",
+    "TESTING-NOTE: demo has already claimed today's daily reward (409 ALREADY_CLAIMED) so DailyGate did NOT auto-open on world entry — this is correct product behavior. To exercise the auto-open branch on a subsequent UI run, first POST /api/qa/clock/advance {seconds:86400} with X-Admin-Key to move the realm day forward before logging in."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/app/domain/daily.py: rewards() cycle correctly returns RESOURCES/CHEST only with mults 1/1.25/1.5/1.75/2/2.5/4 — SPEEDUP kind and speedup_minutes field are fully removed from both status() and claim() payloads (verified).",
+    "/app/backend/app/api/routes_premium.py: /jobs/{id}/speedup route removed; FastAPI now returns a clean 404 (no fallthrough / no 500). Idempotent on repeated calls.",
+    "/app/frontend/app/settings.tsx: exposes stable testIDs settings-screen/-email/-world/-lang-it/-lang-en/-change-world/-house/-logout; language toggle updates the whole tree (title, chip labels, buttons) via i18n; logout clears session state and navigates back to /login (login-email-input rendered).",
+    "/app/frontend/src/city/CityScene.tsx + village.ts + villagers.ts: expo-gl+three scene renders castle+procedural buildings+walls; drag gestures wired to camera azimuth; tap raycast returns building metadata → city-picked card. Village Panel pauses when Città tab loses focus (verified: no crash during multi-tab switching).",
+    "/app/frontend/app/(tabs)/inbox.tsx: 6 filter chips with testIDs and per-category counts backed by /api/worlds/world_1/inbox items; inbox-empty state exists when a category has zero items (not exercised in demo dataset — all categories populated). No deprecated packages introduced.",
+    "/app/frontend/app/daily.tsx: strip renders ×N multipliers only; the previous 'daily-speedup-bank' element and ⏩ prefixes have been fully removed from the DOM."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_19.py (new)",
+    "/app/test_reports/pytest/iter19.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "8/8 iteration-19 flows verified"},
+  "seed_data_creation": "None. No admin QA calls issued this run (demo daily 409 ALREADY_CLAIMED verified without advancing the QA clock). Backend tests are idempotent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 19 is green. Backend suite: `pytest /app/backend/tests/test_iteration_19.py -o addopts=''` — reads EXPO_BACKEND_URL/EXPO_PUBLIC_BACKEND_URL; ADMIN header X-Admin-Key: eld-admin-7f3c9a1d2b4e. Key iter19 testIDs verified live: settlement-village / settlement-village-scene / settlement-village-expand / settlement-settings-button / settlement-daily-button; city-screen / city-title / city-hint / city-scene / city-picked / city-picked-name / city-picked-close / city-back; settings-screen / settings-email / settings-world / settings-lang-it / settings-lang-en / settings-change-world / settings-house / settings-logout; daily-day-1..7 (×1 … ×4, no minutes/h); inbox-filters + inbox-filter-all/battles/queues/marches/alliance/realm + inbox-empty; map-daily-button; tab-army has no ⏩ speed-up pill. Notes: demo already claimed today's daily reward so DailyGate did NOT auto-open — pre-advance QA clock 1 day if you need to exercise auto-open. Village panel pauses when Città tab is not focused so Città↔Mappa switching is crash-free (verified 3× round trip).",
+  "rca_of_issue": "N/A — no defects observed. Only environmental note: DailyGate auto-open only fires when claimable:true. Demo user is currently claimable:false today (409 on POST /daily/claim), so agents must open the vault via map-daily-button (or settlement-daily-button) to exercise the UI. Advancing the QA clock by 86400 s restores claimable:true."
+}

@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { FlatList, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { BattleDto, InboxItem } from "@/src/api/hooks";
@@ -10,7 +10,7 @@ import { Button, Chip, chipRowStyles, Empty, Icon, Loading, Row, T, type IconNam
 import { diplomacyStateLabel } from "@/src/game/alliances";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
 import { missionName } from "@/src/game/missions";
-import { fmt, formatNumber, tDyn, useI18n } from "@/src/i18n";
+import { fmt, formatNumber, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { missionLabel } from "@/src/map3d/MapLabels";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -20,6 +20,7 @@ const useStyles = makeStyles((c) => ({
   unread: { borderColor: c.brandSecondary },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.brandPrimary },
   tabs: { flexDirection: "row", paddingHorizontal: spacing.md, gap: spacing.sm, height: 56, alignItems: "center" },
+  filters: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: spacing.xs },
 }));
 
 const EVENT_ICON: Record<string, IconName> = {
@@ -49,6 +50,16 @@ const EVENT_ICON: Record<string, IconName> = {
   EMERALD_TREASURY_MOVEMENT: "diamond-stone",
 };
 
+/** Inbox filters: which events belong to each category (null = everything). */
+const FILTERS: Record<string, string[] | null> = {
+  all: null,
+  battles: ["BATTLE_REPORT_READY", "BATTLE_RESOLVED", "OWNERSHIP_CHANGED", "HOSTILE_MARCH_DETECTED", "SENTINEL_LOST", "LOYALTY_CHANGED", "PYRAMID_ATTACK_INCOMING"],
+  queues: ["BUILD_JOB_STATE", "SETTLEMENT_UPGRADE_STATE", "RESEARCH_JOB_STATE", "RECRUITMENT_JOB_STATE"],
+  marches: ["MARCH_DEPARTED", "MARCH_ARRIVED", "MARCH_RETURNED", "CARAVAN_STATE"],
+  alliance: ["ALLIANCE_INVITE", "DIPLOMACY_STATE_CHANGED", "MERCENARY_OFFER", "MERCENARY_CONTRACT_ACTIVE", "MERCENARY_CONTRACT_ENDED", "EMERALD_TREASURY_MOVEMENT", "NEGOTIATION_MESSAGE"],
+  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED"],
+};
+
 export default function InboxScreen() {
   const s = useStyles();
   const cs = chipRowStyles();
@@ -61,6 +72,17 @@ export default function InboxScreen() {
   const battles = useBattles(worldId);
   const mut = useInboxMutations(worldId ?? "");
   const [tab, setTab] = useState<"inbox" | "reports">("inbox");
+  const [filter, setFilter] = useState<keyof typeof FILTERS>("all");
+  const allItems = inbox.data?.items ?? [];
+  const items = useMemo(() => {
+    const allow = FILTERS[filter];
+    return allow ? allItems.filter((n) => allow.includes(n.event)) : allItems;
+  }, [allItems, filter]);
+  const unreadFor = (key: string) => {
+    const allow = FILTERS[key];
+    if (!allow) return inbox.data?.unread ?? 0;
+    return allItems.filter((n) => !n.read_at && allow.includes(n.event)).length;
+  };
   if (!worldId) return null;
 
   const humanize = (code: unknown) => String(code ?? "").replace(/_/g, " ").toLowerCase();
@@ -159,16 +181,24 @@ export default function InboxScreen() {
         <Chip label={t("reports")} selected={tab === "reports"} onPress={() => setTab("reports")} testID="inbox-tab-reports" />
       </View>
       {tab === "inbox" ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[cs.row, s.filters]} testID="inbox-filters">
+          {(Object.keys(FILTERS) as (keyof typeof FILTERS)[]).map((key) => {
+            const n = unreadFor(key);
+            return <Chip key={key} label={`${t(`inboxFilter_${key}` as StringKey)}${n ? ` (${n})` : ""}`} selected={filter === key} onPress={() => setFilter(key)} testID={`inbox-filter-${key}`} />;
+          })}
+        </ScrollView>
+      ) : null}
+      {tab === "inbox" ? (
         inbox.isLoading ? (
           <Loading />
         ) : (
           <FlatList
-            data={inbox.data?.items ?? []}
+            data={items}
             keyExtractor={(n) => n.notification_id}
             contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: insets.bottom + spacing.lg }}
             refreshing={inbox.isRefetching}
             onRefresh={() => inbox.refetch()}
-            ListEmptyComponent={<Empty icon="email-open-outline" title={t("noNotifications")} testID="inbox-empty" />}
+            ListEmptyComponent={<Empty icon="email-open-outline" title={filter === "all" ? t("noNotifications") : t("noNotificationsFilter")} testID="inbox-empty" />}
             renderItem={({ item: n }) => (
               <Pressable style={[s.item, !n.read_at && s.unread]} onPress={() => open(n)} testID={`inbox-item-${n.notification_id}`}>
                 <Row style={{ justifyContent: "space-between" }}>
