@@ -10,8 +10,9 @@ Activity = any authenticated request to a world endpoint (`players.last_active_a
   kept, resources 50%, garrison 100·L², territory + Sentinels removed, research frozen); the seat does NOT reopen.
 
 Either way: marches disbanded, jobs cancelled, alliance left, Casata marked ELIMINATED (reason INACTIVE_EARLY|INACTIVE),
-Chronicle entry. One idempotent sweep event per World every `sweep_hours`; QA fixtures (`inactivity_exempt`) and the
-Osservatore (`view_all_regions`) are never swept. Per-world overrides live in `worlds.inactivity_config` (QA only).
+Chronicle entry. One day before, an INACTIVITY_WARNING lands in the Inbox (once per inactivity period). One idempotent sweep event per World every `sweep_hours`; QA fixtures (`inactivity_exempt`) and the
+Osservatore (`view_all_regions`) are never swept. Per-world overrides live in `worlds.inactivity_config` (QA only; when it
+carries `only_player_ids` the sweep is confined to those Players — a short test threshold must never hit the whole World).
 """
 from __future__ import annotations
 
@@ -21,13 +22,14 @@ from datetime import datetime, timedelta
 from app.core import clock
 from app.core.db import db
 from app.core.spec import get_spec
-from app.domain import alliances, grande_mondo, progress, scheduler, territory
+from app.domain import alliances, grande_mondo, notifications, progress, scheduler, territory
 from app.domain.pathfinding import CHUNK, load_terrain
 from app.domain.settlements import build_neutral_state
 
 log = logging.getLogger("inactivity")
 EVENT = "INACTIVITY_SWEEP"
 TOUCH_THROTTLE_S = 600
+WARN_DAYS_BEFORE = 1.0  # Inbox warning one day before the elimination (sweeps run every `sweep_hours`)
 DEFAULTS = {"early_phase_days": 30, "early_timeout_days": 3, "sweep_hours": 6}
 
 
@@ -101,17 +103,38 @@ async def sweep_world(world: dict) -> list[dict]:
     r = rule(world)
     if not r:
         return []
-    cutoff = clock.now() - timedelta(days=r["timeout_days"])
+    now = clock.now()
+    cutoff = now - timedelta(days=r["timeout_days"])
+    warn_cutoff = now - timedelta(days=max(0.0, r["timeout_days"] - WARN_DAYS_BEFORE))
     out = []
-    flt = {"world_id": world["_id"], "status": {"$ne": "ELIMINATED"}, "inactivity_exempt": {"$ne": True}, "view_all_regions": {"$ne": True}}
+    flt: dict = {"world_id": world["_id"], "status": {"$ne": "ELIMINATED"}, "inactivity_exempt": {"$ne": True}, "view_all_regions": {"$ne": True}}
+    only = (world.get("inactivity_config") or {}).get("only_player_ids")
+    if only:  # QA override in force: never touch anybody else while a short threshold is being exercised
+        flt["_id"] = {"$in": list(only)}
     async for p in db().players.find(flt):
-        if last_active(p) <= cutoff:
+        la = last_active(p)
+        if la <= cutoff:
             res = await eliminate(world, p, r["mode"])
             if res:
                 out.append(res)
+        elif la <= warn_cutoff:
+            await warn(world, p, r, la)
     if out:
         log.info("inactivity sweep %s (%s): %d player(s) eliminated", world["_id"], r["mode"], len(out))
     return out
+
+
+async def warn(world: dict, player: dict, r: dict, la: datetime) -> None:
+    """Inbox warning ~1 day before the elimination (once per inactivity period: the dedupe key carries the last activity)."""
+    eliminate_at = la + timedelta(days=r["timeout_days"])
+    await notifications.notify(
+        world["_id"],
+        player["_id"],
+        "INACTIVITY_WARNING",
+        {"eliminate_at": clock.iso(eliminate_at), "mode": r["mode"], "timeout_days": r["timeout_days"], "last_active_at": clock.iso(la), "world_name": world.get("name")},
+        dedupe_key=f"inactivity_warn:{player['_id']}:{int(la.timestamp())}",
+        deep_link="settings",
+    )
 
 
 async def eliminate(world: dict, player: dict, mode: str) -> dict | None:

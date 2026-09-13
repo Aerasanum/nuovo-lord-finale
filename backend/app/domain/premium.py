@@ -119,6 +119,8 @@ async def quote_finish(job: dict, player: dict, account_id: str) -> dict:
         return {**out, "reason": "JOB_NOT_RUNNING"}
     if job["kind"] not in FINISH_RULES:
         return {**out, "reason": "FORBIDDEN_JOB_KIND"}
+    if job.get("player_wide"):
+        return {**out, "reason": "FORBIDDEN_MYTHIC"}  # Bible §12: rubies never complete the Santuario Mitico
     if job["kind"] == "RECRUIT":
         unit = get_spec().units_by_name.get(job["target"], {})
         if unit.get("category") in FORBIDDEN_UNIT_CATEGORIES:

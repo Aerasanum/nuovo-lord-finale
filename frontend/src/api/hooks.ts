@@ -79,10 +79,59 @@ export type BuildingEntry = {
   state: string;
   max_level: number;
   unlock: { min_settlement_level: number; required_research_key: string | null; required_research_name: string | null; level_ok: boolean; research_ok: boolean };
-  next?: { level: number; cost: Resources; duration_min: number; fast_applied: boolean; base_cost: Resources; base_time_min: number; research_time_reduction: number };
+  next?: { level: number; cost: Resources; duration_min: number; fast_applied: boolean; base_cost: Resources; base_time_min: number; research_time_reduction: number; effect?: string };
   missing?: Partial<Resources>;
   job?: JobDto;
+  /** «Santuario Mitico» only (Bible §12): player-wide 5-level table + Unicorn ritual state. */
+  mythic?: { is_mother: boolean; levels: { level: number; cost: Resources; duration_min: number; effect: string }[]; unicorn: UnicornDto };
 };
+
+export type UnicornDto = {
+  state: "NONE" | "QUEUED" | "READY" | "IN_FLIGHT" | "COOLDOWN";
+  ready_at: string | null;
+  cooldown_until: string | null;
+  march_id?: string | null;
+  cost: Resources;
+  summon_days: number;
+  cooldown_hours: number;
+  event_seconds: number;
+  sanctuary_level: number;
+  can_summon: boolean;
+};
+
+export type MythicDto = {
+  sanctuary: { level: number; max_level: number; unlocked: boolean; unlock: BuildingEntry["unlock"]; levels: { level: number; cost: Resources; duration_min: number; effect: string }[]; job: JobDto | null; mother_settlement_id: string | null };
+  unicorn: UnicornDto;
+};
+
+export function useMythic(worldId?: string | null) {
+  return useQuery({ queryKey: ["mythic", worldId], queryFn: () => get<MythicDto>(`/worlds/${worldId}/mythic`), enabled: !!worldId, refetchInterval: 30_000 });
+}
+
+export function useUnicornSummon(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => post<{ unicorn: UnicornDto }>(`/worlds/${worldId}/unicorn/summon`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mythic", worldId] });
+      qc.invalidateQueries({ queryKey: qk.me(worldId) });
+      qc.invalidateQueries({ queryKey: ["buildings"] });
+      qc.invalidateQueries({ queryKey: ["settlement"] });
+    },
+  });
+}
+
+/** One-time contextual hints (research / alliance / marches): dismissed once per Player/World, optimistic on /me. */
+export function useHintSeen(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => post<{ hints_seen: string[] }>(`/worlds/${worldId}/hints/${key}/seen`, {}),
+    onMutate: (key) => {
+      qc.setQueryData(qk.me(worldId), (d: any) => (d?.player ? { ...d, player: { ...d.player, hints_seen: [...(d.player.hints_seen ?? []), key] } } : d));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.me(worldId) }),
+  });
+}
 
 export type ResearchEntry = {
   key: string;
@@ -169,6 +218,8 @@ export type MarchDto = {
   units: Record<string, number>;
   ships: number;
   naval: boolean;
+  /** Unicorn power (Bible §12.2): straight rainbow, 10 s event, owner change on victory. */
+  rainbow?: boolean;
   path: [number, number][];
   departed_at: string;
   arrival_at: string | null;

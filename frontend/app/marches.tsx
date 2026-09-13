@@ -9,6 +9,7 @@ import { Crest } from "@/src/components/Crest";
 import { MarchListCard } from "@/src/components/MarchCard";
 import { Screen } from "@/src/components/overlay";
 import { Countdown, Empty, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
+import { Hint } from "@/src/components/Hint";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -79,7 +80,9 @@ export default function MarchesScreen() {
           refreshing={q.isRefetching}
           onRefresh={() => q.refetch()}
           ListHeaderComponent={
-            incoming.length ? (
+            <>
+              <Hint id="marches" style={{ marginHorizontal: spacing.md, marginBottom: spacing.sm }} />
+              {incoming.length ? (
               <View testID="incoming-section">
                 <T v="label" style={{ marginHorizontal: spacing.md, marginBottom: spacing.xs, color: colors.error }}>
                   {t("incomingHostile")} · {incoming.length}
@@ -88,7 +91,8 @@ export default function MarchesScreen() {
                   <HostileRow key={m.march_id} m={m} />
                 ))}
               </View>
-            ) : null
+              ) : null}
+            </>
           }
           ListEmptyComponent={incoming.length ? null : <Empty icon="flag-outline" title={t("noMarches")} subtitle={t("tapTile")} testID="marches-empty" />}
           renderItem={({ item }) => (

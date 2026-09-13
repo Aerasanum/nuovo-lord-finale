@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import math
+import re
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -12,7 +13,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, teleport, worlds
+from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, mythic, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, teleport, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -267,6 +268,38 @@ async def tour_seen(c: Ctx = Depends(ctx)):
     return {"tour_seen": True, "server_time": clock.iso(clock.now())}
 
 
+@router.post("/worlds/{world_id}/hints/{key}/seen")
+async def hint_seen(key: str, c: Ctx = Depends(ctx)):
+    """One-time contextual hint dismissed (research / alliance / marches): remembered per Player/World on every device."""
+    if not re.fullmatch(r"[a-z_]{2,32}", key):
+        raise ApiError("INVALID_HINT", "Unknown hint key", 400)
+    await db().players.update_one({"_id": c.player["_id"]}, {"$addToSet": {"hints_seen": key}})
+    return {"hints_seen": sorted(set(c.player.get("hints_seen") or []) | {key}), "server_time": clock.iso(clock.now())}
+
+
+# --------------------------------------------------------------------------- Santuario Mitico + Unicorno (Bible §12)
+@router.get("/worlds/{world_id}/mythic")
+async def mythic_state(c: Ctx = Depends(ctx)):
+    mother = await db().settlements.find_one({"_id": c.player.get("mother_settlement_id"), "owner_player_id": c.player["_id"]})
+    ok, gate = await mythic.unlocked_for(c.player, mother)
+    job = await mythic.sanctuary_job(c.player["_id"])
+    return {
+        "sanctuary": {"level": mythic.sanctuary_level(c.player), "max_level": mythic.MAX_LEVEL, "unlocked": ok, "unlock": gate, "levels": mythic.levels_table(), "job": job_dto(job) if job else None, "mother_settlement_id": (mother or {}).get("_id")},
+        "unicorn": mythic.unicorn_dto(c.player),
+        "server_time": clock.iso(clock.now()),
+    }
+
+
+@router.post("/worlds/{world_id}/unicorn/summon")
+async def unicorn_summon(c: Ctx = Depends(ctx)):
+    """Ritual of evocation: Sanctuary L5, cost paid by the Mother, 7 fixed days, one Unicorn per Player (no rubies)."""
+    mother = await db().settlements.find_one({"_id": c.player.get("mother_settlement_id"), "owner_player_id": c.player["_id"]})
+    if not mother:
+        raise ApiError("MOTHER_ONLY", "The ritual takes place in the current Mother", 409)
+    mother = await economy.accrue(mother)
+    return {"unicorn": await mythic.summon_unicorn(c.world, c.player, mother), "server_time": clock.iso(clock.now())}
+
+
 # --------------------------------------------------------------------------- settlements
 @router.get("/worlds/{world_id}/settlements/{settlement_id}")
 async def get_settlement(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
@@ -278,7 +311,7 @@ async def get_settlement(world_id: str, settlement_id: str, c: Ctx = Depends(ctx
 async def buildings(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
     doc = await _fresh_settlement(world_id, settlement_id, c.player["_id"])
     jobs = await running_jobs(doc["_id"])
-    return {"buildings": await building_catalog(doc, jobs, int(c.player.get("settlement_count", 1))), "settlement_upgrade": (await owner_dto(doc, c.player))["settlement_upgrade"], "jobs": [job_dto(j) for j in jobs], "resources": doc["resources"], "server_time": clock.iso(clock.now())}
+    return {"buildings": await building_catalog(doc, jobs, int(c.player.get("settlement_count", 1)), c.player), "settlement_upgrade": (await owner_dto(doc, c.player))["settlement_upgrade"], "jobs": [job_dto(j) for j in jobs], "resources": doc["resources"], "server_time": clock.iso(clock.now())}
 
 
 class IdemIn(BaseModel):

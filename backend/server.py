@@ -15,7 +15,7 @@ from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
-from app.domain import conquest, construction, grande_mondo, inactivity, marches, missions, pyramid, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
+from app.domain import conquest, construction, grande_mondo, inactivity, marches, missions, mythic, pyramid, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
 from app.domain.research import validate_dag
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

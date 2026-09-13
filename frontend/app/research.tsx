@@ -9,6 +9,7 @@ import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { branchIcon, ResearchTree, unlockOf } from "@/src/components/ResearchTree";
 import { Button, Chip, chipRowStyles, CostRow, Countdown, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
+import { Hint } from "@/src/components/Hint";
 import { formatDuration, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -79,6 +80,7 @@ export default function ResearchScreen() {
         </T>
       }
     >
+      <Hint id="research" style={{ marginHorizontal: spacing.md, marginTop: spacing.sm }} />
       <View style={cs.row}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={cs.content}>
           <Chip label={`${t("all")} (114)`} selected={branch === "ALL"} onPress={() => setBranch("ALL")} testID="research-branch-ALL" />

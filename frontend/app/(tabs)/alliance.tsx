@@ -6,6 +6,7 @@ import { useMyAlliance } from "@/src/api/hooks";
 import { AllianceSummary } from "@/src/components/alliance/AllianceSummary";
 import { Screen } from "@/src/components/overlay";
 import { Icon } from "@/src/components/ui";
+import { Hint } from "@/src/components/Hint";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { useTheme } from "@/src/theme";
@@ -32,6 +33,7 @@ export default function AllianceTab() {
       }
     >
       <ScrollView refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => q.refetch()} tintColor={colors.brandPrimary} />} contentContainerStyle={{ paddingBottom: 32 }}>
+        <Hint id="alliance" style={{ marginHorizontal: 16, marginTop: 12 }} />
         <AllianceSummary />
       </ScrollView>
     </Screen>

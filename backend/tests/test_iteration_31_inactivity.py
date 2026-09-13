@@ -89,7 +89,7 @@ def test_early_phase_removes_player_and_reopens_slot():
     acc = fresh_account()
     before = next(w for w in get(acc["h"], "/worlds")["worlds"] if w["world_id"] == WORLD)["player_count"]
     # force the EARLY phase (world_1 is months old): 3 consecutive days away → removed
-    rule = qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 100000, "early_timeout_days": 3}})["rule"]
+    rule = qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 100000, "early_timeout_days": 3, "only_player_ids": [acc["player_id"]]}})["rule"]
     assert rule["phase"] == "EARLY" and rule["mode"] == "REMOVE" and rule["timeout_days"] == 3
     # 2 days away: still safe
     qa_post("/qa/inactivity/touch", {"player_id": acc["player_id"], "days_ago": 2})
@@ -116,13 +116,14 @@ def test_early_phase_removes_player_and_reopens_slot():
     # idempotent: a second sweep does nothing for him
     res = qa_post("/qa/inactivity/sweep", {"world_id": WORLD})
     assert acc["player_id"] not in [e["player_id"] for e in res["eliminated"]]
+    qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 100000, "early_timeout_days": 3, "only_player_ids": [other["player_id"]]}})
     qa_post("/qa/inactivity/touch", {"player_id": other["player_id"], "days_ago": 4})
     qa_post("/qa/inactivity/sweep", {"world_id": WORLD})  # tidy up the helper account
 
 
 def test_mature_phase_converts_castles_to_neutral():
     acc = fresh_account()
-    rule = qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 0, "timeout_days": 3}})["rule"]
+    rule = qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 0, "timeout_days": 3, "only_player_ids": [acc["player_id"]]}})["rule"]
     assert rule["phase"] == "MATURE" and rule["mode"] == "NEUTRAL" and rule["timeout_days"] == 3
     # give the castle something to preserve: level 3 with a Fattoria 3 and some resources
     qa_post("/qa/grant", {"settlement_id": acc["mother"], "level": 3, "buildings": {"Fattoria": 3}, "resources": {"grain": 10000}})
@@ -141,7 +142,9 @@ def test_mature_phase_converts_castles_to_neutral():
 
 
 def test_fixtures_are_exempt():
-    qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 0, "timeout_days": 3}})
+    demo = login(*DEMO, WORLD)
+    qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 0, "timeout_days": 3, "only_player_ids": [demo["player_id"]]}})
+    qa_post("/qa/inactivity/touch", {"player_id": demo["player_id"], "days_ago": 10})  # exempt: ignored even when idle
     res = qa_post("/qa/inactivity/sweep", {"world_id": WORLD})
     emails = {"demo@empirelords.com", "lord@empirelords.com", "max@empirelords.com"}
     assert not [e for e in res["eliminated"] if e.get("house_name") in ("Casa Demo", "Casa Lord", "Casa Max")], res

@@ -19,7 +19,7 @@ import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlement
 import { daylightAt, realmHour } from "./daylight";
 import { FloraFactory } from "./flora";
 import { animateSkin, buildSkin } from "./markerSkins";
-import { chevronTexture, ribbonGeometry, ribbonMaterial } from "./marchPath";
+import { chevronTexture, rainbowArc, RAINBOW_COLOR, ribbonGeometry, ribbonMaterial } from "./marchPath";
 import { PYRAMID_HALF, PYRAMID_TOP, PyramidMonument } from "./pyramid";
 import { type SmokeEmitter, SmokeSystem } from "./smoke";
 import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
@@ -595,10 +595,11 @@ export class MapEngine {
     for (const march of marches) {
       if (!march.path || march.path.length < 2) continue;
       const own = !march.hostile;
-      const color = own ? this.palette.own : this.palette.enemy;
+      const color = march.rainbow ? RAINBOW_COLOR : own ? this.palette.own : this.palette.enemy;
       const returning = march.status === "RETURNING";
       // ribbon with chevrons pointing the way the army walks (a returning march walks its path backwards)
-      const pathPts = march.path.map(([x, y]) => new THREE.Vector3(x + 0.5, this.heightAt(x, y) + 0.16, y + 0.5));
+      // Unicorn (Bible §12.2): the Ponte Arcobaleno is a luminous arc between the two castles, not a ground route
+      const pathPts = march.rainbow ? rainbowArc(march.path, (x, y) => this.heightAt(x, y)) : march.path.map(([x, y]) => new THREE.Vector3(x + 0.5, this.heightAt(x, y) + 0.16, y + 0.5));
       const line = new THREE.Mesh(ribbonGeometry(returning ? [...pathPts].reverse() : pathPts), ribbonMaterial(color, this.chevrons, returning ? 0.42 : 0.88));
       line.renderOrder = 6;
       const marker = new THREE.Group();

@@ -15,7 +15,7 @@ from app.domain.pathfinding import astar_async, load_terrain, same_landmass
 from app.domain.settlements import catch_up_neutral, new_id
 
 ACTIVE = ("OUTBOUND", "RESOLVING", "RETURNING")
-OFFENSIVE = ("ATTACK", "RAID", "CONQUEST")
+OFFENSIVE = ("ATTACK", "RAID", "CONQUEST", "RAINBOW_BRIDGE")  # RAINBOW_BRIDGE = Unicorn power (Bible §12.2), enemy Player castles only
 
 
 def dto(m: dict) -> dict:
@@ -44,6 +44,7 @@ def dto(m: dict) -> dict:
         "units": {k: int(v) for k, v in m.get("units", {}).items() if int(v) > 0},
         "ships": int(m.get("ships", 0)),
         "naval": bool(m.get("naval")),
+        "rainbow": bool(m.get("rainbow")),
         "path": m.get("path", []),
         "departed_at": clock.iso(m["departed_at"]),
         "arrival_at": clock.iso(m.get("arrival_at")),
@@ -83,8 +84,8 @@ async def _hostile_public_dto(m: dict, defender_player_id: str, tiles: set[tuple
     """Defender's view of an OUTBOUND hostile march: only after detection, only what the intel tier reveals."""
     path = m.get("path") or []
     idx = intel.entry_index(path, tiles)
-    if clock.now() < intel.detection_time(m["departed_at"], m.get("eta_seconds", 0), len(path), idx):
-        return None  # not yet across the surveilled border
+    if not m.get("rainbow") and clock.now() < intel.detection_time(m["departed_at"], m.get("eta_seconds", 0), len(path), idx):
+        return None  # not yet across the surveilled border (the Rainbow Bridge is announced at once — Bible §12.2)
     target = settlements.get(m.get("target_settlement_id") or "")
     if target is None and m.get("target_sentinel_id"):
         sen = await db().sentinels.find_one({"_id": m["target_sentinel_id"]})
@@ -129,6 +130,21 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
     research = origin.get("research", {})
     naval = False
     grande_mondo.check_target(world, (origin["x"], origin["y"]), (target["x"], target["y"]))  # fog wall (Bibbia GM)
+    if mission == "RAINBOW_BRIDGE":
+        # Unicorn (Bible §12.2): no path — the bridge bypasses distance, water, mountains and Sentinels; 10 s event
+        wh = int(origin["buildings"].get("Sala di Guerra", 0))
+        return {
+            "path": [[origin["x"], origin["y"]], [target["x"], target["y"]]],
+            "path_cost": 0,
+            "speed_tph": 0,
+            "speed_multiplier": 1.0,
+            "eta_seconds": int(spec.mythic["unicorn"]["rainbow_event_seconds"]) if units else None,
+            "naval": False,
+            "rainbow": True,
+            "march_capacity": F.war_hall_cap(wh, research, "ATTACK", spec),
+            "weighted_units": _weighted_count(units, research),
+            "terrain_defender_bonus_pct": spec.terrain[target["terrain"]]["defender_bonus_pct"],
+        }
     if not await same_landmass(world["_id"], (origin["x"], origin["y"]), (target["x"], target["y"])):
         raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
     grid = await load_terrain(world["_id"])
@@ -175,7 +191,15 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         raise ApiError("LEGENDARY_LIMIT", "Max 1 legendary per march", 409)
     research = dict(origin.get("research", {}))
     wh = int(origin["buildings"].get("Sala di Guerra", 0))
-    cap = F.war_hall_cap(wh, research, mission, spec)
+    cap = F.war_hall_cap(wh, research, "ATTACK" if mission == "RAINBOW_BRIDGE" else mission, spec)
+    bridge = mission == "RAINBOW_BRIDGE"
+    if bridge:
+        from app.domain import mythic
+
+        if naval or target_pyramid or target_sentinel_id:
+            raise ApiError("INVALID_TARGET", "The Rainbow Bridge lands on an enemy Player settlement only", 400)
+        if mythic.unicorn_dto(player)["state"] != "READY":
+            raise ApiError("UNICORN_NOT_READY", "No Unicorn ready for the Rainbow Bridge", 409, {"state": mythic.unicorn_dto(player)["state"]})
 
     # ---- target resolution + revalidation at launch ----
     target_doc = None
@@ -224,6 +248,8 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         if mission in OFFENSIVE:
             if target_doc.get("owner_player_id") == player["_id"]:
                 raise ApiError("CANNOT_ATTACK_OWN", "Cannot attack your own settlement", 409)
+            if bridge and target_doc["kind"] != "PLAYER":
+                raise ApiError("INVALID_TARGET", "The Rainbow Bridge lands on an enemy Player settlement only", 409)
             if target_doc["kind"] == "PLAYER":
                 other = await db().players.find_one({"_id": target_doc["owner_player_id"]})
                 if conquest.shield_active(player) or (other and conquest.shield_active(other)):
@@ -252,7 +278,10 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     grande_mondo.check_target(world, (origin["x"], origin["y"]), (tx, ty))  # fog wall (Bibbia GM): no interregional order before day 120
     allowed = grande_mondo.movement_mask(world, (origin["x"], origin["y"]))
     grid = await load_terrain(world["_id"])
-    if naval:
+    if bridge:
+        # Unicorn: straight rainbow, no terrain/water/sentinel route, fixed 10 s event that is not travel time
+        path, cost, speed = [(origin["x"], origin["y"]), (tx, ty)], 0.0, 0.0
+    elif naval:
         starts = _adjacent_water(grid, origin["x"], origin["y"])
         goals = _adjacent_water(grid, tx, ty)
         if not starts or not goals:
@@ -272,16 +301,23 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
             raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
         path, cost = result
         speed = F.formation_speed_tph(units, research, spec)
-    mult = grande_mondo.speed_multiplier(world, (origin["x"], origin["y"]), path)  # War of the Regions: interregional boost
+    mult = grande_mondo.speed_multiplier(world, (origin["x"], origin["y"]), path) if not bridge else 1.0  # War of the Regions: interregional boost
     speed *= mult
-    eta = F.march_eta_seconds(cost, speed, spec)
+    eta = int(spec.mythic["unicorn"]["rainbow_event_seconds"]) if bridge else F.march_eta_seconds(cost, speed, spec)
 
-    # ---- cap20 reservation for CONQUEST ----
+    # ---- cap20 reservation for CONQUEST (and the Rainbow Bridge: a victory changes the owner at once) ----
     reserved = False
-    if mission == "CONQUEST":
+    if mission in ("CONQUEST", "RAINBOW_BRIDGE"):
         if not await conquest.reserve_slot(player["_id"]):
             raise ApiError("SETTLEMENT_CAP_REACHED", "Owned + reserved settlements would exceed 20", 409)
         reserved = True
+    march_id = new_id("mar")
+    if bridge:
+        from app.domain import mythic
+
+        if not await mythic.claim_for_bridge(player["_id"], march_id):
+            await conquest.release_slot(player["_id"])
+            raise ApiError("UNICORN_NOT_READY", "No Unicorn ready for the Rainbow Bridge", 409)
 
     # ---- atomic: outgoing cap + troops (+ ships) leave the origin ----
     outgoing_cap = int(spec.marches["outgoing_per_settlement"])
@@ -297,6 +333,10 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     if res is None:
         if reserved:
             await conquest.release_slot(player["_id"])
+        if bridge:
+            from app.domain import mythic
+
+            await mythic.release_bridge(player["_id"], march_id)
         fresh = await db().settlements.find_one({"_id": origin["_id"]})
         if int(fresh.get("outgoing_active", 0)) >= outgoing_cap:
             raise ApiError("OUTGOING_CAP_REACHED", "Max 5 outgoing marches per settlement", 409)
@@ -304,7 +344,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     now = clock.now()
     arrival = now + timedelta(seconds=eta)
     march = {
-        "_id": new_id("mar"),
+        "_id": march_id,
         "world_id": world["_id"],
         "player_id": player["_id"],
         "house_name": player.get("house_name"),
@@ -324,6 +364,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "units": units,
         "ships": ships if naval else 0,
         "naval": naval,
+        "rainbow": bridge,
         "path": [[x, y] for x, y in path],
         "path_cost": cost,
         "speed_tph": speed,
@@ -349,8 +390,12 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     if mission in OFFENSIVE and defender_id and defender_id != player["_id"]:
         tiles, _, _ = await _defender_context(world["_id"], defender_id)
         idx = intel.entry_index(march["path"], tiles)
-        detect_at = intel.detection_time(now, eta, len(march["path"]), idx)
-        await scheduler.schedule(world["_id"], "NOTIFICATION_ONLY", detect_at, march["_id"], f"hostile_detected:{march['_id']}", {"kind": "HOSTILE_MARCH_DETECTED", "march_id": march["_id"], "defender_player_id": defender_id})
+        if bridge:
+            # Bible §12.2: the target receives the alert immediately (the 10 s event is not travel time)
+            await on_notification_only({"payload": {"kind": "HOSTILE_MARCH_DETECTED", "march_id": march["_id"], "defender_player_id": defender_id}})
+        else:
+            detect_at = intel.detection_time(now, eta, len(march["path"]), idx)
+            await scheduler.schedule(world["_id"], "NOTIFICATION_ONLY", detect_at, march["_id"], f"hostile_detected:{march['_id']}", {"kind": "HOSTILE_MARCH_DETECTED", "march_id": march["_id"], "defender_player_id": defender_id})
     await notifications.notify(world["_id"], player["_id"], "MARCH_DEPARTED", {"march_id": march["_id"], "mission_type": mission, "target_id": target_doc["_id"] if target_doc else (sentinel_doc["_id"] if sentinel_doc else "pyramid"), "target_name": target_name, "eta": clock.iso(arrival), "own_composition": units}, dedupe_key=f"march_departed:{march['_id']}", deep_link="map/march")
     return march
 
@@ -372,8 +417,7 @@ async def recall(march: dict, player_id: str) -> dict:
     if not updated:
         raise ApiError("MARCH_NOT_RECALLABLE", "March cannot be recalled in its current state", 409)
     await scheduler.cancel(f"march_arrival:{march['_id']}")
-    if march.get("reservation"):
-        await conquest.release_slot(player_id)
+    await _abort_side_effects(march)
     elapsed = max(1.0, (now - clock.aware(march["departed_at"])).total_seconds())
     return_at = now + timedelta(seconds=math.ceil(elapsed))
     await db().marches.update_one({"_id": march["_id"]}, {"$set": {"return_at": return_at, "result": "RECALLED"}})
@@ -381,7 +425,21 @@ async def recall(march: dict, player_id: str) -> dict:
     return await db().marches.find_one({"_id": march["_id"]})
 
 
+async def _abort_side_effects(march: dict) -> None:
+    """A march that comes back never changed an owner: give the cap20 reservation back (once) and, for the Rainbow
+    Bridge, hand the Unicorn back to READY when the battle never started (spec: consumed only when the resolver runs)."""
+    if march.get("reservation"):
+        res = await db().marches.update_one({"_id": march["_id"], "reservation": True}, {"$set": {"reservation": False}})
+        if res.modified_count:
+            await conquest.release_slot(march["player_id"])
+    if march.get("rainbow"):
+        from app.domain import mythic
+
+        await mythic.release_bridge(march["player_id"], march["_id"])
+
+
 async def _start_return(march: dict, survivors: dict[str, int], result: str, loot: dict | None = None, ships: int | None = None) -> None:
+    await _abort_side_effects(march)
     now = clock.now()
     return_at = now + timedelta(seconds=int(march["eta_seconds"]))
     sets = {"status": "RETURNING", "units": survivors, "return_at": return_at, "result": result}
@@ -493,13 +551,29 @@ async def on_arrival(evt: dict) -> None:
         await _start_return(march, units, "TURNAROUND_WITHOUT_BATTLE", ships=int(march.get("ships", 0)))
         return
 
+    if mission == "RAINBOW_BRIDGE":
+        # Bible §12.2 final revalidation: ownership (Player target), diplomacy, cap20 reservation, target state.
+        # Any failure cancels the bridge before the battle: troops come back through the rainbow, Unicorn NOT consumed.
+        from app.domain import mythic
+
+        invalid = target["kind"] != "PLAYER" or not march.get("reservation")
+        if not invalid:
+            try:
+                await alliances.check_hostile_launch(march["world_id"], player, target.get("owner_player_id"))
+            except ApiError:
+                invalid = True
+        if invalid:
+            await _start_return(march, units, "BRIDGE_CANCELLED")  # releases reservation + Unicorn (not consumed)
+            return
+        await mythic.consume(march["player_id"], march["_id"])  # the resolver starts: Unicorn spent, 720 h cooldown
+
     defender_owner = await db().players.find_one({"_id": target["owner_player_id"]}) if target.get("owner_player_id") else None
     battle_id = f"btl_{march['_id']}"
     existing = await db().battles.find_one({"_id": battle_id})
     if existing:
         report = existing["report"]
     else:
-        report = combat.resolve_battle(battle_id, mission, units, march.get("research_snapshot", {}), march.get("specialization"), {u: int(c) for u, c in (target.get("army") or {}).items()}, target.get("research", {}), (defender_owner or {}).get("specialization"), target["terrain"], dict(target.get("wall") or {}) or None, defender_kind="SETTLEMENT", attacker_bonus_atk_pct=float((march.get("bonuses") or {}).get("attack_pct", 0)))
+        report = combat.resolve_battle(battle_id, "ATTACK" if mission == "RAINBOW_BRIDGE" else mission, units, march.get("research_snapshot", {}), march.get("specialization"), {u: int(c) for u, c in (target.get("army") or {}).items()}, target.get("research", {}), (defender_owner or {}).get("specialization"), target["terrain"], dict(target.get("wall") or {}) or None, defender_kind="SETTLEMENT", attacker_bonus_atk_pct=float((march.get("bonuses") or {}).get("attack_pct", 0)))
     # apply defender casualties + wall state (idempotent via applied_effects)
     def_inc = {f"army.{u}": -int(c) for u, c in report["defender_losses"].items() if int(c) > 0}
     upd: dict = {"$push": {"applied_effects": {"$each": [battle_id], "$slice": -500}}}
@@ -528,11 +602,18 @@ async def on_arrival(evt: dict) -> None:
             else:
                 loyalty_change = await _apply_loyalty(target, march, survivors, battle_id, player)
                 ownership = loyalty_change.get("ownership", {"changed": False})
+        elif mission == "RAINBOW_BRIDGE":
+            # Unicorn victory: owner changes at once — no Loyalty, no Cart; retention 85 %, Mother succession, cap20 apply
+            fresh_target = await db().settlements.find_one({"_id": target["_id"]})
+            ownership = await conquest.transfer_ownership(fresh_target, player, survivors, battle_id)
     await _persist_battle(march, report, target, None, loot=loot, ownership=ownership, loyalty=loyalty_change)
     if march.get("reservation") and not ownership.get("changed"):
         await conquest.release_slot(march["player_id"])
         await db().marches.update_one({"_id": march["_id"]}, {"$set": {"reservation": False}})
     if ownership.get("changed"):
+        # the cap20 reservation became an owned settlement (consumed): never give it back on the way home
+        await db().marches.update_one({"_id": march["_id"]}, {"$set": {"reservation": False, "reservation_consumed": True}})
+        march["reservation"] = False
         # survivors stay in the conquered settlement; ships (if any) return empty
         if march.get("naval"):
             await _start_return(march, {}, "CONQUERED", ships=int(march.get("ships", 0)))

@@ -15,7 +15,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import conquest, grande_mondo, house, inactivity, notifications, territory
+from app.domain import conquest, grande_mondo, house, inactivity, mythic, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
@@ -313,6 +313,9 @@ def player_dto(p: dict) -> dict:
         "specialization": p.get("specialization"),
         "intro_seen": bool(p.get("intro_seen_at")),
         "tour_seen": bool(p.get("tour_seen_at")),
+        "hints_seen": list(p.get("hints_seen") or []),
+        "sanctuary_level": int((p.get("sanctuary") or {}).get("level", 0)),
+        "unicorn": mythic.unicorn_dto(p),
         "status": p.get("status", "ACTIVE"),
         "created_at": clock.iso(created),
         "last_active_at": clock.iso(inactivity.last_active(p)),

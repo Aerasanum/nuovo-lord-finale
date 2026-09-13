@@ -1035,3 +1035,30 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Iteration 31 frontend 5/5 PASS: account nuovo → intro → tour 4 passi con spotlight → daily solo dopo; reload non ripropone il tour; Impostazioni regola inattività + Rivedi la guida; Casata card; Esercito cap 3/3 e recluta disabilitata; EN ok; 0 errori JS."
+
+# ---- iteration 32 (main agent) — Avviso inattività in Inbox, Santuario Mitico + Unicorno/Ponte Arcobaleno (Bibbia §12), Guida contestuale ----
+backend:
+  - task: "Avviso inattività: inactivity.sweep_world invia INACTIVITY_WARNING (severity CRITICAL, deep_link settings) ai giocatori a ≤1 giorno dall'eliminazione, dedupe per periodo di inattività (chiave inactivity_warn:<pid>:<last_active_ts>). Santuario Mitico (domain/mythic.py): players.sanctuary {level 0..5}; catalogo edifici della Madre → riga 'Santuario Mitico' con tabella dedicata spec.mythic.sanctuary_levels (costo/tempo gg), stati AVAILABLE/BLOCKED_*/IN_PROGRESS/MAXED/LOCKED e MOTHER_ONLY nei castelli secondari; upgrade via POST …/buildings/Santuario Mitico/upgrade (job BUILDING player_wide=True nella coda della Madre; finish-now → FORBIDDEN_MYTHIC; non cancellato alla perdita della Madre); apply → $max sanctuary.level. Unicorno: POST /worlds/{w}/unicorn/summon (Santuario L5, costo pagato dalla Madre, 7 gg fissi, stato QUEUED→READY via evento UNICORN_READY, 409 UNICORN_ACTIVE/UNICORN_COOLDOWN/SANCTUARY_REQUIRED); GET /worlds/{w}/mythic; player.unicorn/sanctuary_level in /me. Ponte Arcobaleno: mission RAINBOW_BRIDGE in marches.launch/preview (solo bersaglio PLAYER nemico, path rettilineo 2 punti, eta 10 s, nessun pathfinding/nave, cap Sala di Guerra come ATTACK, prenotazione cap20, unicorn READY→IN_FLIGHT, alert immediato al difensore); on_arrival: rivalidazione (PLAYER, diplomazia, prenotazione) → se fallisce ritorno BRIDGE_CANCELLED con Unicorno di nuovo READY; altrimenti consume (COOLDOWN 720 h) + battaglia come ATTACK + vittoria → conquest.transfer_ownership immediato (retention 85%, successione Madre). _abort_side_effects rende idempotente il rilascio prenotazione/Unicorno su ritorno e richiamo. Hints: POST /worlds/{w}/hints/{key}/seen → players.hints_seen. QA: POST /qa/mythic {player_id, sanctuary_level?, unicorn_state NONE|READY}."
+    implemented: true
+    working: true
+    file: "backend/app/domain/mythic.py, inactivity.py, marches.py, construction.py, conquest.py, premium.py, settlements.py, notifications.py, worlds.py, api/routes_game.py, api/routes_qa.py, tests/test_iteration_32_mythic.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_iteration_32_mythic.py 3/3: catalogo+upgrade 4→5 (10 gg, FORBIDDEN_MYTHIC, TARGET_BUSY, MOTHER_ONLY, MAX_LEVEL); rituale 7 gg → READY → bridge 10 s con alert immediato → castello nemico conquistato subito, Unicorno COOLDOWN, UNICORN_COOLDOWN al nuovo summon, bersaglio eliminato, battle report RAINBOW_BRIDGE; INACTIVITY_WARNING in inbox una sola volta."
+frontend:
+  - task: "MythicPanel in /building/Santuario Mitico (tabella 5 livelli con effetti/costi/tempi, pannello Unicorno con stato tradotto, countdown, costo, 'Evoca l'Unicorno' abilitato solo con can_summon nella Madre; testID mythic-levels, mythic-level-<n>, mythic-unicorn, unicorn-state, unicorn-summon-button, unicorn-cost); StatePill MOTHER_ONLY + riga 'Solo nella Madre'. Composer marcia: chip 'Ponte Arcobaleno' (march-mission-RAINBOW_BRIDGE) solo con bersaglio PLAYER nemico e player.unicorn.state READY; preview 'Ponte Arcobaleno · evento di 10 s' (march-preview-rainbow). Mappa: marce rainbow disegnate come arco viola (marchPath.rainbowArc, RAINBOW_COLOR); missionLabel RAINBOW_BRIDGE. Hint (components/Hint.tsx, testID hint-<id>, hint-<id>-dismiss) in research.tsx, (tabs)/alliance.tsx, marches.tsx, march/new.tsx. Inbox: INACTIVITY_WARNING e MYTHIC_RITUAL (icone, filtro Regno, descrizione). i18n IT/EN + 6 lingue."
+    implemented: true
+    working: true
+    file: "frontend/src/components/MythicPanel.tsx, src/components/Hint.tsx, app/building/[name].tsx, app/march/new.tsx, app/research.tsx, app/(tabs)/alliance.tsx, app/marches.tsx, app/(tabs)/inbox.tsx, src/map3d/{engine,marchPath,MapLabels}.ts(x), src/components/ui.tsx, src/api/hooks.ts, src/i18n/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot lord: Santuario L5 'Massimo', 5 livelli verdi, Unicorno pronto (QA), costo, pulsante; composer vs Casa Demo Due: hint Marce + chip Ponte Arcobaleno + preview rainbow. tsc pulito."
+      - working: true
+        agent: "testing"
+        comment: "Iteration 32 frontend: hint research/alliance/marches una-tantum OK (dismiss persistente, stessa chiave lista+compositore); Santuario L5 con 5 livelli e Unicorno pronto; chip Ponte Arcobaleno + preview 10 s vs Casa Demo Due; Inbox MYTHIC_RITUAL; 0 errori JS. Main agent: bersaglio neutrale → nessuna chip; villaggio secondario → 'Solo nella Madre'. Suite completa backend: 185 passed, 8 failed pre-esistenti/stato QA (caravans resources 500k, cavalleria 5104, sentinelle demo rimosse per grace, skins L10, daily speedup, fleet flaky)."

@@ -87,7 +87,9 @@ async def start_building(doc: dict, player: dict, name: str, idempotency_key: st
     if name == "Castello / Fortezza":
         raise ApiError("USE_SETTLEMENT_UPGRADE", "Upgrade the settlement instead", 400)
     if name == "Santuario Mitico":
-        raise ApiError("NOT_IN_VERTICAL_SLICE", "Santuario Mitico uses its dedicated table (not yet enabled)", 400)
+        from app.domain import mythic  # Bible §12: player-wide Sanctuary, dedicated table, Mother only
+
+        return await mythic.start_sanctuary_upgrade(doc, player, idempotency_key)
     existing = await _existing_by_idempotency(doc["world_id"], player["_id"], idempotency_key)
     if existing:
         return existing
@@ -163,7 +165,11 @@ async def on_job_complete(evt: dict) -> None:
     if not job or job["status"] not in ("RUNNING", "APPLYING"):
         return
     kind = job["kind"]
-    if kind == "BUILDING":
+    if kind == "BUILDING" and job.get("player_wide"):
+        from app.domain import mythic
+
+        await mythic.apply_sanctuary_complete(job)
+    elif kind == "BUILDING":
         await _apply_building_complete(job)
     elif kind == "SETTLEMENT_UPGRADE":
         await _apply_settlement_upgrade(job)

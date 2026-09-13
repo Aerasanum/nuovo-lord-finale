@@ -227,7 +227,7 @@ async def qa_gm_phase(body: GmPhaseIn):
 # --------------------------------------------------------------------------- inactivity (3 gg nei primi 30 gg, poi 120 gg)
 class InactivityConfigIn(BaseModel):
     world_id: str
-    config: dict | None = None  # {early_phase_days, early_timeout_days, timeout_days, sweep_hours} — None clears the override
+    config: dict | None = None  # {early_phase_days, early_timeout_days, timeout_days, sweep_hours, only_player_ids} — None clears the override
 
 
 @router.put("/inactivity/config")
@@ -242,6 +242,9 @@ async def qa_inactivity_config(body: InactivityConfigIn):
     if body.config is None:
         await db().worlds.update_one({"_id": body.world_id}, {"$unset": {"inactivity_config": ""}})
     else:
+        if not body.config.get("only_player_ids"):
+            # a shortened threshold on a live World would sweep every idle test/fixture Player: refuse without a scope
+            raise ApiError("SCOPE_REQUIRED", "inactivity_config needs only_player_ids (the Players the override applies to)", 400)
         await db().worlds.update_one({"_id": body.world_id}, {"$set": {"inactivity_config": body.config}})
     return {"world_id": body.world_id, "rule": inactivity.rule(await db().worlds.find_one({"_id": body.world_id}))}
 
@@ -282,3 +285,32 @@ async def qa_inactivity_sweep(body: InactivitySweepIn):
         raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
     eliminated = await inactivity.sweep_world(world)
     return {"world_id": body.world_id, "rule": inactivity.rule(world), "eliminated": eliminated}
+
+
+# --------------------------------------------------------------------------- Santuario Mitico / Unicorno (Bible §12)
+class MythicIn(BaseModel):
+    player_id: str
+    sanctuary_level: int | None = Field(default=None, ge=0, le=5)
+    unicorn_state: str | None = None  # NONE | READY (test fixture shortcuts; READY skips the 7-day ritual)
+
+
+@router.post("/mythic")
+async def qa_mythic(body: MythicIn):
+    """Test fixture: set the player-wide Sanctuary level and/or the Unicorn state directly."""
+    _gate()
+    from app.domain import mythic
+
+    sets: dict = {}
+    if body.sanctuary_level is not None:
+        sets["sanctuary.level"] = int(body.sanctuary_level)
+    if body.unicorn_state is not None:
+        if body.unicorn_state not in ("NONE", "READY"):
+            raise ApiError("INVALID_STATE", "unicorn_state must be NONE or READY", 400)
+        sets["unicorn"] = {"state": body.unicorn_state, "qa": True}
+    if not sets:
+        raise ApiError("NOTHING_TO_GRANT", "Empty grant", 400)
+    res = await db().players.update_one({"_id": body.player_id}, {"$set": sets})
+    if not res.matched_count:
+        raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
+    p = await db().players.find_one({"_id": body.player_id})
+    return {"sanctuary_level": mythic.sanctuary_level(p), "unicorn": mythic.unicorn_dto(p)}

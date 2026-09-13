@@ -10,7 +10,7 @@ import { Button, Chip, chipRowStyles, Empty, Icon, Loading, Row, T, type IconNam
 import { diplomacyStateLabel } from "@/src/game/alliances";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
 import { missionName } from "@/src/game/missions";
-import { fmt, formatNumber, type StringKey, tDyn, useI18n } from "@/src/i18n";
+import { fmt, formatNumber, localeOf, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { missionLabel } from "@/src/map3d/MapLabels";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -28,6 +28,8 @@ const EVENT_ICON: Record<string, IconName> = {
   CASTLE_TELEPORTED: "swap-horizontal-bold",
   PYRAMID_STATE_CHANGED: "pyramid",
   PYRAMID_ATTACK_INCOMING: "alert-octagon",
+  INACTIVITY_WARNING: "account-clock-outline",
+  MYTHIC_RITUAL: "unicorn-variant",
   BUILD_JOB_STATE: "hammer",
   SETTLEMENT_UPGRADE_STATE: "castle",
   RESEARCH_JOB_STATE: "flask",
@@ -59,7 +61,7 @@ const FILTERS: Record<string, string[] | null> = {
   queues: ["BUILD_JOB_STATE", "SETTLEMENT_UPGRADE_STATE", "RESEARCH_JOB_STATE", "RECRUITMENT_JOB_STATE"],
   marches: ["MARCH_DEPARTED", "MARCH_ARRIVED", "MARCH_RETURNED", "CARAVAN_STATE"],
   alliance: ["ALLIANCE_INVITE", "DIPLOMACY_STATE_CHANGED", "MERCENARY_OFFER", "MERCENARY_CONTRACT_ACTIVE", "MERCENARY_CONTRACT_ENDED", "EMERALD_TREASURY_MOVEMENT", "NEGOTIATION_MESSAGE"],
-  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED"],
+  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED", "INACTIVITY_WARNING", "MYTHIC_RITUAL"],
 };
 
 export default function InboxScreen() {
@@ -94,6 +96,10 @@ export default function InboxScreen() {
     switch (n.event) {
       case "GRANDE_MONDO_PHASE":
         return `${p.phase === "WAR" ? t("gmFogFallen") : t("gmFogReturned")} · ${t("gmCycle")} ${p.cycle}`;
+      case "INACTIVITY_WARNING":
+        return `${fmt(t("inactivityWarningLine"), { date: p.eliminate_at ? new Date(p.eliminate_at).toLocaleString(localeOf(lang)) : "—", n: p.timeout_days ?? "" })} ${p.mode === "REMOVE" ? t("inactivityWarningRemove") : t("inactivityWarningNeutral")}.`;
+      case "MYTHIC_RITUAL":
+        return p.state === "READY" ? t("mythicRitualReady") : fmt(t("mythicRitualQueued"), { date: p.ready_at ? new Date(p.ready_at).toLocaleString(localeOf(lang)) : "—" });
       case "CASTLE_TELEPORTED":
         return fmt(t("tpEvent"), { from: (p.from ?? []).join(","), to: (p.to ?? []).join(","), price: p.price_rubies ?? 2000 });
       case "BUILD_JOB_STATE":

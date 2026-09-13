@@ -8,7 +8,7 @@ import { fonts, radius, useTheme } from "@/src/theme";
 import type { MapLabel } from "./engine";
 
 export function missionLabel(mission: string, t: (k: any) => string): string {
-  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison", GARRISON_SENTINEL: "missionGarrison", CARAVAN: "missionCaravan", INTERCEPT: "missionIntercept", PYRAMID_ATTACK: "missionAttack", PYRAMID_REINFORCE: "missionReinforce" } as Record<string, string>)[mission];
+  const key = ({ ATTACK: "missionAttack", RAID: "missionRaid", CONQUEST: "missionConquest", REINFORCE: "missionReinforce", GARRISON: "missionGarrison", GARRISON_SENTINEL: "missionGarrison", CARAVAN: "missionCaravan", INTERCEPT: "missionIntercept", PYRAMID_ATTACK: "missionAttack", PYRAMID_REINFORCE: "missionReinforce", RAINBOW_BRIDGE: "missionRainbow" } as Record<string, string>)[mission];
   return key ? t(key) : mission.replace(/_/g, " ").toLowerCase();
 }
 

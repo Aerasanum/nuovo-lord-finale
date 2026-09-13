@@ -72,3 +72,22 @@ export function ribbonMaterial(color: THREE.Color, tex: THREE.Texture, opacity: 
   // drawn over terrain, forests and walls (depthTest off) — a march route must never hide behind a hill or a wood
   return new THREE.MeshBasicMaterial({ color, map: tex, transparent: true, opacity, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
 }
+
+/** Ponte Arcobaleno colour (Bible §12.2) — a brand-independent mythic violet, identical in light and dark themes. */
+export const RAINBOW_COLOR = new THREE.Color("#D26BFF");
+
+/** Sampled parabolic arc between the first and last tile of a rainbow path (bypasses terrain: no ground following). */
+export function rainbowArc(path: number[][], heightAt: (x: number, y: number) => number, samples = 28): THREE.Vector3[] {
+  const [ax, ay] = path[0];
+  const [bx, by] = path[path.length - 1];
+  const ha = heightAt(ax, ay) + 0.3;
+  const hb = heightAt(bx, by) + 0.3;
+  const dist = Math.hypot(bx - ax, by - ay);
+  const peak = Math.min(18, 2.5 + dist * 0.18);
+  const out: THREE.Vector3[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    out.push(new THREE.Vector3(ax + 0.5 + (bx - ax) * t, ha + (hb - ha) * t + Math.sin(t * Math.PI) * peak, ay + 0.5 + (by - ay) * t));
+  }
+  return out;
+}

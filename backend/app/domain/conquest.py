@@ -149,7 +149,8 @@ async def transfer_ownership(target: dict, new_player: dict, survivors: dict[str
         await db().players.update_one({"_id": new_player["_id"]}, {"$inc": {"settlement_count": -1}})
         return {"changed": False, "reason": "TARGET_CHANGED"}
     # cancel running jobs of the conquered settlement (30% snapshot refund to old Mother is PvP-only)
-    await db().jobs.update_many({"settlement_id": target["_id"], "status": "RUNNING"}, {"$set": {"status": "CANCELLED", "cancelled_at": now, "cancel_reason": "CONQUERED"}})
+    # (the player-wide Santuario Mitico upgrade is NOT cancelled: it continues with its snapshot — spec.mythic.mother_loss)
+    await db().jobs.update_many({"settlement_id": target["_id"], "status": "RUNNING", "player_wide": {"$ne": True}}, {"$set": {"status": "CANCELLED", "cancelled_at": now, "cancel_reason": "CONQUERED"}})
     if any(discarded.values()):
         await db().audit.insert_one({"world_id": target["world_id"], "type": "retention_overflow", "settlement_id": target["_id"], "discarded": discarded, "at": now})
     # territory: atomic recalculation for the anchor

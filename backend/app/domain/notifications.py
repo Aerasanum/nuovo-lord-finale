@@ -21,6 +21,12 @@ def _catalog(event: str) -> dict:
     # Pyramid alert (Bible §21, user rule): the holding Alliance is warned of every incoming attack — tag + ETA only
     if event == "PYRAMID_ATTACK_INCOMING":
         return {"severity": "HIGH", "deep_link": "pyramid"}
+    # Inactivity rule (owner): warning one day before the elimination / neutral conversion
+    if event == "INACTIVITY_WARNING":
+        return {"severity": "CRITICAL", "deep_link": "settings"}
+    # Santuario Mitico ritual (Bible §12): Unicorn queued / ready
+    if event == "MYTHIC_RITUAL":
+        return {"severity": "INFO", "deep_link": "settlement/build"}
     return {"severity": "INFO", "deep_link": "inbox"}
 
 

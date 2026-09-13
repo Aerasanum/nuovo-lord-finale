@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
+import { MythicPanel } from "@/src/components/MythicPanel";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
 import { buildingIcon, currentBenefits } from "@/src/game/buildings";
 import { formatDuration, tDyn, unlockLine, useI18n } from "@/src/i18n";
@@ -141,11 +142,16 @@ export default function BuildingDetail() {
               <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
                 <T v="label">{t("requirements")}</T>
                 <View style={s.reqRow}>
-                  <Icon name={settlementLevel >= b.next.level || b.state !== "BLOCKED_SETTLEMENT_LEVEL" ? "check-circle" : "close-circle"} size={16} color={b.state === "BLOCKED_SETTLEMENT_LEVEL" ? colors.error : colors.success} />
+                  <Icon name={b.unlock.level_ok && b.state !== "BLOCKED_SETTLEMENT_LEVEL" ? "check-circle" : "close-circle"} size={16} color={b.state === "BLOCKED_SETTLEMENT_LEVEL" || !b.unlock.level_ok ? colors.error : colors.success} />
                   <T v="caption">
-                    {t("settlementLevel")} {b.state === "BLOCKED_SETTLEMENT_LEVEL" ? `≥ ${b.next.level}` : settlementLevel}
+                    {t("settlementLevel")} {b.state === "BLOCKED_SETTLEMENT_LEVEL" ? `≥ ${b.next.level}` : b.mythic ? `≥ ${b.unlock.min_settlement_level}` : settlementLevel}
                   </T>
                 </View>
+                {b.mythic && !b.mythic.is_mother ? (
+                  <T v="caption" style={{ color: colors.warning }} testID="building-mother-only">
+                    {t("motherOnly")}
+                  </T>
+                ) : null}
                 {b.unlock.required_research_key ? (
                   <View style={s.reqRow}>
                     <Icon name={b.unlock.research_ok ? "check-circle" : "close-circle"} size={16} color={b.unlock.research_ok ? colors.success : colors.error} />
@@ -172,6 +178,7 @@ export default function BuildingDetail() {
               </View>
             </Panel>
           ) : null}
+          {b.name === "Santuario Mitico" && worldId ? <MythicPanel b={b} worldId={worldId} isMother={!!b.mythic?.is_mother} /> : null}
         </ScrollView>
       )}
     </Screen>

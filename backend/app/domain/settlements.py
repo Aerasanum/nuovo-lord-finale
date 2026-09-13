@@ -193,7 +193,9 @@ def job_dto(j: dict) -> dict:
     }
 
 
-async def building_catalog(doc: dict, jobs: list[dict], owned: int) -> list[dict]:
+async def building_catalog(doc: dict, jobs: list[dict], owned: int, player: dict | None = None) -> list[dict]:
+    from app.domain import mythic  # local import: mythic depends on this module
+
     spec = get_spec()
     level = int(doc["level"])
     research = doc.get("research", {})
@@ -219,6 +221,10 @@ async def building_catalog(doc: dict, jobs: list[dict], owned: int) -> list[dict
             entry["state"] = "SETTLEMENT_CORE"
             out.append(entry)
             continue
+        if name == "Santuario Mitico":
+            # Bible §12: player-wide, shown in the Mother, dedicated 5-level table (spec.mythic.sanctuary_levels)
+            out.append(await mythic.catalog_entry(entry, doc, player or {"_id": doc.get("owner_player_id")}, construction_jobs, queue_full) if player else {**entry, "state": "LOCKED"})
+            continue
         if name in in_progress:
             entry["state"] = "IN_PROGRESS"
             entry["job"] = job_dto(in_progress[name])
@@ -226,13 +232,11 @@ async def building_catalog(doc: dict, jobs: list[dict], owned: int) -> list[dict
             entry["state"] = "LOCKED"
         elif cur >= 30:
             entry["state"] = "MAXED"
-        elif name == "Santuario Mitico":
-            entry["state"] = "LOCKED"  # dedicated 5-level table; outside the vertical slice
         elif target > level and name != "Castello / Fortezza":
             entry["state"] = "BLOCKED_SETTLEMENT_LEVEL"
         else:
             entry["state"] = "AVAILABLE"
-        if name != "Santuario Mitico" and target <= 30:
+        if target <= 30:
             q = F.construction_cost_time(name, target, owned, research, spec)
             entry["next"] = {"level": target, **q}
             missing = {r: q["cost"][r] - int(doc["resources"].get(r, 0)) for r in F.RES if int(doc["resources"].get(r, 0)) < q["cost"][r]}

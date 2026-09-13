@@ -10,7 +10,8 @@ import { Screen, useToast } from "@/src/components/overlay";
 import { pyramidName } from "@/src/components/PyramidCard";
 import { UnitStepper } from "@/src/components/UnitStepper";
 import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
+import { Hint } from "@/src/components/Hint";
+import { fmt, formatDuration, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, spacing, useTheme } from "@/src/theme";
 
@@ -77,10 +78,13 @@ export default function MarchComposer() {
       showError(e);
     }
   };
-  const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce"), GARRISON_SENTINEL: t("missionGarrison") })[m] ?? m;
+  const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce"), GARRISON_SENTINEL: t("missionGarrison"), RAINBOW_BRIDGE: t("missionRainbow") })[m] ?? m;
+  // Unicorn (Bible §12.2): the Rainbow Bridge is offered only against enemy Player castles while a Unicorn is READY
+  const bridgeOk = !isPyramid && !sentinel && !friendly && pub.data?.kind === "PLAYER" && player?.unicorn?.state === "READY";
   const targetName = isPyramid ? (pyr.data ? pyramidName(t, pyr.data) : t("pyramid")) : (pub.data?.name ?? (sentinel ? `${t("sentinels")}` : "…"));
   // Pyramid (Bible §21): ATTACK while another Alliance/the Guardian holds it, REINFORCE only while ours holds it
   const pyramidMissions = pyr.data ? ([pyr.data.me.can_reinforce ? "REINFORCE" : null, pyr.data.me.can_attack ? "ATTACK" : null].filter(Boolean) as string[]) : [];
+  const missions: string[] = isPyramid ? pyramidMissions : [...MISSIONS.filter((m) => (friendly ? m === "REINFORCE" : m !== "REINFORCE")), ...(bridgeOk ? ["RAINBOW_BRIDGE"] : [])];
   const canLaunch = totalUnits > 0 && !!preview && !preview.error && !mm.launch.isPending && totalUnits <= cap;
 
   return (
@@ -94,6 +98,7 @@ export default function MarchComposer() {
       }
     >
       <KeyboardAwareScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.xl }]} bottomOffset={24}>
+        <Hint id="marches" />
         <Panel testID="march-target">
           <Row style={{ justifyContent: "space-between" }}>
             <Row>
@@ -118,7 +123,7 @@ export default function MarchComposer() {
         {!sentinel ? (
           <View style={cs.row}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[cs.content, { paddingHorizontal: 0 }]}>
-              {(isPyramid ? pyramidMissions : MISSIONS.filter((m) => (friendly ? m === "REINFORCE" : m !== "REINFORCE"))).map((m) => (
+              {missions.map((m) => (
                 <Chip key={m} label={missionLabel(m)} selected={mission === m} onPress={() => setMission(m)} testID={`march-mission-${m}`} />
               ))}
             </ScrollView>
@@ -153,6 +158,14 @@ export default function MarchComposer() {
             </T>
           ) : preview ? (
             <View style={{ gap: 4 }}>
+              {preview.rainbow ? (
+                <Row>
+                  <Icon name="unicorn-variant" size={18} color={colors.brandPrimary} />
+                  <T v="caption" style={{ color: colors.brandPrimary }} testID="march-preview-rainbow">
+                    {fmt(t("rainbowPreview"), { s: preview.eta_seconds ?? 10 })}
+                  </T>
+                </Row>
+              ) : null}
               <View style={s.kv}>
                 <T v="label">{t("path")}</T>
                 <T v="mono">
