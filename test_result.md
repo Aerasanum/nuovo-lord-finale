@@ -1116,3 +1116,27 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Iteration 34 frontend 5/5 PASS: pill rubini → /store, 5 pacchetti con rubini/prezzi/bonus corretti, tap pacchetto → sheet 'Google Play in arrivo' senza addebito; account nuovo +1000 QA → acquisto Sole d'Oro 600 con conferma → 400 R, 'Posseduta', applica → 'In uso', Drago non acquistabile ('Ti mancano 500 Rubini'); /skins mostra premium (Posseduta/In uso, 'Negozio · 900 Rubini' → /store); QA eld_rubies_499 → +500 e 200 Orso da ritirare → claim; eld_rubies_199 → +200 e Ghiaccio posseduta; Inbox eventi ok; 0 errori JS, mappa 3D ok."
+
+# ---- iteration 35 (main agent) — fixture Sovrano (Regno 3) + reset orologio QA + ora italiana ----
+backend:
+  - task: "core/clock_shift.py + POST /qa/clock/reset (offset → 0 spostando tutti i datetime del DB di −offset; eseguito: 26 collezioni aggiornate, ora di gioco = UTC reale). scripts/sovrano_account.py: world_4 «Regno 3», Sovrano 20 castelli L30 + 227 sentinelle + marce con skin diverse + carovane + intercettazioni; Predone vicino ostile. daily.py: giorno del Regno in Europe/Rome (DST)."
+    implemented: true
+    working: true
+    file: "backend/app/core/clock_shift.py, api/routes_qa.py, scripts/sovrano_account.py, domain/daily.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Verificato via API: login sovrano ok, /worlds mostra Regno 3 joined, /me 20 castelli, 11 marce OUTBOUND (INTERCEPT×2, ATTACK dragon×2, RAID elephant, ATTACK falcon, REINFORCE classic, CARAVAN×4), 12 sentinelle GUARDED sulla madre, house prestigio 60k tutte le skin marcia, store 999.999 R e 9 skin possedute; server_time 19:40Z = 21:40 italiane."
+frontend:
+  - task: "daylight.ts realmHour in ora italiana (Europe/Rome con ora legale) invece di UTC+1 fisso."
+    implemented: true
+    working: true
+    file: "frontend/src/map3d/daylight.ts, app/(tabs)/map.tsx, src/map3d/engine.ts"
+    stuck_count: 0
+    priority: "medium"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Screenshot mappa Sovrano: header '21:45 · Notte' (ora italiana corretta), castello madre Drago con corna, sentinelle, etichette marce (Attacco/Carovana/Intercettazione/Saccheggio) con ETA."

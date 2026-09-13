@@ -851,7 +851,7 @@ export class MapEngine {
   }
 
   // ------------------------------------------------------------------------------------------ internals
-  /** Realm daylight (UTC+1, shared by every player): re-applied once per realm minute, cheap uniform/material writes. */
+  /** Realm daylight (Italian time, shared by every player): re-applied once per realm minute, cheap uniform/material writes. */
   private applyDaylight(serverNowMs: number) {
     const minute = Math.floor(serverNowMs / 60000);
     if (minute === this.daylightMinute) return;

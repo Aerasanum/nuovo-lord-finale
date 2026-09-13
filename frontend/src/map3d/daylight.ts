@@ -1,5 +1,5 @@
 /**
- * Realm daylight: one shared clock for every player (UTC+1, server time) drives dawn → day → dusk → night.
+ * Realm daylight: one shared clock for every player (Italian time, server-synchronised) drives dawn → day → dusk → night.
  * Night stays readable by design (cool blue key light, brighter torches and lit windows), it never goes black.
  * `daylightAt(hour)` returns the blended lighting preset; the engine applies it to lights, fog, exposure and shaders.
  */
@@ -97,8 +97,23 @@ export function timeOfDay(hour: number): TimeOfDay {
   return "dusk";
 }
 
-/** Realm hour (UTC+1) from a server-synchronised epoch in ms. */
+/** Last Sunday of a month (UTC date). */
+function lastSundayUtc(year: number, month: number): number {
+  const last = new Date(Date.UTC(year, month + 1, 0));
+  return last.getUTCDate() - last.getUTCDay();
+}
+
+/** Italian offset in hours (Europe/Rome): CET +1, CEST +2 between the last Sunday of March and of October, 01:00 UTC. */
+export function romeOffsetHours(d: Date): number {
+  const y = d.getUTCFullYear();
+  const start = Date.UTC(y, 2, lastSundayUtc(y, 2), 1);
+  const end = Date.UTC(y, 9, lastSundayUtc(y, 9), 1);
+  const t = d.getTime();
+  return t >= start && t < end ? 2 : 1;
+}
+
+/** Realm hour (Italian time, shared by every player) from a server-synchronised epoch in ms. */
 export function realmHour(serverNowMs: number): number {
   const d = new Date(serverNowMs);
-  return (d.getUTCHours() + 1 + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600) % 24;
+  return (d.getUTCHours() + romeOffsetHours(d) + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600) % 24;
 }

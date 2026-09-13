@@ -68,7 +68,7 @@ export default function MapScreen() {
   const focusedRef = useRef<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [legend, setLegend] = useState(false);
-  // realm clock (UTC+1, shared by every player) — drives the map daylight, refreshed twice a minute
+  // realm clock (Italian time, shared by every player) — drives the map daylight, refreshed twice a minute
   const [realmNow, setRealmNow] = useState(() => serverNow());
   useEffect(() => {
     const iv = setInterval(() => setRealmNow(serverNow()), 30000);

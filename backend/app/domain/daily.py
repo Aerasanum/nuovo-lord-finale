@@ -2,12 +2,13 @@
 Daily login reward (product addition, not in the Bible — keeps every Bible invariant: no free Rubies, resources are
 credited through the warehouse cap):
 
-  7-day streak cycle, realm day = UTC+1 calendar day (same clock as the map daylight). Missing a day resets to day 1.
+  7-day streak cycle, realm day = Italian (Europe/Rome) calendar day (same clock as the map daylight). Missing a day resets to day 1.
   Resources only (Player decision — no speed-ups, nothing that touches the queues):
     D1 ×1.0   D2 ×1.25   D3 ×1.5   D4 ×1.75   D5 ×2.0   D6 ×2.5   D7 chest ×4.0
   Resource base = 8 % of the capital's warehouse capacity per resource (scales with progression, never overflows).
 """
-from datetime import timedelta
+from datetime import timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from app.core import clock
 from app.core.db import db
@@ -15,7 +16,9 @@ from app.core.errors import ApiError
 from app.domain import economy
 from app.domain import formulas as F
 
-REALM_UTC_OFFSET_HOURS = 1
+# Realm calendar = Italian time (Europe/Rome, DST-aware) — same clock as the map daylight (frontend daylight.ts).
+REALM_TZ = ZoneInfo("Europe/Rome")
+
 RESOURCE_BASE_PCT = 0.08
 RESOURCES = tuple(F.RES)  # grain, wood, clay, iron, gold
 
@@ -31,13 +34,13 @@ CYCLE: list[dict] = [
 
 
 def realm_day(dt) -> str:
-    return (clock.aware(dt) + timedelta(hours=REALM_UTC_OFFSET_HOURS)).strftime("%Y-%m-%d")
+    return clock.aware(dt).astimezone(REALM_TZ).strftime("%Y-%m-%d")
 
 
 def _next_reset_iso() -> str:
-    local = clock.now() + timedelta(hours=REALM_UTC_OFFSET_HOURS)
+    local = clock.now().astimezone(REALM_TZ)
     nxt = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return clock.iso(nxt - timedelta(hours=REALM_UTC_OFFSET_HOURS))
+    return clock.iso(nxt.astimezone(timezone.utc))
 
 
 async def _capital(player: dict) -> dict | None:

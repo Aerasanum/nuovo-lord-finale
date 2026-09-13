@@ -44,6 +44,15 @@ async def run_scheduler():
     return {"events_processed": await scheduler.run_due_once(limit=5000), "metrics": scheduler.metrics()}
 
 
+@router.post("/clock/reset")
+async def reset_clock():
+    """Bring the game clock back to real time: every stored datetime is shifted by −offset (relative timers untouched)."""
+    _gate()
+    from app.core.clock_shift import reset_to_real_time
+
+    return await reset_to_real_time()
+
+
 class GrantIn(BaseModel):
     settlement_id: str
     resources: dict[str, int] | None = None
