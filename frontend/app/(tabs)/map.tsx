@@ -20,6 +20,7 @@ import { allowedZones, fogZonesFor, formatCountdown, regionAt, regionByCode, reg
 import { MapView3D } from "@/src/map3d/MapView";
 import { MiniMapFrame } from "@/src/map3d/MiniMap";
 import { useAuth } from "@/src/state/AuthContext";
+import { useTourTarget } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -51,6 +52,7 @@ export default function MapScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const pyramidTarget = useTourTarget<View>("map-pyramid-button"); // spotlight of the first-login tour
   const router = useRouter();
   const { selectSettlement } = useAuth();
   const { worldId, settlementId, settlement, settlements, player, world } = useGame();
@@ -203,6 +205,8 @@ export default function MapScreen() {
           <Icon name="home-map-marker" size={22} color={colors.brandPrimary} />
         </Pressable>
         <Pressable
+          ref={pyramidTarget.ref}
+          onLayout={pyramidTarget.onLayout}
           style={s.iconBtn}
           onPress={() => {
             // the viewer's own Pyramid (Grande Mondo: the region's Piccola Piramide — the Grande Piramide lies beyond the fog)

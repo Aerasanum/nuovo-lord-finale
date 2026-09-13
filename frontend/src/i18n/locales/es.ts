@@ -878,6 +878,34 @@ export const es: Record<StringKey, string> = {
   dailyWarehouseNote: "Los recursos van a la capital, dentro del límite del Almacén.",
   marchSkinPreview: "Vista previa 3D",
   marchSkinPreviewHint: "Así se verá tu columna en marcha en el mapa.",
+  tourStepOf: "Passo {n} di {total}",
+  tour_map_title: "La Mappa del Regno",
+  tour_map_body: "Qui vedi il tuo castello, i vicini e le marce in corso. Trascina per esplorare, tocca un castello per aprire la sua scheda.",
+  tour_city_title: "La tua Città",
+  tour_city_body: "Costruisci e migliora gli edifici, avvia le ricerche all'Università e recluta l'esercito. Le code lavorano anche mentre sei via.",
+  tour_missions_title: "Missioni e Cronaca",
+  tour_missions_body: "Completa le missioni per ottenere risorse e prestigio. Nella Cronaca ritrovi la storia del Regno e i tuoi record.",
+  tour_pyramid_title: "Le Piramidi",
+  tour_pyramid_body: "Questo pulsante centra la mappa sulla Piramide: conquistala con la tua Alleanza e tienila per 168 ore per il premio del Regno.",
+  tourSkip: "Salta la guida",
+  tourNext: "Avanti",
+  tourStart: "Inizia a giocare",
+  tourReplay: "Rivedi la guida",
+  legendaryCap: "Limite Metropoli",
+  legendaryCapHint: "Massimo {max} per tipo per Metropoli: guarnigione + in coda + in marcia.",
+  legendaryQueued: "in coda",
+  legendaryInFlight: "in marcia",
+  blockedCap: "Limite raggiunto",
+  inactivityTitle: "Regola inattività",
+  inactivityEarly: "Primi {days} giorni del Regno (fino al {date}): chi resta {n} giorni senza accedere viene eliminato e il suo posto torna libero per un nuovo giocatore.",
+  inactivityMature: "Dopo {n} giorni senza accedere la Casata viene eliminata e i suoi castelli diventano neutrali.",
+  inactivityLastActive: "Ultimo accesso",
+  specBonusATTACKER: "+{n}% potenza d'attacco nelle tue marce Attacco, Saccheggio e Conquista",
+  specBonusDEFENDER: "+{n}% potenza in difesa dei tuoi castelli e delle tue Sentinelle",
+  specManage: "Gestisci",
+  specActiveBonus: "Bonus attivo",
+  specAvailableNow: "Puoi scegliere la specializzazione: la prima scelta è gratuita!",
+  chr_PLAYER_INACTIVE: "La Casata {a} è caduta nell'oblio per inattività",
 };
 
 export const esErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const esErrors: Record<string, string> = {
   SHIELD_ACTIVE: "El objetivo está protegido por el escudo.",
   TARGET_IS_ALLY: "No puedes atacar a un aliado.",
   RATE_LIMITED: "Demasiadas solicitudes: inténtalo de nuevo en breve.",
+  LEGENDARY_CAP_REACHED: "Limite Metropoli raggiunto: massimo 3 Leggendari per tipo (guarnigione + coda + in marcia).",
+  PLAYER_ELIMINATED: "Questa Casata è stata eliminata da questo Regno.",
 };
 
 export const esResources: Record<string, string> = {

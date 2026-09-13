@@ -1,20 +1,40 @@
 import { BottomTabBar } from "expo-router/build/react-navigation/bottom-tabs";
 import { Redirect, Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import React from "react";
+import React, { useRef } from "react";
 import { Platform, View } from "react-native";
 
 import { ChatDock } from "@/src/components/chat/ChatDock";
 import { IntroGate } from "@/src/components/cinematic/IntroGate";
 import { DailyGate } from "@/src/components/daily/DailyGate";
+import { TourGate } from "@/src/components/tour/TourGate";
 import { Icon } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
+import { tour } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
 import { fonts, useTheme } from "@/src/theme";
 
 const isIOS26 =
   Platform.OS === "ios" && parseInt(String(Platform.Version), 10) >= 26;
+
+/** Tab order = spotlight targets of the first-login tour (src/state/tour.ts). */
+const TAB_IDS = ["tab-map", "tab-settlement", "tab-army", "tab-alliance", "tab-missions", "tab-inbox"];
+
+function MeasuredTabBar(props: React.ComponentProps<typeof BottomTabBar>) {
+  const ref = useRef<View>(null);
+  const measure = () =>
+    ref.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) return;
+      const w = width / TAB_IDS.length;
+      TAB_IDS.forEach((id, i) => tour.setTarget(id, { x: x + i * w, y, width: w, height }));
+    });
+  return (
+    <View ref={ref} onLayout={measure}>
+      <BottomTabBar {...props} />
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   const { colors } = useTheme();
@@ -29,6 +49,7 @@ export default function TabsLayout() {
     return (
       <>
         <IntroGate />
+        <TourGate />
         <DailyGate />
         <ChatDock floating />
         <NativeTabs>
@@ -73,7 +94,7 @@ export default function TabsLayout() {
         tabBar={(props) => (
           <View>
             <ChatDock />
-            <BottomTabBar {...props} />
+            <MeasuredTabBar {...props} />
           </View>
         )}
         screenOptions={{
@@ -166,6 +187,7 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+      <TourGate />
     </>
   );
 }

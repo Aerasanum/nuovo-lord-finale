@@ -878,6 +878,34 @@ export const fr: Record<StringKey, string> = {
   dailyWarehouseNote: "Les ressources vont à ta capitale, dans la limite de l’Entrepôt.",
   marchSkinPreview: "Aperçu 3D",
   marchSkinPreviewHint: "Voici à quoi ressemblera ta colonne en marche sur la carte.",
+  tourStepOf: "Étape {n} sur {total}",
+  tour_map_title: "La carte du Royaume",
+  tour_map_body: "Ici, tu vois ton château, les voisins et les marches en cours. Fais glisser pour explorer, touche un château pour ouvrir sa fiche.",
+  tour_city_title: "Ta Cité",
+  tour_city_body: "Construis et améliore les bâtiments, lance les recherches à l’Université et recrute ton armée. Les files avancent même quand tu es absent.",
+  tour_missions_title: "Missions et Chronique",
+  tour_missions_body: "Accomplis les missions pour obtenir des ressources et du prestige. La Chronique conserve l’histoire du Royaume et tes records.",
+  tour_pyramid_title: "Les Pyramides",
+  tour_pyramid_body: "Ce bouton centre la carte sur la Pyramide : capture-la avec ton Alliance et garde-la pendant 168 heures pour gagner la récompense du Royaume.",
+  tourSkip: "Passer le guide",
+  tourNext: "Suivant",
+  tourStart: "Commencer à jouer",
+  tourReplay: "Revoir le guide",
+  legendaryCap: "Cap. Métropole",
+  legendaryCapHint: "Maximum {max} par type par Métropole : garnison + en file + en marche.",
+  legendaryQueued: "en file",
+  legendaryInFlight: "en marche",
+  blockedCap: "Cap atteint",
+  inactivityTitle: "Règle d’inactivité",
+  inactivityEarly: "Premiers {days} jours du Royaume (jusqu’au {date}) : un joueur absent pendant {n} jours est éliminé et sa place se libère pour un nouveau joueur.",
+  inactivityMature: "Après {n} jours sans connexion, la Casata est éliminée et ses châteaux deviennent neutres.",
+  inactivityLastActive: "Dernière connexion",
+  specBonusATTACKER: "+{n}% de puissance d’attaque dans tes marches Attaque, Pillage et Conquête",
+  specBonusDEFENDER: "+{n}% de puissance défensive pour tes châteaux et tes Sentinelles",
+  specManage: "Gérer",
+  specActiveBonus: "Bonus actif",
+  specAvailableNow: "Tu peux choisir ta spécialisation : le premier choix est gratuit !",
+  chr_PLAYER_INACTIVE: "La Casata {a} est tombée dans l’oubli par inactivité",
 };
 
 export const frErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const frErrors: Record<string, string> = {
   SHIELD_ACTIVE: "La cible est protégée par le bouclier.",
   TARGET_IS_ALLY: "Vous ne pouvez pas attaquer un allié.",
   RATE_LIMITED: "Trop de requêtes : réessayez bientôt.",
+  LEGENDARY_CAP_REACHED: "Cap Métropole atteint : maximum 3 Légendaires par type (garnison + file + en marche).",
+  PLAYER_ELIMINATED: "Cette Casata a été éliminée de ce Royaume.",
 };
 
 export const frResources: Record<string, string> = {

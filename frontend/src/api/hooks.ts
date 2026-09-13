@@ -116,6 +116,8 @@ export type UnitEntry = {
   effective_time_s: number | null;
   state: string;
   job?: JobDto;
+  /** Legendaries only (Bible §10): max 3 per type per Metropolis = garrison + queue + in flight. */
+  legendary_cap?: { max: number; used: number; garrison: number; queued: number; in_flight: number; free: number };
 };
 
 export type CrestDto = {
@@ -379,7 +381,8 @@ export function useGrandeMondoAdmin(worldId: string) {
   const regionalPyramidConfig = useMutation({ mutationFn: (body: { region: string | null; config: Record<string, any> }) => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/regional-pyramid-config`, body), onSuccess: done });
   return { warConfig, phase, grandPyramid, regionalPyramidConfig };
 }
-export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
+export type InactivityRule = { phase: "EARLY" | "MATURE"; timeout_days: number; mode: "REMOVE" | "NEUTRAL"; early_phase_until: string; early_phase_days: number; early_timeout_days: number; timeout_days_after: number };
+export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; inactivity: InactivityRule | null; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
 
 export type TeleportCandidate = { slot_id: string; x: number; y: number; terrain: string | null; landmass: string | null; port_eligible: boolean; distance_from_mother: number };
 export type TeleportCandidatesDto = { settlement_id: string; from: [number, number]; region_code: string; mother: [number, number]; price_rubies: number; rubies: number; needs_port: boolean; blocked: string | null; candidates: TeleportCandidate[]; total: number };
@@ -482,6 +485,18 @@ export function useIntroSeen(worldId: string) {
     mutationFn: () => post<{ intro_seen: boolean }>(`/worlds/${worldId}/intro/seen`, {}),
     onMutate: () => {
       qc.setQueryData(qk.me(worldId), (d: any) => (d?.player ? { ...d, player: { ...d.player, intro_seen: true } } : d));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.me(worldId) }),
+  });
+}
+
+/** First-login guided tour finished or skipped once for this Player/World: optimistic on /me. */
+export function useTourSeen(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => post<{ tour_seen: boolean }>(`/worlds/${worldId}/tour/seen`, {}),
+    onMutate: () => {
+      qc.setQueryData(qk.me(worldId), (d: any) => (d?.player ? { ...d, player: { ...d.player, tour_seen: true } } : d));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: qk.me(worldId) }),
   });

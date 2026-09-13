@@ -114,7 +114,7 @@ async def main() -> None:
         {"$set": {"level": 30, "buildings": buildings, "research": research, "resources": {r: cap for r in F.RES}, "carry": {r: 0.0 for r in F.RES}, "last_accrued_at": now, "army": army, "ships": 300, "wall": {"level": 30, "current_hp": wall["max_hp"], "max_hp": wall["max_hp"]}, "loyalty": int(spec.conquest["loyalty_start"]), "recruit_active": {}}},
     )
     home = await db().settlements.find_one({"_id": home["_id"]})
-    await db().players.update_one({"_id": player["_id"]}, {"$set": {"prestige": 60_000, "intro_seen_at": now, "shield_ended_at": now, "shield_end_reason": "QA_LORD"}})
+    await db().players.update_one({"_id": player["_id"]}, {"$set": {"prestige": 60_000, "intro_seen_at": now, "tour_seen_at": now, "inactivity_exempt": True, "shield_ended_at": now, "shield_end_reason": "QA_LORD"}})
     await db().accounts.update_one({"_id": acc["_id"]}, {"$set": {"rubies": 999_999}})
 
     # ---- 12 Sentinels GUARDED (water slots → natural boundary, synced below)

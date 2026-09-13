@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 31 (frontend only, IT) — TEST A→E tutti PASS. TEST A (nuovo account qa-tour-842npp@example.com/Qa12345!x, Casata 'CasaQA842npp', world_1): flow completo verificato — register → world-join-world_1 → join-house-input+confirm → cinematic-skip → tour-overlay appare in ~1-2s con tour-step-map/'La Mappa del Regno'/'Passo 1 di 4' + tour-spotlight-map; tour-next → 'La tua Città'/tour-step-city+tour-spotlight-city; → 'Missioni e Cronaca'/tour-step-missions+tour-spotlight-missions; → 'Le Piramidi'/tour-step-pyramid+tour-spotlight-pyramid con pulsante next='Inizia a giocare'; durante il tour daily-screen NON è presente (gate OK), dopo il finish daily-screen appare correttamente → daily-close chiude. Reload /map: tour-overlay count=0 (persistenza OK), daily-screen=True (gate per sessione, come atteso). 0 console errors durante l'intero flusso. TEST B (demo@ world_1 /settings): settings-inactivity panel presente, settings-inactivity-rule='Dopo 120 giorni senza accedere la Casata viene eliminata e i suoi castelli diventano neutrali.' (fase MATURE, coerente con world_1 di 173 giorni), settings-last-active presente. settings-tour-replay porta all'overlay tour (title='La Mappa del Regno', Passo 1 di 4), tour-skip lo chiude senza errori. TEST C (demo@ /house): house-specialization-panel presente, current='Nessuna specializzazione', house-specialization-locked visibile (2/3 insediamenti), house-specialization-button apre /specialization (specialization-screen presente, screenshot ok con card Attaccante/Difensore +5% ATK/DEF). TEST D (lord@ world_2 tab-army): tutte e 3 le card leggendarie mostrano unit-<X>-legendary-cap con count '3/3' e pill 'Cap raggiunto'; Fanteria NON ha il legendary-cap box (corretto). Tap unit-card-Drago → recruit-sheet visibile con recruit-legendary-cap='Cap Metropoli 3/3 · Massimo 3 per tipo per Metropoli: guarnigione + in coda + in marcia.'; recruit-confirm-button disabled (aria-disabled=true, tabindex=-1). TEST E (EN via settings-lang-en): rule EN='After 120 days without logging in the House is eliminated and its castles turn neutral.', tour-replay button='Replay the tour', replay tour title='The Realm Map' (Passo 1 EN), tour-skip chiude, poi settings-lang-it ripristinato. TEST F: nessun JS error rosso in nessuno dei flussi (0 errori in console per TEST A e per TEST B+C+E).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/iter30_tour_step4.jpg (tour step 4 con spotlight piramide)",
+    "/tmp/iter30_after_tour.jpg (daily aperto dopo tour finito)",
+    "/tmp/iter30_spec.jpg (/specialization con Attaccante/Difensore)",
+    "/tmp/iter30_army.jpg (tab esercito Lord con cap 3/3)",
+    "/tmp/iter30_recruit.jpg (recruit-sheet Drago con cap 3/3 e Reclta disabilitato)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TourGate.tsx: dipendenza useEffect include `cinematic.active` ma non `player` e `worldId` — la ref `fired.current === worldId` protegge da re-fire ma un cambio di player nello stesso worldId (unlikely) non re-triggererebbe. Comportamento attuale corretto per il caso d'uso, ma per pulizia si potrebbero elencare le deps esplicite.",
+    "SpecializationCard.tsx line 63: usa specLocked.replace('{n}', ...) invece di fmt() per uniformità con il resto (funziona comunque, ma minor consistency).",
+    "settings.tsx tour-replay: `router.replace('/(tabs)/map')` seguito da setTimeout(tour.start, 600) — il 600ms è ragionevole ma dipendente dal timing di mount della tabbar (che registra tab-map target). Considerare un mount-effect explicito su map screen che triggeri tour.start() se pending, invece del setTimeout."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "5/5 (TEST A OK, TEST B OK, TEST C OK, TEST D OK, TEST E OK). Nessun errore console (TEST F OK)."},
+  "seed_data_creation": "Registrato via UI 1 nuovo account (qa-tour-842npp@example.com / Qa12345!x) su world_1 con Casata 'CasaQA842npp' — usato solo per TEST A. Nessun altro cambio di stato di gioco: nessun upgrade, ricerca, marcia, recruit, scelta specializzazione, daily-claim. Cambio lingua settings-lang-en applicato poi ripristinato a settings-lang-it. Un tentativo di registrazione precedente potrebbe aver lasciato qa-tour-r8ymf5@ e qa-tour-vud8mm@ come account 'orfani' (registrati ma non joined a nessun world).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Base URL: https://empire-lords-dragon.preview.emergentagent.com, viewport 390×844. Credenziali OK in /app/memory/test_credentials.md. Note: sulla schermata /worlds i giocatori NUOVI (senza casa in un world) vedono il pulsante 'world-join-<id>' (testo 'Fonda la tua Casata'), mentre chi ha già joinato vede 'world-enter-<id>'. Il flow di join apre la sheet 'join-sheet' con 'join-house-input' e 'join-confirm-button' — attenzione: la TextInput mantiene il focus e può spostare il bottone confirm fuori viewport in Playwright; blur dell'active element + scroll_into_view_if_needed prima del click. La navigazione /settings/house/army dopo un world-enter potrebbe far riapparire /daily una volta (gate per sessione); usare loop dismiss_daily() prima di leggere i test IDs. Il tour NON riparte per gli utenti demo/lord/etc. (tour_seen già a true dal backfill). Ho solo aggiunto 1 nuovo account per TEST A; se serve rirunnare TEST A creare un altro account con email random.",
+  "rca_of_issue": ""
+}

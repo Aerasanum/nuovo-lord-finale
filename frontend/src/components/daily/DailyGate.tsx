@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 
 import { useDaily } from "@/src/api/hooks";
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
+import { useTour } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
 
 let shownFor: string | null = null; // module-level: survives tab remounts within the session
@@ -14,16 +15,18 @@ let shownFor: string | null = null; // module-level: survives tab remounts withi
 export function DailyGate() {
   const { worldId, player } = useGame();
   const cinematic = useCinematic();
+  const { active: tourActive } = useTour();
   const daily = useDaily(worldId);
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!worldId || !player || !player.intro_seen || cinematic.active || !daily.data?.claimable || shownFor === worldId) return;
+    // order of the first-session gates: intro cinematic → guided tour → daily vault
+    if (!worldId || !player || !player.intro_seen || !player.tour_seen || tourActive || cinematic.active || !daily.data?.claimable || shownFor === worldId) return;
     shownFor = worldId;
     timer.current = setTimeout(() => router.push("/daily"), 900);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [worldId, player, cinematic.active, daily.data?.claimable, router]);
+  }, [worldId, player, tourActive, cinematic.active, daily.data?.claimable, router]);
   return null;
 }

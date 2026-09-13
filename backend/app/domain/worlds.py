@@ -15,7 +15,7 @@ from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
-from app.domain import conquest, grande_mondo, house, notifications, territory
+from app.domain import conquest, grande_mondo, house, inactivity, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
@@ -39,6 +39,7 @@ def world_dto(w: dict, player: dict | None = None) -> dict:
         "spec_hash": w.get("spec_hash"),
         "terrain_stats": w.get("terrain_stats", {}),
         "age_days": round((clock.now() - clock.aware(w["opened_at"])).total_seconds() / 86400.0, 3) if w.get("opened_at") else 0,
+        "inactivity": inactivity.rule(w),
         "grande_mondo": grande_mondo.dto(w, player),
     }
 
@@ -89,7 +90,9 @@ async def create_world(name: str | None = None, seed: int | None = None, gen_ove
     await _persist_settlements(world_id, [(a, None) for a in gen.anchors], gen.terrain, now)
     invalidate(world_id)
     await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "OPEN", "opened_at": now, "terrain_stats": gen.stats, "generation_seed": gen.seed}})
-    return await db().worlds.find_one({"_id": world_id})
+    world = await db().worlds.find_one({"_id": world_id})
+    await inactivity.ensure_schedule(world)
+    return world
 
 
 async def _persist_chunks(world_id: str, terrain: np.ndarray) -> None:
@@ -233,6 +236,7 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
                 sets[f"regions.{r['index']}.pyramid_anchor"] = pa
         await db().worlds.update_one({"_id": world_id}, {"$set": sets})
         await grande_mondo.ensure_schedule(await db().worlds.find_one({"_id": world_id}))
+        await inactivity.ensure_schedule(await db().worlds.find_one({"_id": world_id}))
         log.info("grande mondo %s ready (%d regions, %dx%d)", world_id, n, lay["world_size"], lay["world_size"])
 
     if background:
@@ -280,7 +284,8 @@ async def get_player(world_id: str, account_id: str) -> dict:
     if not p:
         raise ApiError("PLAYER_NOT_IN_WORLD", "Join this world first", 404, {"world_id": world_id})
     if p.get("status") == "ELIMINATED":
-        raise ApiError("PLAYER_ELIMINATED", "This Player has been eliminated", 409)
+        raise ApiError("PLAYER_ELIMINATED", "This Player has been eliminated", 409, {"reason": p.get("eliminated_reason")})
+    await inactivity.touch(p)
     return p
 
 
@@ -307,8 +312,10 @@ def player_dto(p: dict) -> dict:
         "shield_ended_at": clock.iso(p.get("shield_ended_at")),
         "specialization": p.get("specialization"),
         "intro_seen": bool(p.get("intro_seen_at")),
+        "tour_seen": bool(p.get("tour_seen_at")),
         "status": p.get("status", "ACTIVE"),
         "created_at": clock.iso(created),
+        "last_active_at": clock.iso(inactivity.last_active(p)),
         "alliance": {"alliance_id": p["alliance_id"], "tag": p.get("alliance_tag"), "name": p.get("alliance_name"), "kind": p.get("alliance_kind"), "role": p.get("alliance_role")} if p.get("alliance_id") else None,
         "alliance_join_cooldown_until": clock.iso(p.get("alliance_join_cooldown_until")),
         "war_involved_until": clock.iso(p.get("war_involved_until")),

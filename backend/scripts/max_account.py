@@ -125,7 +125,7 @@ async def bootstrap() -> dict:
     )
     await db().players.update_one(
         {"_id": player["_id"]},
-        {"$set": {"prestige": 50_000, "intro_seen_at": now, "shield_ended_at": now, "shield_end_reason": "QA_MAX"}},
+        {"$set": {"prestige": 50_000, "intro_seen_at": now, "tour_seen_at": now, "inactivity_exempt": True, "shield_ended_at": now, "shield_end_reason": "QA_MAX"}},
     )
     await db().accounts.update_one({"_id": acc["_id"]}, {"$set": {"rubies": 999_999}})
     await db().audit.insert_one({"world_id": WORLD, "type": "qa_max_account", "player_id": player["_id"], "settlement_id": home["_id"], "at": now})

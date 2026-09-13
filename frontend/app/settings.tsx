@@ -12,8 +12,9 @@ import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
 import { Button, Chip, Icon, Panel, Row, T } from "@/src/components/ui";
-import { LANGS, useI18n } from "@/src/i18n";
+import { fmt, LANGS, localeOf, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
+import { tour } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
 import { spacing, useTheme } from "@/src/theme";
 
@@ -79,9 +80,38 @@ export default function SettingsScreen() {
           <View style={{ gap: spacing.sm }}>
             <Button title={t("changeWorld")} icon="earth" variant="secondary" onPress={() => router.push("/worlds")} testID="settings-change-world" />
             <Button title={t("house")} icon="shield-half-full" variant="secondary" onPress={() => router.push("/house")} testID="settings-house" />
+            <Button
+              title={t("tourReplay")}
+              icon="compass-outline"
+              variant="secondary"
+              onPress={() => {
+                router.replace("/(tabs)/map");
+                setTimeout(() => tour.start(), 600);
+              }}
+              testID="settings-tour-replay"
+            />
             <Button title={t("logout")} icon="logout" variant="danger" onPress={confirmLogout} testID="settings-logout" />
           </View>
         </Panel>
+
+        {world?.inactivity ? (
+          <Panel testID="settings-inactivity">
+            <Row>
+              <Icon name="account-clock-outline" size={18} color={colors.warning} />
+              <T v="label">{t("inactivityTitle")}</T>
+            </Row>
+            <T v="caption" style={{ marginTop: 6 }} testID="settings-inactivity-rule">
+              {world.inactivity.phase === "EARLY"
+                ? fmt(t("inactivityEarly"), { days: world.inactivity.early_phase_days, date: new Date(world.inactivity.early_phase_until).toLocaleDateString(localeOf(lang)), n: world.inactivity.early_timeout_days })
+                : fmt(t("inactivityMature"), { n: world.inactivity.timeout_days_after })}
+            </T>
+            {player?.last_active_at ? (
+              <T v="caption" style={{ marginTop: 4 }} testID="settings-last-active">
+                {t("inactivityLastActive")}: {new Date(player.last_active_at).toLocaleString(localeOf(lang))}
+              </T>
+            ) : null}
+          </Panel>
+        ) : null}
 
         <T v="caption" style={{ textAlign: "center" }} testID="settings-version">
           Empire Lords Dragon · {t("appVersion")} {Constants.expoConfig?.version ?? "1.0.0"}

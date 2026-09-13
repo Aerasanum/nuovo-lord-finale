@@ -878,6 +878,34 @@ export const pt: Record<StringKey, string> = {
   dailyWarehouseNote: "Os recursos vão para a tua capital, dentro do limite do Armazém.",
   marchSkinPreview: "Pré-visualização 3D",
   marchSkinPreviewHint: "É assim que a tua coluna em marcha vai aparecer no mapa.",
+  tourStepOf: "Passo {n} de {total}",
+  tour_map_title: "O Mapa do Reino",
+  tour_map_body: "Aqui vês o teu castelo, os vizinhos e as marchas em curso. Arrasta para explorar, toca num castelo para abrir a sua ficha.",
+  tour_city_title: "A Tua Cidade",
+  tour_city_body: "Constrói e melhora os edifícios, inicia as pesquisas na Universidade e recruta o exército. As filas continuam a trabalhar enquanto estás ausente.",
+  tour_missions_title: "Missões e Crónica",
+  tour_missions_body: "Completa missões para obter recursos e prestígio. Na Crónica encontras a história do Reino e os teus recordes.",
+  tour_pyramid_title: "As Pirâmides",
+  tour_pyramid_body: "Este botão centra o mapa na Pirâmide: conquista-a com a tua Aliança e mantém-na por 168 horas para ganhar a recompensa do Reino.",
+  tourSkip: "Saltar guia",
+  tourNext: "Seguinte",
+  tourStart: "Começar a jogar",
+  tourReplay: "Rever o guia",
+  legendaryCap: "Limite de Metrópole",
+  legendaryCapHint: "Máximo {max} por tipo por Metrópole: guarnição + em fila + em marcha.",
+  legendaryQueued: "em fila",
+  legendaryInFlight: "em marcha",
+  blockedCap: "Limite atingido",
+  inactivityTitle: "Regra de inatividade",
+  inactivityEarly: "Primeiros {days} dias do Reino (até {date}): quem ficar {n} dias sem entrar é eliminado e a vaga fica livre para um novo jogador.",
+  inactivityMature: "Depois de {n} dias sem entrar, a Casa é eliminada e os seus castelos tornam-se neutros.",
+  inactivityLastActive: "Último acesso",
+  specBonusATTACKER: "+{n}% de poder de ataque nas tuas marchas Ataque, Saque e Conquista",
+  specBonusDEFENDER: "+{n}% de poder de defesa dos teus castelos e das tuas Sentinelas",
+  specManage: "Gerir",
+  specActiveBonus: "Bónus ativo",
+  specAvailableNow: "Podes escolher a especialização: a primeira escolha é grátis!",
+  chr_PLAYER_INACTIVE: "A Casa {a} caiu no esquecimento por inatividade",
 };
 
 export const ptErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const ptErrors: Record<string, string> = {
   SHIELD_ACTIVE: "O alvo está protegido pelo escudo.",
   TARGET_IS_ALLY: "Não podes atacar um aliado.",
   RATE_LIMITED: "Demasiados pedidos: tenta novamente dentro de pouco.",
+  LEGENDARY_CAP_REACHED: "Limite de Metrópole atingido: máximo 3 Lendários por tipo (guarnição + fila + em marcha).",
+  PLAYER_ELIMINATED: "Esta Casa foi eliminada deste Reino.",
 };
 
 export const ptResources: Record<string, string> = {

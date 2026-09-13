@@ -68,6 +68,12 @@ async def catch_up_neutral(doc: dict, world: dict) -> dict:
         next_tick += timedelta(hours=tick_h)
         ticks += 1
     state = build_neutral_state(level, bool(doc.get("port_eligible")))
+    if doc.get("converted_from_player"):
+        # spec.neutral_conversion.player_to_neutral_on_inactivity: an ex-Player castle keeps its building levels (and the
+        # wall it built); only the garrison (100·L²) and the wall HP are restored on each tick.
+        state["buildings"] = doc.get("buildings") or state["buildings"]
+        wall = F.wall_stats(int(state["buildings"].get("Mura", 0)), {}, spec)
+        state["wall"] = {"level": wall["level"], "current_hp": wall["max_hp"], "max_hp": wall["max_hp"]}
     # restore garrison to 100*L^2 and walls to max HP on each tick (STC-25)
     updated = await db().settlements.find_one_and_update(
         {"_id": doc["_id"], "next_growth_at": doc.get("next_growth_at"), "kind": "NEUTRAL"},

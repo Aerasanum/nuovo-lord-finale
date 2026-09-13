@@ -259,6 +259,14 @@ async def intro_seen(c: Ctx = Depends(ctx)):
     return {"intro_seen": True, "server_time": clock.iso(clock.now())}
 
 
+@router.post("/worlds/{world_id}/tour/seen")
+async def tour_seen(c: Ctx = Depends(ctx)):
+    """First-login guided tour finished or skipped once for this Player/World — never shown automatically again (replay from Settings)."""
+    if not c.player.get("tour_seen_at"):
+        await db().players.update_one({"_id": c.player["_id"]}, {"$set": {"tour_seen_at": clock.now()}})
+    return {"tour_seen": True, "server_time": clock.iso(clock.now())}
+
+
 # --------------------------------------------------------------------------- settlements
 @router.get("/worlds/{world_id}/settlements/{settlement_id}")
 async def get_settlement(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
@@ -325,7 +333,15 @@ async def research_start(world_id: str, settlement_id: str, key: str, body: Idem
 async def army(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
     doc = await _fresh_settlement(world_id, settlement_id, c.player["_id"])
     jobs = await running_jobs(doc["_id"])
-    return {"army": {k: int(v) for k, v in doc.get("army", {}).items() if int(v) > 0}, "ships": int(doc.get("ships", 0)), "units": unit_catalog(doc, jobs), "resources": doc["resources"], "server_time": clock.iso(clock.now())}
+    units = unit_catalog(doc, jobs)
+    for u in units:
+        if u["category"] == "legendary":
+            usage = await recruitment.legendary_usage(doc, u["name"], jobs)
+            u["legendary_cap"] = usage
+            u["batch_cap"] = min(1, usage["free"])
+            if usage["free"] == 0 and u["state"] == "AVAILABLE":
+                u["state"] = "BLOCKED_CAP"
+    return {"army": {k: int(v) for k, v in doc.get("army", {}).items() if int(v) > 0}, "ships": int(doc.get("ships", 0)), "units": units, "resources": doc["resources"], "server_time": clock.iso(clock.now())}
 
 
 class RecruitIn(IdemIn):

@@ -15,6 +15,22 @@ from app.domain.pyramid_reward import bonus_pct
 from app.domain.settlements import new_id, unit_unlocked
 
 
+async def legendary_usage(doc: dict, unit: str, jobs: list[dict] | None = None) -> dict:
+    """Bible §10 / spec.legendary_stacking.metropolis_cap: max 3 of a Legendary type per Metropolis, counting the
+    garrison, the units still to be produced by the running queue and the ones in flight from this castle."""
+    cap = int(get_spec().legendary_stacking["metropolis_cap"]["max_per_type_per_metropolis"])
+    garrison = int((doc.get("army") or {}).get(unit, 0))
+    if jobs is None:
+        jobs = [j async for j in db().jobs.find({"settlement_id": doc["_id"], "kind": "RECRUIT", "status": "RUNNING"})]
+    queued = sum(max(0, int(j["count"]) - int(j.get("produced_so_far", 0))) for j in jobs if j.get("kind") == "RECRUIT" and j.get("target") == unit)
+    in_flight = 0
+    async for m in db().marches.find({"origin_settlement_id": doc["_id"], "status": {"$in": ["OUTBOUND", "RESOLVING", "RETURNING"]}, f"units.{unit}": {"$gt": 0}}, {"units": 1}):
+        in_flight += int(m["units"].get(unit, 0))
+    used = garrison + queued + in_flight
+    return {"max": cap, "used": used, "garrison": garrison, "queued": queued, "in_flight": in_flight, "free": max(0, cap - used)}
+
+
+
 async def start_recruitment(doc: dict, player: dict, unit: str, count: int, idempotency_key: str | None) -> dict:
     spec = get_spec()
     if unit not in spec.units_by_name:
@@ -35,6 +51,9 @@ async def start_recruitment(doc: dict, player: dict, unit: str, count: int, idem
     if u["category"] == "legendary":
         cap = 1
         unit_time = float(spec.unit_base_time_seconds(unit))  # 14 days exact, no modifiers
+        usage = await legendary_usage(doc, unit)
+        if usage["used"] + count > usage["max"]:
+            raise ApiError("LEGENDARY_CAP_REACHED", f"Max {usage['max']} {unit} per Metropolis (garrison + queue + in flight)", 409, {"unit": unit, **usage})
     else:
         cap = F.batch_cap(plevel, spec)
         unit_time = F.unit_effective_time_seconds(unit, plevel, research, spec, pyramid_training_bonus_pct=bonus_pct(doc)["training_pct"])

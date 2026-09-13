@@ -112,6 +112,7 @@ export function StatePill({ state, testID }: { state: string; testID?: string })
     BLOCKED_QUEUE: { bg: colors.warning, fg: colors.onWarning, label: t("blockedQueue") },
     BLOCKED_SETTLEMENT_LEVEL: { bg: colors.surfaceTertiary, fg: colors.onSurfaceTertiary, label: t("blockedLevel") },
     BLOCKED_REQUIREMENTS: { bg: colors.warning, fg: colors.onWarning, label: t("blockedRequirements") },
+    BLOCKED_CAP: { bg: colors.warning, fg: colors.onWarning, label: t("blockedCap") },
     GUARDED: { bg: colors.success, fg: colors.onSuccess, label: "GUARDED" },
     UNGUARDED_GRACE: { bg: colors.warning, fg: colors.onWarning, label: "GRACE" },
     BUILDING: { bg: colors.info, fg: colors.onInfo, label: "BUILDING" },

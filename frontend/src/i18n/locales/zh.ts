@@ -878,6 +878,34 @@ export const zh: Record<StringKey, string> = {
   dailyWarehouseNote: "资源会送至你的首都，受仓库上限限制。",
   marchSkinPreview: "3D预览",
   marchSkinPreviewHint: "这就是你行军队列在地图上的样子。",
+  tourStepOf: "第 {n} 步，共 {total} 步",
+  tour_map_title: "王国地图",
+  tour_map_body: "这里能看到你的城堡、邻居和正在进行的行军。拖动探索，点按城堡打开详情卡。",
+  tour_city_title: "你的城市",
+  tour_city_body: "建造并升级建筑，在学院开始研究，并招募军队。队列在你离线时也会继续运作。",
+  tour_missions_title: "任务与编年史",
+  tour_missions_body: "完成任务可获得资源和声望。编年史记录着王国历史和你的战绩。",
+  tour_pyramid_title: "金字塔",
+  tour_pyramid_body: "这个按钮会将地图中心切换到金字塔：和你的联盟一起占领它，并守住168小时，即可赢得王国奖励。",
+  tourSkip: "跳过教程",
+  tourNext: "下一步",
+  tourStart: "开始游戏",
+  tourReplay: "重看教程",
+  legendaryCap: "大都会上限",
+  legendaryCapHint: "每个大都会每种最多 {max}：驻防 + 排队中 + 行军中。",
+  legendaryQueued: "排队中",
+  legendaryInFlight: "行军中",
+  blockedCap: "已达上限",
+  inactivityTitle: "不活跃规则",
+  inactivityEarly: "王国前 {days} 天（至 {date}）：连续 {n} 天未登录的玩家将被移除，席位将重新开放给新玩家。",
+  inactivityMature: "超过 {n} 天未登录后，家族将被移除，其城堡将变为中立。",
+  inactivityLastActive: "上次登录",
+  specBonusATTACKER: "+{n}% 你的攻击、掠夺和征服行军攻击力",
+  specBonusDEFENDER: "+{n}% 你的城堡和哨塔防御力",
+  specManage: "管理",
+  specActiveBonus: "当前加成",
+  specAvailableNow: "你可以选择专精：第一次选择免费！",
+  chr_PLAYER_INACTIVE: "家族 {a} 因不活跃而湮没",
 };
 
 export const zhErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const zhErrors: Record<string, string> = {
   SHIELD_ACTIVE: "目标受护盾保护。",
   TARGET_IS_ALLY: "你不能攻击盟友。",
   RATE_LIMITED: "请求过多：请稍后再试。",
+  LEGENDARY_CAP_REACHED: "大都会上限已达：每种传奇最多 3 个（驻防 + 队列 + 行军中）。",
+  PLAYER_ELIMINATED: "这个家族已被该王国淘汰。",
 };
 
 export const zhResources: Record<string, string> = {

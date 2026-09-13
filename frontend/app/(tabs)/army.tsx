@@ -24,6 +24,11 @@ const useStyles = makeStyles((c) => ({
   stepper: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: c.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.border },
   garrison: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   gCell: { paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.surfaceTertiary, justifyContent: "center", borderWidth: 1, borderColor: c.border },
+  capBox: { borderRadius: radius.sm, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceTertiary, padding: spacing.xs, gap: 2 },
+  capFull: { borderColor: c.warning },
+  capPip: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.border, marginLeft: 3 },
+  capPipOn: { backgroundColor: c.brandPrimary },
+  capPipFull: { backgroundColor: c.warning },
 }));
 
 
@@ -127,6 +132,27 @@ export default function ArmyScreen() {
                 <CostRow cost={u.cost} />
                 <T v="caption">{u.effective_time_s ? formatDuration(u.effective_time_s) : formatDuration(u.base_time_s)}/u</T>
               </Row>
+              {u.legendary_cap ? (
+                <View style={[s.capBox, u.legendary_cap.free === 0 && s.capFull]} testID={`unit-${u.name}-legendary-cap`}>
+                  <Row style={{ justifyContent: "space-between" }}>
+                    <Row>
+                      <Icon name="crown-outline" size={16} color={u.legendary_cap.free === 0 ? colors.warning : colors.brandPrimary} />
+                      <T v="label">{t("legendaryCap")}</T>
+                    </Row>
+                    <Row>
+                      {Array.from({ length: u.legendary_cap.max }).map((_, i) => (
+                        <View key={i} style={[s.capPip, i < u.legendary_cap!.used && (u.legendary_cap!.free === 0 ? s.capPipFull : s.capPipOn)]} />
+                      ))}
+                      <T v="mono" style={{ fontSize: 13, marginLeft: 4 }} testID={`unit-${u.name}-legendary-count`}>
+                        {u.legendary_cap.used}/{u.legendary_cap.max}
+                      </T>
+                    </Row>
+                  </Row>
+                  <T v="caption">
+                    {t("garrison")} {u.legendary_cap.garrison} · {t("legendaryQueued")} {u.legendary_cap.queued} · {t("legendaryInFlight")} {u.legendary_cap.in_flight}
+                  </T>
+                </View>
+              ) : null}
               {u.job ? (
                 <Row style={{ justifyContent: "space-between" }}>
                   <T v="caption">
@@ -152,6 +178,11 @@ export default function ArmyScreen() {
             <T v="caption">
               {t("batchCap")}: {cap} · {pick.role}
             </T>
+            {pick.legendary_cap ? (
+              <T v="caption" style={{ color: pick.legendary_cap.free === 0 ? colors.warning : colors.onSurfaceSecondary }} testID="recruit-legendary-cap">
+                {t("legendaryCap")} {pick.legendary_cap.used}/{pick.legendary_cap.max} · {t("legendaryCapHint").replace("{max}", String(pick.legendary_cap.max))}
+              </T>
+            ) : null}
             <Row>
               <Pressable style={s.stepper} onPress={() => setCount(String(Math.max(1, n - 5)))} testID="recruit-minus">
                 <Icon name="minus" size={20} />

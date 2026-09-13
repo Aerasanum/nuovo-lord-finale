@@ -998,3 +998,40 @@ frontend:
       - working: true
         agent: "main"
         comment: "Iteration 30 finale: labelHit() generalizzato a targhe castello (tester aveva trovato tap su targa 'Casa Demo' → tile 'Pianura 4,184'); verificati via screenshot: targhe demo (2 castelli) → card corretta; Lord L30 Metropoli world_2 (pip 30 + corona, cinta+bastioni+guglia) → card 'Casa Lord · L30 · 491,543'; switcher 5 villaggi OK; Osservatore gm_1: niente nebbia, chip GM, map-center-pyramid-button → 'Piccola Piramide · IT 53g 20h', tap etichetta → map-pyramid-card. daily-close usa canGoBack(). Testing agent seconda run: timeout (WebGL lento), nessun report iteration_30."
+
+# ---- iteration 31 (main agent) — Inattività 3/30/120, Specializzazione in Casata, Cap Leggendari, Guida primo accesso ----
+backend:
+  - task: "Inattività (domain/inactivity.py): last_active_at aggiornato (throttle 10 min) in worlds.get_player; sweep INACTIVITY_SWEEP per mondo ogni 6h (bootstrap in server.py; migrazione last_active_at=now per i giocatori esistenti). Regola: mondo < 30 gg → 3 gg senza accesso → REMOVE (slot Madre torna PLAYER_SLOT FREE + raggio riserva, ex-neutrali conquistati → NEUTRAL, player_count −1, regione −1 nel GM); mondo ≥ 30 gg → 120 gg → NEUTRAL (spec.neutral_conversion: livelli/edifici/HP mura conservati, risorse 50%, guarnigione 100·L², territorio+Sentinelle rimossi, ricerca congelata, catch_up_neutral conserva gli edifici via converted_from_player). Sempre: marce DISBANDED, job CANCELLED, uscita dall'alleanza, status ELIMINATED (reason INACTIVE_EARLY|INACTIVE), audit + Cronaca PLAYER_INACTIVE. Esenti: inactivity_exempt (fixture demo/lord/max/osservatore) e view_all_regions. QA: PUT /qa/inactivity/config {world_id, config|null}, POST /qa/inactivity/touch {player_id, days_ago, exempt?}, POST /qa/inactivity/sweep {world_id}. DTO: world.inactivity {phase, timeout_days, mode, early_phase_until, …}, player.last_active_at, player.tour_seen; POST /worlds/{w}/tour/seen."
+    implemented: true
+    working: true
+    file: "backend/app/domain/inactivity.py, worlds.py, settlements.py, server.py, api/routes_qa.py, api/routes_game.py, core/spec.py, tests/test_iteration_31_inactivity.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_iteration_31_inactivity.py 5/5 (regola esposta, REMOVE con slot riaperto e player_count −1/+1, NEUTRAL con livello 3 conservato e guarnigione neutrale, fixture esenti, cap Leggendari 3/3 → batch_cap 0 e 409)."
+  - task: "Cap Leggendari (recruitment.legendary_usage): max 3 per tipo per Metropoli = guarnigione + coda residua + in marcia dall'origine; start_recruitment → 409 LEGENDARY_CAP_REACHED; GET /army espone units[].legendary_cap {max, used, garrison, queued, in_flight, free}, batch_cap=min(1,free), state BLOCKED_CAP a cap pieno. spec.legendary_stacking esposto in core/spec.py."
+    implemented: true
+    working: true
+    file: "backend/app/domain/recruitment.py, api/routes_game.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Verificato via pytest (lord world_2) e screenshot Esercito: pill 'Cap raggiunto', box 'Cap Metropoli ●●● 3/3 · Guarnigione 3 · in coda 0 · in marcia 0', foglio recluta con 'Lotto max: 0' e pulsante disabilitato."
+frontend:
+  - task: "Guida primo accesso (src/state/tour.ts store + components/tour/{TourOverlay,TourGate}.tsx): 4 passi Mappa→Città→Missioni→Piramidi con spotlight (tab misurate da MeasuredTabBar in (tabs)/_layout; pulsante piramide registrato con useTourTarget in map.tsx), card con testo, 'Salta la guida'/'Avanti'/'Inizia a giocare', testID tour-overlay, tour-step-<id>, tour-spotlight-<id>, tour-title, tour-body, tour-next, tour-skip, tour-progress. Auto-start solo se player.intro_seen && !player.tour_seen (giocatori esistenti backfillati tour_seen_at); DailyGate attende tour_seen && !tour.active. Impostazioni: 'Rivedi la guida' (settings-tour-replay → /(tabs)/map + tour.start) e pannello 'Regola inattività' (settings-inactivity, settings-inactivity-rule, settings-last-active). Casata: SpecializationCard (house-specialization-panel/current/bonus/available/locked/cooldown/button). Esercito: contatore Cap Metropoli (unit-<u>-legendary-cap, unit-<u>-legendary-count, recruit-legendary-cap), StatePill BLOCKED_CAP. i18n IT/EN + 6 lingue via translate_i18n.py; API_ERRORS LEGENDARY_CAP_REACHED/PLAYER_ELIMINATED; chr_PLAYER_INACTIVE."
+    implemented: true
+    working: true
+    file: "frontend/src/state/tour.ts, src/components/tour/*, src/components/SpecializationCard.tsx, app/(tabs)/_layout.tsx, app/(tabs)/map.tsx, app/(tabs)/army.tsx, app/house.tsx, app/settings.tsx, src/components/daily/DailyGate.tsx, src/components/ui.tsx, src/api/hooks.ts, src/i18n/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot: 'Rivedi la guida' → 4 passi con spotlight corretti (tab Mappa/Città/Missioni, pulsante Piramide) e chiusura; Casata card 'Nessuna specializzazione · Scegli'; Impostazioni regola 120 gg + ultimo accesso. Da verificare con account nuovo: auto-start del tour dopo l'intro e prima del Login giornaliero."
+      - working: true
+        agent: "testing"
+        comment: "Iteration 31 frontend 5/5 PASS: account nuovo → intro → tour 4 passi con spotlight → daily solo dopo; reload non ripropone il tour; Impostazioni regola inattività + Rivedi la guida; Casata card; Esercito cap 3/3 e recluta disabilitata; EN ok; 0 errori JS."

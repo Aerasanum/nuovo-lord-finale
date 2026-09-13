@@ -878,6 +878,34 @@ export const de: Record<StringKey, string> = {
   dailyWarehouseNote: "Die Ressourcen gehen an deine Hauptstadt, innerhalb des Lagerlimits.",
   marchSkinPreview: "3D-Vorschau",
   marchSkinPreviewHint: "So wird deine marschierende Kolonne auf der Karte aussehen.",
+  tourStepOf: "Schritt {n} von {total}",
+  tour_map_title: "Die Reichskarte",
+  tour_map_body: "Hier siehst du deine Burg, deine Nachbarn und laufende Märsche. Ziehe zum Erkunden, tippe eine Burg an, um ihre Karte zu öffnen.",
+  tour_city_title: "Deine Stadt",
+  tour_city_body: "Baue und verbessere Gebäude, starte Forschung in der Universität und rekrutiere deine Armee. Warteschlangen laufen weiter, auch wenn du weg bist.",
+  tour_missions_title: "Missionen und Chronik",
+  tour_missions_body: "Erfülle Missionen für Ressourcen und Prestige. In der Chronik findest du die Geschichte des Reichs und deine Rekorde.",
+  tour_pyramid_title: "Die Pyramiden",
+  tour_pyramid_body: "Dieser Knopf zentriert die Karte auf die Pyramide: Erobere sie mit deiner Allianz und halte sie 168 Stunden lang für die Reichsbelohnung.",
+  tourSkip: "Anleitung überspringen",
+  tourNext: "Weiter",
+  tourStart: "Losspielen",
+  tourReplay: "Anleitung erneut ansehen",
+  legendaryCap: "Metropolen-Limit",
+  legendaryCapHint: "Max. {max} pro Typ je Metropole: Garnison + in Warteschlange + in Marsch.",
+  legendaryQueued: "in Warteschlange",
+  legendaryInFlight: "in Marsch",
+  blockedCap: "Limit erreicht",
+  inactivityTitle: "Inaktivitätsregel",
+  inactivityEarly: "In den ersten {days} Tagen des Reichs (bis {date}): Wer {n} Tage nicht einloggt, wird entfernt und der Platz wird für einen neuen Spieler frei.",
+  inactivityMature: "Nach {n} Tagen ohne Login wird die Casata eliminiert und ihre Burgen werden neutral.",
+  inactivityLastActive: "Zuletzt aktiv",
+  specBonusATTACKER: "+{n}% Angriffskraft in deinen Marscharten Angriff, Raubzug und Eroberung",
+  specBonusDEFENDER: "+{n}% Verteidigungskraft für deine Burgen und deine Sentinels",
+  specManage: "Verwalten",
+  specActiveBonus: "Aktiver Bonus",
+  specAvailableNow: "Du kannst deine Spezialisierung wählen: Die erste Wahl ist kostenlos!",
+  chr_PLAYER_INACTIVE: "Die Casata {a} ist durch Inaktivität in Vergessenheit geraten",
 };
 
 export const deErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const deErrors: Record<string, string> = {
   SHIELD_ACTIVE: "Das Ziel ist durch den Schild geschützt.",
   TARGET_IS_ALLY: "Du kannst keinen Verbündeten angreifen.",
   RATE_LIMITED: "Zu viele Anfragen: versuch es später erneut.",
+  LEGENDARY_CAP_REACHED: "Metropolen-Limit erreicht: maximal 3 Legendäre pro Typ (Garnison + Warteschlange + in Marsch).",
+  PLAYER_ELIMINATED: "Diese Casata wurde aus diesem Reich eliminiert.",
 };
 
 export const deResources: Record<string, string> = {

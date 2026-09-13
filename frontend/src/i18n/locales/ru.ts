@@ -878,6 +878,34 @@ export const ru: Record<StringKey, string> = {
   dailyWarehouseNote: "Ресурсы идут в столицу, в пределах вместимости Склада.",
   marchSkinPreview: "3D-просмотр",
   marchSkinPreviewHint: "Так будет выглядеть твоя марширующая колонна на карте.",
+  tourStepOf: "Шаг {n} из {total}",
+  tour_map_title: "Карта Королевства",
+  tour_map_body: "Здесь видны ваш замок, соседи и идущие марши. Перетаскивайте карту, чтобы исследовать, и коснитесь замка, чтобы открыть его карточку.",
+  tour_city_title: "Ваш город",
+  tour_city_body: "Стройте и улучшайте здания, запускайте исследования в Университете и набирайте армию. Очереди работают и пока вы в игре нет.",
+  tour_missions_title: "Миссии и Хроника",
+  tour_missions_body: "Выполняйте миссии, чтобы получать ресурсы и престиж. В Хронике хранится история Королевства и ваши рекорды.",
+  tour_pyramid_title: "Пирамиды",
+  tour_pyramid_body: "Эта кнопка центрирует карту на Пирамиде: захватите её вместе с Альянсом и удерживайте 168 часов, чтобы получить награду Королевства.",
+  tourSkip: "Пропустить обучение",
+  tourNext: "Далее",
+  tourStart: "Начать игру",
+  tourReplay: "Повторить обучение",
+  legendaryCap: "Лимит Метрополии",
+  legendaryCapHint: "Максимум {max} на тип для Метрополии: гарнизон + в очереди + в марше.",
+  legendaryQueued: "в очереди",
+  legendaryInFlight: "в марше",
+  blockedCap: "Лимит достигнут",
+  inactivityTitle: "Правило неактивности",
+  inactivityEarly: "Первые {days} дней Королевства (до {date}): игрок, не заходивший {n} дней, удаляется, и место освобождается для новичка.",
+  inactivityMature: "После {n} дней без входа в игру Дом удаляется, а его замки становятся нейтральными.",
+  inactivityLastActive: "Последний вход",
+  specBonusATTACKER: "+{n}% к силе атаки в ваших маршах Атака, Налёт и Завоевание",
+  specBonusDEFENDER: "+{n}% к силе защиты ваших замков и Сентинелей",
+  specManage: "Управлять",
+  specActiveBonus: "Активный бонус",
+  specAvailableNow: "Вы можете выбрать специализацию: первый выбор бесплатный!",
+  chr_PLAYER_INACTIVE: "Дом {a} канул в забвение из-за неактивности",
 };
 
 export const ruErrors: Record<string, string> = {
@@ -914,6 +942,8 @@ export const ruErrors: Record<string, string> = {
   SHIELD_ACTIVE: "Цель защищена щитом.",
   TARGET_IS_ALLY: "Нельзя атаковать союзника.",
   RATE_LIMITED: "Слишком много запросов: попробуйте позже.",
+  LEGENDARY_CAP_REACHED: "Лимит Метрополии достигнут: максимум 3 Легендарных на тип (гарнизон + очередь + в марше).",
+  PLAYER_ELIMINATED: "Этот Дом был исключён из этого Королевства.",
 };
 
 export const ruResources: Record<string, string> = {

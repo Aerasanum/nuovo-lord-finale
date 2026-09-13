@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type CrestDto, type MarchSkin, useHouse, useHouseMutations, usePremiumMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
+import { SpecializationCard } from "@/src/components/SpecializationCard";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Chip, Icon, type IconName, Loading, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, type StringKey, useI18n } from "@/src/i18n";
@@ -167,9 +168,10 @@ export default function HouseScreen() {
               }
               testID="house-rename-button"
             />
-            <Button title={t("specialization")} icon="account-star" variant="ghost" style={{ marginTop: spacing.xs }} onPress={() => router.push("/specialization")} testID="house-specialization-button" />
-            <Button title={t("cinGalleryTitle")} icon="movie-open-play" variant="ghost" onPress={() => router.push("/cinematics")} testID="house-cinematics-button" />
+            <Button title={t("cinGalleryTitle")} icon="movie-open-play" variant="ghost" style={{ marginTop: spacing.xs }} onPress={() => router.push("/cinematics")} testID="house-cinematics-button" />
           </Panel>
+
+          <SpecializationCard worldId={worldId} />
 
           <Panel style={{ marginTop: spacing.md }} testID="house-march-skin-panel">
             <Row>

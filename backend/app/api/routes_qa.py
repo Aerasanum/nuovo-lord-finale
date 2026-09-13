@@ -221,3 +221,64 @@ async def qa_gm_phase(body: GmPhaseIn):
         raise ApiError("WORLD_NOT_FOUND", "Grande Mondo not found", 404)
     world = await grande_mondo.transition(world, body.to.upper(), reason="QA")
     return grande_mondo.dto(world)
+
+
+
+# --------------------------------------------------------------------------- inactivity (3 gg nei primi 30 gg, poi 120 gg)
+class InactivityConfigIn(BaseModel):
+    world_id: str
+    config: dict | None = None  # {early_phase_days, early_timeout_days, timeout_days, sweep_hours} — None clears the override
+
+
+@router.put("/inactivity/config")
+async def qa_inactivity_config(body: InactivityConfigIn):
+    """Test fixture: per-world override of the inactivity thresholds (cleared with config=null)."""
+    _gate()
+    from app.domain import inactivity
+
+    world = await db().worlds.find_one({"_id": body.world_id})
+    if not world:
+        raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
+    if body.config is None:
+        await db().worlds.update_one({"_id": body.world_id}, {"$unset": {"inactivity_config": ""}})
+    else:
+        await db().worlds.update_one({"_id": body.world_id}, {"$set": {"inactivity_config": body.config}})
+    return {"world_id": body.world_id, "rule": inactivity.rule(await db().worlds.find_one({"_id": body.world_id}))}
+
+
+class InactivityTouchIn(BaseModel):
+    player_id: str
+    days_ago: float = Field(ge=0, le=100000)
+    exempt: bool | None = None
+
+
+@router.post("/inactivity/touch")
+async def qa_inactivity_touch(body: InactivityTouchIn):
+    """Test fixture: backdate a Player's last activity (and optionally flip the QA exemption)."""
+    _gate()
+    from datetime import timedelta
+
+    sets: dict = {"last_active_at": clock.now() - timedelta(days=body.days_ago)}
+    if body.exempt is not None:
+        sets["inactivity_exempt"] = body.exempt
+    res = await db().players.update_one({"_id": body.player_id}, {"$set": sets})
+    if not res.matched_count:
+        raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
+    return {"player_id": body.player_id, "last_active_at": clock.iso(sets["last_active_at"]), "exempt": sets.get("inactivity_exempt")}
+
+
+class InactivitySweepIn(BaseModel):
+    world_id: str
+
+
+@router.post("/inactivity/sweep")
+async def qa_inactivity_sweep(body: InactivitySweepIn):
+    """Test fixture: run the inactivity sweep for a world now (same code path as the scheduled event)."""
+    _gate()
+    from app.domain import inactivity
+
+    world = await db().worlds.find_one({"_id": body.world_id})
+    if not world:
+        raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
+    eliminated = await inactivity.sweep_world(world)
+    return {"world_id": body.world_id, "rule": inactivity.rule(world), "eliminated": eliminated}

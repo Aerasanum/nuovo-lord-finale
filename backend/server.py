@@ -15,7 +15,7 @@ from app.core import clock, config
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
-from app.domain import conquest, construction, grande_mondo, marches, missions, pyramid, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
+from app.domain import conquest, construction, grande_mondo, inactivity, marches, missions, pyramid, scheduler, sentinels, worlds  # noqa: F401  (registers event handlers)
 from app.domain.research import validate_dag
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(worlds.ensure_default_world())
     asyncio.create_task(pyramid.bootstrap())  # Pyramid cycle state + first deadline for every OPEN world (Bible §21)
     asyncio.create_task(grande_mondo.bootstrap())  # fog wall / War of the Regions deadline for every Grande Mondo (Bibbia GM)
+    asyncio.create_task(inactivity.bootstrap())  # inactivity sweep per OPEN world (3 gg nei primi 30 gg del Regno, poi 120 gg)
     if config.SCHEDULER_ENABLED:
         worker = asyncio.create_task(scheduler.worker_loop(stop))
     try:

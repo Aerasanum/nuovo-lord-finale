@@ -133,6 +133,7 @@ class Spec:
         self.pyramid = raw["pyramid"]
         self.player_specialization = raw["player_specialization"]
         self.inactivity_transition = raw["inactivity_transition"]
+        self.legendary_stacking = raw["legendary_stacking"]
         self.mother_transition = raw["mother_transition"]
         self.mythic = raw["mythic"]
 
