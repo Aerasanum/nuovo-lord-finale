@@ -57,6 +57,9 @@ async def ensure_indexes() -> None:
     await d.scheduled_events.create_index([("world_id", ASCENDING), ("entity_id", ASCENDING)])
 
     await d.marches.create_index([("world_id", ASCENDING), ("player_id", ASCENDING), ("status", ASCENDING)])
+    # Negozio: one grant per store transaction (RevenueCat retries webhooks)
+    await d.store_purchases.create_index("transaction_id", unique=True)
+    await d.store_purchases.create_index([("account_id", ASCENDING), ("at", ASCENDING)])
     await d.marches.create_index([("world_id", ASCENDING), ("status", ASCENDING)])
     await d.marches.create_index(
         [("world_id", ASCENDING), ("player_id", ASCENDING), ("idempotency_key", ASCENDING)],

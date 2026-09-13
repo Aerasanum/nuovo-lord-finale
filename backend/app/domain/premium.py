@@ -39,10 +39,12 @@ async def balance(account_id: str) -> int:
 
 
 async def wallet(account_id: str, limit: int = 30) -> dict:
+    from app.domain.store import CHANNEL, RUBY_PACKS  # local import: store.py builds on this module
+
     cur = db().ruby_transactions.find({"account_id": account_id}).sort("at", -1).limit(limit)
     return {
         "rubies": await balance(account_id),
-        "store": {"status": _premium()["store_products"]["status"], "products": _premium()["store_products"]["products"], "channels": _premium()["store_products"]["supported_channels"]},
+        "store": {"status": "ACTIVE", "products": [p["product_id"] for p in RUBY_PACKS], "channels": [CHANNEL]},
         "cosmetics": COSMETICS_CATALOG,
         "transactions": [tx_dto(t) async for t in cur],
         "server_time": clock.iso(clock.now()),

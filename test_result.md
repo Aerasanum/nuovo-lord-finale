@@ -1089,3 +1089,30 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Iteration 33 frontend 4/4 PASS: riepilogo auto-aperto (14 ore, risorse, 4 stat) → 'Vai al Regno' → non ricompare al reload, return_pending false; /return-summary manuale non armato → stato quiet senza crash; Casata demo 4 skin 'Sbloccata', cambio Falco/Drago salvato; account nuovo: solo classic, requisiti 'Prestigio 500 (0) · oppure possiedi Falco', tap su bloccata = solo anteprima; +600 prestigio QA → Falco 'Sbloccata' + Inbox MARCH_SKIN_UNLOCKED; 0 errori JS, nessun polling /battles con Unicorno inattivo, Daily solo dopo il riepilogo."
+
+# ---- iteration 34 (main agent) — Negozio: pacchetti Rubini (Google Play/RevenueCat → webhook → grant server), skin castello premium con Rubini ----
+backend:
+  - task: "domain/store.py: RUBY_PACKS eld_rubies_199 (1.99 € → 200 Rubini + 1 skin castello tier 300: prima non posseduta frost→sylvan→ocean, tutte possedute → 300 Rubini), eld_rubies_499 (4.99 € → 500 + 200 Orso come pending_reward account-level), eld_rubies_999 (1100), eld_rubies_1999 (2400), eld_rubies_4999 (49.99 € → 6500, ×10 al primo acquisto = 65000). PREMIUM_SKINS 9: frost/sylvan/ocean 300 · light/sun/night 600 · dragon/demon/volcano 900 (accounts.castle_skins). GET /store (rubies, billing{channel GOOGLE_PLAY,status COMING_SOON|LIVE (STORE_BILLING_LIVE),environment}, packs con bonus.available, skins con owned, pending_rewards, purchases); POST /store/skins/{id}/buy {idempotency_key, world_id} → debit CASTLE_SKIN_PURCHASE (409 INSUFFICIENT_RUBIES / SKIN_ALREADY_OWNED, replay idempotente); POST /worlds/{w}/store/claim → consegna unità alla Madre (pull atomico per reward, 409 NOTHING_TO_CLAIM), Inbox STORE_REWARD_DELIVERED; POST /webhooks/revenuecat (Bearer RC_WEBHOOK_AUTH, NON_RENEWING_PURCHASE, store PLAY_STORE, environment = STORE_ENVIRONMENT; idempotente per transaction_id via indice unico store_purchases; eventi ignorati → 200; account sconosciuto → store_unmatched). Inbox STORE_PURCHASE a tutti i player dell'account. skins.catalog/set_skin: skin premium con owned/price_rubies, 409 SKIN_NOT_OWNED. QA: POST /qa/store/purchase {product_id, email|account_id}. .env: RC_WEBHOOK_AUTH, STORE_ENVIRONMENT=SANDBOX, STORE_BILLING_LIVE=false."
+    implemented: true
+    working: true
+    file: "backend/app/domain/store.py, skins.py, premium.py, notifications.py, api/routes_store.py, routes_game.py, routes_qa.py, core/config.py, core/db.py, server.py, tests/test_iteration_34_store.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_iteration_34_store.py 4/4 (catalogo; acquisto skin con Rubini + replay + already owned + applicazione al castello + SKIN_NOT_OWNED; webhook 401/×10 primo acquisto/retry idempotente/secondo acquisto base/ignored wrong_environment/unmatched; bonus skin 4 acquisti → frost,sylvan,ocean,300 Rubini; 200 Orsi pending → claim nella Madre → army.Orso 200 → NOTHING_TO_CLAIM; UNKNOWN_PRODUCT)."
+frontend:
+  - task: "app/store.tsx (Negozio): saldo + stato Google Play (store-billing-status 'Google Play in arrivo' finché EXPO_PUBLIC_RC_ANDROID_KEY vuota/billing non LIVE), pannello premi da ritirare (store-pending, store-claim-button), tab store-tab-rubies/store-tab-skins; pacchetti store-pack-<s|m|l|xl|xxl> con rubini/bonus/prezzo € (tap senza billing → sheet store-info-sheet 'Google Play in arrivo'); skin: CastlePreview 3D (store-skin-preview) della skin scelta, griglia 9 card store-skin-<id> con stato (store-skin-<id>-state 'Posseduta' o prezzo), pulsante store-skin-buy → sheet conferma (store-confirm-sheet, store-confirm-buy) → acquisto; posseduta → store-skin-apply applica al castello corrente. src/store/revenuecat.ts wrapper guardato (react-native-purchases 10.9.1 installato; configure solo Android + chiave). 9 skin 3D in map3d/castle.ts (glow torce, aura, corna/cristalli/sole/chiome in entities.ts). skins.tsx: skin premium nel catalogo (Posseduta / 'Negozio · N Rubini', pulsante → /store, skins-store-button). wallet.tsx: wallet-store-button, icone STORE_PACK/CASTLE_SKIN_PURCHASE. Header Città: pill rubini → /store (settlement-store-button). Inbox: STORE_PURCHASE / STORE_REWARD_DELIVERED. i18n IT/EN + 6 lingue (translate_i18n.py)."
+    implemented: true
+    working: true
+    file: "frontend/app/store.tsx, app/skins.tsx, app/wallet.tsx, app/(tabs)/settlement.tsx, app/(tabs)/inbox.tsx, app/_layout.tsx, src/store/revenuecat.ts, src/map3d/castle.ts, src/map3d/entities.ts, src/api/hooks.ts, src/i18n/*, .env"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot demo: tab Rubini con 5 pacchetti (Tesoro del Re evidenziato '×10 Rubini al primo acquisto!'), tab Skin con anteprima 3D Drago/Demone/Luce/Ghiaccio/Foresta/Oceano/Sole/Notte/Vulcano e griglia prezzi. tsc + eslint puliti."
+      - working: true
+        agent: "testing"
+        comment: "Iteration 34 frontend 5/5 PASS: pill rubini → /store, 5 pacchetti con rubini/prezzi/bonus corretti, tap pacchetto → sheet 'Google Play in arrivo' senza addebito; account nuovo +1000 QA → acquisto Sole d'Oro 600 con conferma → 400 R, 'Posseduta', applica → 'In uso', Drago non acquistabile ('Ti mancano 500 Rubini'); /skins mostra premium (Posseduta/In uso, 'Negozio · 900 Rubini' → /store); QA eld_rubies_499 → +500 e 200 Orso da ritirare → claim; eld_rubies_199 → +200 e Ghiaccio posseduta; Inbox eventi ok; 0 errori JS, mappa 3D ok."

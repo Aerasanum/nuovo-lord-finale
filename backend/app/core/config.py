@@ -33,3 +33,10 @@ CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(","
 WORLD_AUTO_CREATE = os.environ.get("WORLD_AUTO_CREATE", "true").lower() == "true"
 SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "true").lower() == "true"
 EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+# Negozio / RevenueCat (Google Play): webhook bearer secret (configure the same value in RevenueCat → Integrations →
+# Webhooks), accepted purchase environment (SANDBOX while testing, PRODUCTION at launch) and the billing switch the
+# client reads to enable real purchases (flip to true once the Play products exist and the RC key is in the app).
+RC_WEBHOOK_AUTH = os.environ.get("RC_WEBHOOK_AUTH", "")
+STORE_ENVIRONMENT = os.environ.get("STORE_ENVIRONMENT", "SANDBOX").upper()
+STORE_BILLING_LIVE = os.environ.get("STORE_BILLING_LIVE", "false").lower() == "true"

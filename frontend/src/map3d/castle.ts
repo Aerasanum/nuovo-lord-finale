@@ -11,6 +11,9 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeos, place, ring } from "./geo";
 
 export type RoofStyle = "pyramid" | "cone" | "onion";
+/** Premium ornaments (Negozio skins): horns on the keep roof (Drago/Demone/Vulcano), a floating crystal (Ghiaccio/Luce/
+ *  Notte/Oceano), a sun disc (Sole d'Oro) or living canopies on the towers (Foresta Elfica). */
+export type Ornament = "horns" | "crystal" | "sun" | "canopy";
 
 export type CastleSkin = {
   id: string;
@@ -23,6 +26,10 @@ export type CastleSkin = {
   keepRoof: RoofStyle;
   towerRoof: "cone" | "pyramid";
   torches: boolean;
+  /** Premium only: fire/aura colour (torches, ground halo, crystal glow); defaults to the warm torch colour. */
+  glow?: string;
+  ornament?: Ornament;
+  premium?: boolean;
 };
 
 // Asset colours (physical materials of the 3D models, not UI tokens) — identical in every scheme by design.
@@ -33,12 +40,29 @@ export const CASTLE_SKINS: Record<string, CastleSkin> = {
   obsidian: { id: "obsidian", name: { it: "Ossidiana", en: "Obsidian" }, stone: "#5A5862", stoneDark: "#33323A", roof: "#6E2E5E", trim: "#E2B14A", wood: "#3A2D25", keepRoof: "cone", towerRoof: "pyramid", torches: true },
   sandstone: { id: "sandstone", name: { it: "Arenaria", en: "Sandstone" }, stone: "#DDBB80", stoneDark: "#A8865A", roof: "#3F8C7C", trim: "#F0CD73", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
   ruin: { id: "ruin", name: { it: "Rovina", en: "Ruin" }, stone: "#8D8E84", stoneDark: "#63645B", roof: "#6A5A42", trim: "#9A8E80", wood: "#463629", keepRoof: "pyramid", towerRoof: "pyramid", torches: false },
+  // ---- Negozio (premium, account-level) — tier 300
+  frost: { id: "frost", name: { it: "Ghiaccio", en: "Frost" }, stone: "#DCEBF7", stoneDark: "#9FBFD8", roof: "#5FB3E8", trim: "#F4FBFF", wood: "#6E8FA8", keepRoof: "cone", towerRoof: "cone", torches: true, glow: "#8FE3FF", ornament: "crystal", premium: true },
+  sylvan: { id: "sylvan", name: { it: "Foresta Elfica", en: "Elven Forest" }, stone: "#B9C79A", stoneDark: "#7A8A5C", roof: "#3F8C4A", trim: "#E4D27A", wood: "#5A4128", keepRoof: "onion", towerRoof: "cone", torches: true, glow: "#9CFF8A", ornament: "canopy", premium: true },
+  ocean: { id: "ocean", name: { it: "Oceano", en: "Ocean" }, stone: "#CFE0E4", stoneDark: "#7FA4AE", roof: "#1F7FA6", trim: "#E8F6F8", wood: "#4E6E78", keepRoof: "onion", towerRoof: "cone", torches: true, glow: "#5CE1D6", ornament: "crystal", premium: true },
+  // ---- tier 600
+  light: { id: "light", name: { it: "Luce", en: "Light" }, stone: "#FFF7E6", stoneDark: "#D9CBAA", roof: "#F1D98A", trim: "#FFFFFF", wood: "#B79A6A", keepRoof: "cone", towerRoof: "cone", torches: true, glow: "#FFF3B0", ornament: "crystal", premium: true },
+  sun: { id: "sun", name: { it: "Sole d'Oro Imperiale", en: "Imperial Golden Sun" }, stone: "#F3E2B4", stoneDark: "#C9A75B", roof: "#E0A31F", trim: "#FFE79A", wood: "#7B5A2E", keepRoof: "onion", towerRoof: "cone", torches: true, glow: "#FFD24A", ornament: "sun", premium: true },
+  night: { id: "night", name: { it: "Notte Stellata", en: "Starry Night" }, stone: "#5E6A96", stoneDark: "#353D63", roof: "#232A55", trim: "#C9D6FF", wood: "#2B2F4A", keepRoof: "cone", towerRoof: "pyramid", torches: true, glow: "#9FB4FF", ornament: "crystal", premium: true },
+  // ---- tier 900
+  dragon: { id: "dragon", name: { it: "Castello del Drago", en: "Dragon Castle" }, stone: "#6E3B2E", stoneDark: "#3E1F17", roof: "#B3261E", trim: "#F0B23A", wood: "#3A1E14", keepRoof: "cone", towerRoof: "pyramid", torches: true, glow: "#FF7A2A", ornament: "horns", premium: true },
+  demon: { id: "demon", name: { it: "Castello del Demone", en: "Demon Castle" }, stone: "#3A3038", stoneDark: "#1C161B", roof: "#5B1020", trim: "#C4322E", wood: "#241418", keepRoof: "pyramid", towerRoof: "pyramid", torches: true, glow: "#FF2E4A", ornament: "horns", premium: true },
+  volcano: { id: "volcano", name: { it: "Vulcano", en: "Volcano" }, stone: "#7D6C63", stoneDark: "#3E332F", roof: "#5A4340", trim: "#FF8A2B", wood: "#C2481C", keepRoof: "pyramid", towerRoof: "cone", torches: true, glow: "#FF5A12", ornament: "horns", premium: true },
 };
 
 export const DEFAULT_SKIN = "classic";
 export const NEUTRAL_SKIN = "ruin";
 export const TORCH_COLOR = "#FFB347";
 export const SHADOW_COLOR = "#000000";
+
+/** Fire / aura colour of a skin (premium skins tint their torches and halo). */
+export function glowOf(skin: CastleSkin): string {
+  return skin.glow ?? TORCH_COLOR;
+}
 
 export function skinFor(s: { skin?: string | null; faction: string; kind: string }): CastleSkin {
   if (s.kind === "NEUTRAL") return CASTLE_SKINS[NEUTRAL_SKIN];
@@ -207,6 +231,43 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
 
   const pin = cone(0.9, 2.4, 5);
 
+  // ---- Negozio premium ornaments (instanced like every other part; colour = skin glow / trim)
+  // ground halo: a soft additive ring just outside the plinth
+  const aura = new THREE.RingGeometry(0.98, 1.3, 40);
+  aura.rotateX(-Math.PI / 2);
+  aura.translate(0, 0.03, 0);
+  // four curved horns sprouting from the keep roof (Drago / Demone / Vulcano)
+  const horn = (a: number) => {
+    const g = cone(0.055, 0.42, 6);
+    g.translate(0, 0.21, 0);
+    g.rotateX(0.55); // lean outward
+    g.rotateY(a);
+    g.translate(Math.sin(a) * 0.22, 2.02, Math.cos(a) * 0.22);
+    return g;
+  };
+  const horns = mergeGeos([0, 1, 2, 3].map((k) => horn(Math.PI / 4 + (k * Math.PI) / 2)));
+  // floating crystals orbiting the keep roof (Ghiaccio / Oceano / Luce / Notte) — kept below the flag so the preview shows them
+  const crystal = mergeGeos([place(new THREE.OctahedronGeometry(0.15, 0), 0.5, 2.35, 0.42), place(new THREE.OctahedronGeometry(0.08, 0), -0.46, 2.2, -0.3), place(new THREE.OctahedronGeometry(0.07, 0), 0.05, 2.55, -0.5)]);
+  const crystalGlow = place(new THREE.SphereGeometry(0.28, 10, 8), 0.5, 2.35, 0.42);
+  // golden sun disc with rays standing on the keep top, facing the gate (Sole d'Oro Imperiale)
+  const SUN_Y = 2.45;
+  const SUN_Z = 0.62; // floats in front of the keep roof, facing the gate (visible in the preview framing)
+  const sunCore = cyl(0.2, 0.2, 0.04, 20);
+  sunCore.rotateX(Math.PI / 2);
+  sunCore.translate(0, SUN_Y, SUN_Z);
+  const sunDisc = mergeGeos([
+    sunCore,
+    ...Array.from({ length: 8 }, (_, k) => {
+      const a = (k * Math.PI) / 4;
+      const g = box(0.05, 0.16, 0.02);
+      g.rotateZ(-a);
+      g.translate(Math.sin(a) * 0.32, SUN_Y + Math.cos(a) * 0.32, SUN_Z);
+      return g;
+    }),
+  ]);
+  // living canopies wrapping the keep corners (Foresta Elfica)
+  const canopy = mergeGeos([-1, 1].flatMap((sx) => [-1, 1].map((sz) => place(new THREE.SphereGeometry(0.2, 8, 6), sx * 0.36, 1.22, sz * 0.36))));
+
   // marching army: five soldiers in a wedge (body + head), faction coloured
   const soldier = (x: number, z: number) => [place(cyl(0.07, 0.08, 0.24, 6), x, 0.12, z), place(new THREE.SphereGeometry(0.065, 6, 5), x, 0.3, z)];
   const army = mergeGeos([...soldier(0, 0.18), ...soldier(-0.16, 0.02), ...soldier(0.16, 0.02), ...soldier(-0.3, -0.16), ...soldier(0.3, -0.16), ...soldier(0, -0.16)]);
@@ -245,5 +306,11 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
     senFire,
     pin,
     army,
+    aura,
+    horns,
+    crystal,
+    crystalGlow,
+    sunDisc,
+    canopy,
   };
 }

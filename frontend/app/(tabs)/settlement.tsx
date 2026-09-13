@@ -86,11 +86,12 @@ export default function SettlementScreen() {
       }
       right={
         <Row style={{ gap: 0 }}>
-          <Pressable style={s.rubies} onPress={() => router.push("/wallet")} testID="settlement-wallet-button" accessibilityLabel={t("wallet")}>
+          <Pressable style={s.rubies} onPress={() => router.push("/store")} testID="settlement-store-button" accessibilityLabel={t("store")}>
             <Icon name="diamond" size={14} color={colors.brandPrimary} />
             <T v="caption" style={{ color: colors.onSurface, fontWeight: "700" }} testID="settlement-rubies">
               {formatNumber(rubies)}
             </T>
+            <Icon name="plus-circle" size={14} color={colors.brandPrimary} />
           </Pressable>
           <Pressable style={s.hdrBtn} onPress={() => router.push("/daily")} testID="settlement-daily-button" accessibilityLabel={t("daily")}>
             <Icon name={daily.data?.claimable ? "gift" : "gift-outline"} size={22} color={daily.data?.claimable ? colors.brandPrimary : colors.onSurfaceSecondary} />

@@ -170,6 +170,8 @@ frontend/
 - [x] Santuario Mitico + Unicorno / Ponte Arcobaleno (§12) — iteration 32
 - [x] Cinematica Arcobaleno (ponte Unicorno / conquista) — iteration 33
 - [ ] Cinematica Intro (24s, prima entrata) rivedibile dalla Cronaca (§41.2)
+- [x] Negozio: pacchetti Rubini (Google Play/RevenueCat) + skin castello premium — iteration 34
+- [ ] Collegamento Google Play reale (chiave RevenueCat, prodotti, webhook, build Android) — in attesa account Google Play
 - [ ] Metadata Google Play / Android App Bundle
 
 ## Credenziali test
@@ -289,3 +291,11 @@ Vedi `/app/memory/test_credentials.md` (demo@empirelords.com / Demo12345!, admin
 - **Riepilogo rientro**: `players.return_since/return_pending` armati da `inactivity.touch` quando due sessioni distano ≥ 6 h (`RETURN_GAP_H`). `GET /worlds/{w}/return-summary` (battaglie/castelli, code finite, marce rientrate, missioni, produzione stimata capped magazzino, allerte, non letti); `POST …/return-summary/seen`. `ReturnGate` apre `/return-summary` una volta per sessione dopo intro+tour e prima del Login giornaliero (`DailyGate` attende `return_pending=false`).
 - QA: `POST /qa/return-summary/arm {player_id, hours_ago}`, `POST /qa/prestige {player_id, points}` (nuovo, path canonico con premio Inbox).
 - Test: `backend/tests/test_iteration_33_return_skins.py` 6/6; testing agent frontend: flusso rientro (auto-apertura, chiusura, non ricompare al reload), skin sbloccate (demo) e bloccate → +600 prestigio → Falco sbloccata + Inbox, nessun errore JS.
+
+### Negozio — iteration 34 (richiesta utente) — pytest 4/4 + testing agent frontend 5/5
+- **Decisione owner (giugno 2026)**: supera la clausola «store DISABLED / i Rubini non comprano risorse» della Bibbia §23: i pacchetti in € possono includere unità (200 Orsi) e bonus.
+- **Pacchetti Rubini (Google Play via RevenueCat, ID prodotto da creare uguali in Play Console)**: `eld_rubies_199` 1.99 € → 200 R + 1 skin castello tier 300 (prima non posseduta Ghiaccio→Foresta→Oceano; tutte possedute → 300 R) · `eld_rubies_499` 4.99 € → 500 R + 200 Orsi (premio account-level, ritirato nella Madre del Regno scelto) · `eld_rubies_999` 9.99 € → 1100 R · `eld_rubies_1999` 19.99 € → 2400 R · `eld_rubies_4999` 49.99 € → 6500 R, **×10 al primo acquisto** (65.000).
+- **Skin castello premium (Rubini, account-level, valgono in ogni Regno)**: 300 Ghiaccio ❄️ / Foresta Elfica 🌲 / Oceano 🌊 · 600 Luce ✨ / Sole d'Oro Imperiale 👑 / Notte Stellata 🌙 · 900 Castello del Drago 🐉 / Castello del Demone 😈 / Vulcano 🌋. 3D: palette + tetti + torce colorate (glow) + aura a terra + ornamenti (corna, cristalli fluttuanti, disco solare, chiome).
+- **Flusso pagamenti**: client `react-native-purchases` (appUserID = account_id) → Google valida → RevenueCat webhook `POST /api/webhooks/revenuecat` (Bearer `RC_WEBHOOK_AUTH`) → grant server idempotente per transaction_id → Inbox STORE_PURCHASE. Nessun accredito lato client. Finché `EXPO_PUBLIC_RC_ANDROID_KEY` è vuota / `STORE_BILLING_LIVE=false` la UI mostra «Google Play in arrivo» (sheet informativo, nessun addebito).
+- **Da fare quando l'account Google Play è pronto**: creare i 5 prodotti one-time (consumabili) con gli ID sopra; progetto RevenueCat → chiave pubblica Android in `frontend/.env` `EXPO_PUBLIC_RC_ANDROID_KEY`; webhook RevenueCat → URL `https://<dominio>/api/webhooks/revenuecat`, header `Authorization: Bearer <RC_WEBHOOK_AUTH>`; `STORE_ENVIRONMENT=PRODUCTION` e `STORE_BILLING_LIVE=true` in `backend/.env`; build Android nativa (Expo Go non supporta gli acquisti).
+- API: `GET /store`, `POST /store/skins/{id}/buy`, `POST /worlds/{w}/store/claim`, `POST /webhooks/revenuecat`; QA `POST /qa/store/purchase {product_id, email|account_id}`. UI: `/store` (pill rubini in Città, Portafoglio, /skins), `/skins` con skin premium.

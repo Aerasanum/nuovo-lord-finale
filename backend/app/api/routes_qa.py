@@ -354,3 +354,25 @@ async def qa_prestige(body: PrestigeIn):
     await progress.award_prestige(p["world_id"], body.player_id, body.points, "qa_grant", f"qa:{clock.now().timestamp()}")
     p = await db().players.find_one({"_id": body.player_id}, projection={"prestige": 1})
     return {"player_id": body.player_id, "prestige": int(p.get("prestige", 0))}
+
+
+# --------------------------------------------------------------------------- Negozio (simulated validated purchase)
+class StorePurchaseIn(BaseModel):
+    product_id: str
+    account_id: str | None = None
+    email: str | None = None
+    transaction_id: str | None = None
+
+
+@router.post("/store/purchase")
+async def qa_store_purchase(body: StorePurchaseIn):
+    """Test fixture: pretend Google Play + RevenueCat validated this pack → same grant path as the webhook."""
+    _gate()
+    import uuid
+
+    from app.domain import store
+
+    acc = await db().accounts.find_one({"_id": body.account_id} if body.account_id else {"email": (body.email or "").lower()}, {"_id": 1})
+    if not acc:
+        raise ApiError("ACCOUNT_NOT_FOUND", "Account not found", 404)
+    return await store.grant_purchase(acc["_id"], body.product_id, body.transaction_id or f"QA.{uuid.uuid4().hex[:12]}", "QA", "SANDBOX")

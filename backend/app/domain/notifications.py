@@ -30,6 +30,11 @@ def _catalog(event: str) -> dict:
     # March skin unlocked as a Prestige reward (Bible §41.3)
     if event == "MARCH_SKIN_UNLOCKED":
         return {"severity": "INFO", "deep_link": "house"}
+    # Negozio: validated Ruby pack granted / world-bound pack reward delivered to a castle
+    if event == "STORE_PURCHASE":
+        return {"severity": "INFO", "deep_link": "store"}
+    if event == "STORE_REWARD_DELIVERED":
+        return {"severity": "INFO", "deep_link": "settlement"}
     return {"severity": "INFO", "deep_link": "inbox"}
 
 

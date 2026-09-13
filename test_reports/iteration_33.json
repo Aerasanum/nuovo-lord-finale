@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 34 «Negozio» frontend E2E passed for all five scenarios (A-E). Demo account: store opens from settlement-store-button, balance/status/5 packs (200/500/1100/2400/6500 · €1,99-49,99) with correct bonuses (skin castello 300, +200 Orso, ×10 Rubini al primo acquisto!), XXL tap opens store-info-sheet ('Google Play in arrivo'), OK closes it, rubies unchanged (20.8k). store-wallet-button → /wallet; wallet-store-button → /store. Fresh account: buy Sole d'Oro Imperiale (600) drops rubies 1000→400, sun state 'Posseduta', Apply changes button to 'In uso'; dragon (900) is disabled with 'Ti mancano 500 Rubini'. Skins screen mirrors ownership: skin-card-sun-req 'Posseduta', skin-card-sun-current 'In uso', skin-card-dragon-req 'Negozio · 900 Rubini' and skins-apply-button turns into 'Acquista · 900' → /store; skins-store-button also → /store. QA store/purchase eld_rubies_499 grants +500 rubies + 200 Orso pending panel (store-pending-units '200 Orso') that Ritira dismisses; eld_rubies_199 grants +200 rubies and unlocks frost (Posseduta). Map tab renders (6 canvases, 3D castles). No red screens, no JS console errors, only expected 401 on unauthenticated /army probe.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter34/02_store.jpg",
+    "/app/test_reports/screens/iter34/03_info.jpg",
+    "/app/test_reports/screens/iter34/F_applied.jpg",
+    "/app/test_reports/screens/iter34/G_skins.jpg",
+    "/app/test_reports/screens/iter34/H_pending.jpg",
+    "/app/test_reports/screens/iter34/J_map.jpg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "store.tsx: RevenueCat SDK is guarded behind `live` (billing.status === LIVE && billingAvailable()) so no purchase() or configureBilling() runs on web — matches spec. EXPO_PUBLIC_RC_ANDROID_KEY empty in frontend/.env, store correctly shows 'Google Play in arrivo'.",
+    "skins.tsx: premium-locked entries reuse the same testIDs pattern (skin-card-<id>-req / -current); apply button correctly routes to /store when a premium skin is selected."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only per request)", "frontend": "100%"},
+  "seed_data_creation": "Registered ephemeral test account iter34_5ln5sjoh@empirelords.com (Casa 5ln5sj, world_1) via UI + granted rubies + simulated Google Play purchases through /api/qa/rubies and /api/qa/store/purchase. Demo balance was temporarily nudged +1 ruby by a curl verification (20800→20801→…, negligible).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Register-flow gotchas: login-mode-register requires login-name-input; join must use testID world-join-world_1 → join-house-input (min 3 chars) → join-confirm-button. Post-join, intro modal is dismissed by tapping the 'Salta' text button (no dedicated testID) then daily-close. The /store screen has no bottom tab bar (Screen overlay), so navigate via router (goto /) or Back before hitting tab-inbox/tab-map. QA endpoints must be called through page.evaluate(fetch) from the browser context (direct urllib from the automation host is proxied and returns 403 via the CDN edge). All iteration 34 testIDs match the spec exactly.",
+  "rca_of_issue": "No issues to RCA — iteration 34 store shipped as designed."
+}

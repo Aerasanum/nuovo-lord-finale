@@ -569,7 +569,7 @@ export function usePublicSettlement(worldId?: string | null, id?: string | null)
   return useQuery<SettlementPublic>({ queryKey: qk.publicSettlement(worldId || "", id || ""), queryFn: () => get(`/worlds/${worldId}/settlements/${id}/public`), enabled: !!worldId && !!id });
 }
 
-export type SkinCatalog = { current: string; level: number; skins: { id: string; min_level: number; unlocked: boolean }[] };
+export type SkinCatalog = { current: string; level: number; skins: { id: string; min_level: number | null; premium: boolean; price_rubies: number | null; tier?: number; unlocked: boolean }[] };
 
 export function useSettlementSkins(worldId?: string | null, sid?: string | null) {
   return useQuery<SkinCatalog>({ queryKey: ["skins", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/skins`), enabled: !!worldId && !!sid });
@@ -836,6 +836,37 @@ export const FINISH_RATES: Record<string, { min: number; perMinute: number }> = 
   RESEARCH: { min: 150, perMinute: 4.0 },
   RECRUIT: { min: 100, perMinute: 2.5 },
 };
+
+// ---- Negozio (Ruby packs via Google Play/RevenueCat webhook grant; premium castle skins for Rubies) ----
+export type StorePack = { product_id: string; key: string; price_eur: number; currency: string; rubies: number; bonus: { type: "CASTLE_SKIN"; tier: number } | { type: "UNITS"; units: Record<string, number> } | { type: "FIRST_PURCHASE_MULTIPLIER"; mult: number; available: boolean } | null };
+export type StoreSkin = { id: string; tier: number; price_rubies: number; owned: boolean };
+export type StoreReward = { reward_id: string; product_id: string; units: Record<string, number>; at: string };
+export type StoreDto = { rubies: number; billing: { channel: string; status: "LIVE" | "COMING_SOON"; environment: string }; packs: StorePack[]; skins: StoreSkin[]; pending_rewards: StoreReward[]; purchases: number; server_time: string };
+export function useStore(enabled = true) {
+  return useQuery<StoreDto>({ queryKey: ["store"], queryFn: () => get("/store"), enabled, refetchInterval: 20000 });
+}
+export function useStoreMutations(worldId?: string | null) {
+  const qc = useQueryClient();
+  const refresh = (d: StoreDto) => {
+    qc.setQueryData(["store"], d);
+    qc.invalidateQueries({ queryKey: ["wallet"] });
+    qc.invalidateQueries({ queryKey: ["skins"] });
+    if (worldId) qc.invalidateQueries({ queryKey: qk.me(worldId) });
+  };
+  const buySkin = useMutation({
+    mutationFn: (skin: string) => post<StoreDto & { bought: string; price_rubies: number; replayed: boolean }>(`/store/skins/${skin}/buy`, { idempotency_key: `skin:${skin}:${Date.now()}`, world_id: worldId ?? null }),
+    onSuccess: refresh,
+  });
+  const claim = useMutation({
+    mutationFn: () => post<StoreDto & { delivered: (StoreReward & { settlement_id: string; settlement_name: string | null })[]; settlement_name: string | null }>(`/worlds/${worldId}/store/claim`, {}),
+    onSuccess: (d) => {
+      refresh(d);
+      qc.invalidateQueries({ queryKey: ["army"] });
+      qc.invalidateQueries({ queryKey: ["settlement"] });
+    },
+  });
+  return { buySkin, claim };
+}
 
 export function useWallet(enabled = true) {
   return useQuery<WalletDto>({ queryKey: ["wallet"], queryFn: () => get("/wallet"), enabled, refetchInterval: 30000 });

@@ -31,6 +31,8 @@ const EVENT_ICON: Record<string, IconName> = {
   INACTIVITY_WARNING: "account-clock-outline",
   MYTHIC_RITUAL: "unicorn-variant",
   MARCH_SKIN_UNLOCKED: "horse-variant",
+  STORE_PURCHASE: "google-play",
+  STORE_REWARD_DELIVERED: "gift-open",
   BUILD_JOB_STATE: "hammer",
   SETTLEMENT_UPGRADE_STATE: "castle",
   RESEARCH_JOB_STATE: "flask",
@@ -55,6 +57,8 @@ const EVENT_ICON: Record<string, IconName> = {
   EMERALD_TREASURY_MOVEMENT: "diamond-stone",
 };
 
+const STORE_PACK_KEY: Record<string, string> = { eld_rubies_199: "s", eld_rubies_499: "m", eld_rubies_999: "l", eld_rubies_1999: "xl", eld_rubies_4999: "xxl" };
+
 /** Inbox filters: which events belong to each category (null = everything). */
 const FILTERS: Record<string, string[] | null> = {
   all: null,
@@ -62,7 +66,7 @@ const FILTERS: Record<string, string[] | null> = {
   queues: ["BUILD_JOB_STATE", "SETTLEMENT_UPGRADE_STATE", "RESEARCH_JOB_STATE", "RECRUITMENT_JOB_STATE"],
   marches: ["MARCH_DEPARTED", "MARCH_ARRIVED", "MARCH_RETURNED", "CARAVAN_STATE"],
   alliance: ["ALLIANCE_INVITE", "DIPLOMACY_STATE_CHANGED", "MERCENARY_OFFER", "MERCENARY_CONTRACT_ACTIVE", "MERCENARY_CONTRACT_ENDED", "EMERALD_TREASURY_MOVEMENT", "NEGOTIATION_MESSAGE"],
-  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED", "INACTIVITY_WARNING", "MYTHIC_RITUAL", "MARCH_SKIN_UNLOCKED"],
+  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED", "INACTIVITY_WARNING", "MYTHIC_RITUAL", "MARCH_SKIN_UNLOCKED", "STORE_PURCHASE", "STORE_REWARD_DELIVERED"],
 };
 
 export default function InboxScreen() {
@@ -101,6 +105,10 @@ export default function InboxScreen() {
         return `${fmt(t("inactivityWarningLine"), { date: p.eliminate_at ? new Date(p.eliminate_at).toLocaleString(localeOf(lang)) : "—", n: p.timeout_days ?? "" })} ${p.mode === "REMOVE" ? t("inactivityWarningRemove") : t("inactivityWarningNeutral")}.`;
       case "MARCH_SKIN_UNLOCKED":
         return fmt(t("marchSkinUnlockedLine"), { n: formatNumber(p.prestige_required ?? 0), skin: tDyn(t, `marchSkin_${p.skin}`, String(p.skin)) });
+      case "STORE_PURCHASE":
+        return `${tDyn(t, `storePack_${STORE_PACK_KEY[p.product_id] ?? ""}`, String(p.product_id ?? ""))} · +${formatNumber(p.rubies ?? 0)} ${t("rubies")}${p.multiplier > 1 ? ` (×${p.multiplier})` : ""}${p.bonus?.skin ? ` · ${t("storeBonusSkinShort")}` : ""}${p.bonus?.units ? ` · ${Object.entries(p.bonus.units as Record<string, number>).map(([u, n]) => `+${n} ${u}`).join(", ")}` : ""}`;
+      case "STORE_REWARD_DELIVERED":
+        return `${Object.entries((p.units ?? {}) as Record<string, number>).map(([u, n]) => `+${formatNumber(n)} ${u}`).join(", ")} → ${p.settlement_name ?? ""}`;
       case "MYTHIC_RITUAL":
         return p.state === "READY" ? t("mythicRitualReady") : fmt(t("mythicRitualQueued"), { date: p.ready_at ? new Date(p.ready_at).toLocaleString(localeOf(lang)) : "—" });
       case "CASTLE_TELEPORTED":

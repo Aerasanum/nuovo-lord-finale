@@ -3,10 +3,10 @@ import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useHouse, useSetSkin, useSettlementSkins } from "@/src/api/hooks";
+import { type SkinCatalog, useHouse, useSetSkin, useSettlementSkins } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
-import { useI18n } from "@/src/i18n";
+import { formatNumber, useI18n } from "@/src/i18n";
 import { CASTLE_SKINS } from "@/src/map3d/castle";
 import { CastlePreview } from "@/src/map3d/CastlePreview";
 import { useGame } from "@/src/state/useGame";
@@ -48,6 +48,7 @@ export default function SkinsScreen() {
   const sel = picked ?? current;
   const selEntry = cat?.skins.find((k) => k.id === sel);
   const canApply = !!selEntry && selEntry.unlocked && sel !== current;
+  const lockedLine = (k: SkinCatalog["skins"][number]) => (k.premium ? `${t("store")} · ${formatNumber(k.price_rubies ?? 0)} ${t("rubies")}` : `${t("skinUnlockAt")} ${k.min_level}`);
 
   return (
     <Screen
@@ -75,6 +76,7 @@ export default function SkinsScreen() {
           <T v="caption" style={{ color: colors.muted, marginTop: spacing.xs }}>
             {t("castleSkinHint")}
           </T>
+          <Button title={t("storeSkinsCta")} icon="storefront" variant="secondary" style={{ marginTop: spacing.sm }} onPress={() => router.push("/store")} testID="skins-store-button" />
 
           <View style={s.list}>
             {cat.skins.map((k) => {
@@ -84,14 +86,14 @@ export default function SkinsScreen() {
               return (
                 <Pressable key={k.id} onPress={() => setPicked(k.id)} style={[s.card, isSel && s.cardSelected, !k.unlocked && s.cardLocked]} testID={`skin-card-${k.id}`} accessibilityState={{ selected: isSel, disabled: !k.unlocked }}>
                   <View style={s.swatches}>
-                    {[def?.stone, def?.roof, def?.trim].map((hex, i) => (
+                    {[def?.stone, def?.roof, def?.glow ?? def?.trim].map((hex, i) => (
                       <View key={i} style={[s.swatch, { backgroundColor: hex ?? colors.surfaceTertiary }]} />
                     ))}
                   </View>
                   <View style={{ flex: 1 }}>
                     <T v="label">{def?.name[lang === "it" ? "it" : "en"] ?? k.id}</T>
                     <T v="caption" testID={`skin-card-${k.id}-req`}>
-                      {k.unlocked ? `${t("settlementLevel")} ≥ ${k.min_level}` : `${t("skinUnlockAt")} ${k.min_level}`}
+                      {k.unlocked ? (k.premium ? t("storeOwned") : `${t("settlementLevel")} ≥ ${k.min_level}`) : lockedLine(k)}
                     </T>
                   </View>
                   {isCurrent ? (
@@ -112,15 +114,17 @@ export default function SkinsScreen() {
 
           <Panel style={{ marginTop: spacing.md }}>
             <Button
-              title={selEntry && !selEntry.unlocked ? `${t("skinLocked")} · ${t("skinUnlockAt")} ${selEntry.min_level}` : t("skinApply")}
-              icon={selEntry && !selEntry.unlocked ? "lock" : "check"}
-              disabled={!canApply || set.isPending}
+              title={selEntry && !selEntry.unlocked ? (selEntry.premium ? `${t("storeBuy")} · ${formatNumber(selEntry.price_rubies ?? 0)}` : `${t("skinLocked")} · ${t("skinUnlockAt")} ${selEntry.min_level}`) : t("skinApply")}
+              icon={selEntry && !selEntry.unlocked ? (selEntry.premium ? "storefront" : "lock") : "check"}
+              disabled={(!canApply && !(selEntry && !selEntry.unlocked && selEntry.premium)) || set.isPending}
               loading={set.isPending}
               onPress={() =>
-                set
-                  .mutateAsync(sel)
-                  .then(() => show(t("skinApplied"), "success"))
-                  .catch(showError)
+                selEntry && !selEntry.unlocked && selEntry.premium
+                  ? router.push("/store")
+                  : set
+                      .mutateAsync(sel)
+                      .then(() => show(t("skinApplied"), "success"))
+                      .catch(showError)
               }
               testID="skins-apply-button"
             />

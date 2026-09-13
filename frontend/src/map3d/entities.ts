@@ -7,7 +7,7 @@ import * as THREE from "three";
 
 import type { CrestDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
 
-import { BANNER_Y, BASTION_ANGLES, BRAZIER, buildCastleParts, type CastleSkin, CHIMNEY, FLAG_W, OUTER_RADIUS, settlementScale, settlementTier, SHADOW_COLOR, skinFor, TORCH_COLOR, TORCHES, TOWER_RADIUS, towerAngles } from "./castle";
+import { BANNER_Y, BASTION_ANGLES, BRAZIER, buildCastleParts, type CastleSkin, CHIMNEY, FLAG_W, glowOf, OUTER_RADIUS, settlementScale, settlementTier, SHADOW_COLOR, skinFor, TORCHES, TOWER_RADIUS, towerAngles } from "./castle";
 import type { SmokeEmitter } from "./smoke";
 
 export { CASTLE_TOP, settlementScale } from "./castle";
@@ -176,8 +176,16 @@ export class EntityFactory {
       gate: { geo: geos.gate, mat: stone() },
       gateDoor: { geo: geos.gateDoor, mat: lit() },
       gateRoof: { geo: geos.gateRoof, mat: roof() },
-      torch: { geo: geos.torch, mat: basic({ color: TORCH_COLOR }) },
-      torchGlow: { geo: geos.torchGlow, mat: basic({ color: TORCH_COLOR, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }) },
+      // fire colour comes from the instance colour (skin glow) so premium skins can burn blue / green / crimson
+      torch: { geo: geos.torch, mat: basic() },
+      torchGlow: { geo: geos.torchGlow, mat: basic({ transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }) },
+      // Negozio ornaments
+      aura: { geo: geos.aura, mat: basic({ transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }) },
+      horns: { geo: geos.horns, mat: lit() },
+      crystal: { geo: geos.crystal, mat: basic() },
+      crystalGlow: { geo: geos.crystalGlow, mat: basic({ transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.AdditiveBlending }) },
+      sunDisc: { geo: geos.sunDisc, mat: basic() },
+      canopy: { geo: geos.canopy, mat: lit() },
       senGlow: { geo: geos.senGlow, mat: basic({ transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending }) },
       wallBanner: { geo: geos.wallBanner, mat: basic({ side: THREE.DoubleSide }) },
       pole: { geo: geos.pole, mat: basic() },
@@ -211,6 +219,8 @@ export class EntityFactory {
     const flicker = (0.24 + 0.14 * (0.5 + 0.5 * Math.sin(t * 9.1)) * 0.6 + 0.08 * Math.sin(t * 23.3)) * (1 + 1.3 * this.night);
     (this.parts.torchGlow.mat as THREE.MeshBasicMaterial).opacity = Math.min(0.95, flicker);
     (this.parts.senGlow.mat as THREE.MeshBasicMaterial).opacity = Math.min(0.95, flicker * 1.1);
+    (this.parts.aura.mat as THREE.MeshBasicMaterial).opacity = 0.22 + 0.16 * (0.5 + 0.5 * Math.sin(t * 1.7)) + 0.25 * this.night;
+    (this.parts.crystalGlow.mat as THREE.MeshBasicMaterial).opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 2.3)) + 0.2 * this.night;
   }
 
   factionColor(f?: string): THREE.Color {
@@ -314,6 +324,12 @@ export class EntityFactory {
       torch: this.make("torch", count((_, k) => (k.torches ? 1 : 0))),
       torchGlow: this.make("torchGlow", count((_, k) => (k.torches ? 1 : 0))),
       wallBanner: this.make("wallBanner", count((s) => (s.level >= 10 ? 1 : 0))),
+      aura: this.make("aura", count((_, k) => (k.premium ? 1 : 0))),
+      horns: this.make("horns", count((_, k) => (k.ornament === "horns" ? 1 : 0))),
+      crystal: this.make("crystal", count((_, k) => (k.ornament === "crystal" ? 1 : 0))),
+      crystalGlow: this.make("crystalGlow", count((_, k) => (k.ornament === "crystal" ? 1 : 0))),
+      sunDisc: this.make("sunDisc", count((_, k) => (k.ornament === "sun" ? 1 : 0))),
+      canopy: this.make("canopy", count((_, k) => (k.ornament === "canopy" ? 1 : 0))),
       pole: this.make("pole", castles.length),
       flag: this.make("flag", castles.length),
       flagBorder: this.make("flagBorder", crested.filter((s) => s.owner_house_crest!.border !== "none").length),
@@ -377,9 +393,18 @@ export class EntityFactory {
       put(mesh.gate, cx, h, cz, sc, stoneDark);
       put(mesh.gateDoor, cx, h, cz, sc, wood);
       put(mesh.gateRoof, cx, h, cz, sc, roof);
+      const glow = this.hex(glowOf(skin));
+      if (skin.premium) put(mesh.aura, cx, h, cz, sc, glow);
+      if (skin.ornament === "horns") put(mesh.horns, cx, h, cz, sc, trim);
+      if (skin.ornament === "crystal") {
+        put(mesh.crystal, cx, h, cz, sc, glow);
+        put(mesh.crystalGlow, cx, h, cz, sc, glow);
+      }
+      if (skin.ornament === "sun") put(mesh.sunDisc, cx, h, cz, sc, roof);
+      if (skin.ornament === "canopy") put(mesh.canopy, cx, h, cz, sc, roof);
       if (skin.torches) {
-        put(mesh.torch, cx, h, cz, sc, this.pal.snow);
-        put(mesh.torchGlow, cx, h, cz, sc, this.pal.snow);
+        put(mesh.torch, cx, h, cz, sc, glow);
+        put(mesh.torchGlow, cx, h, cz, sc, glow);
         for (const tp of TORCHES) emitters.push({ x: cx + tp.x * sc, y: h + (tp.y + 0.06) * sc, z: cz + tp.z * sc, size: 0.05 * sc, rise: 0.45 * sc, period: 2.6, puffs: 3, color: TORCH_SMOKE_COLOR });
       }
       emitters.push({ x: cx + CHIMNEY.x * sc, y: h + CHIMNEY.y * sc, z: cz + CHIMNEY.z * sc, size: 0.15 * sc, rise: 1.7 * sc, period: 5, puffs: 5, color: SMOKE_COLOR });

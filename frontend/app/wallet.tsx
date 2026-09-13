@@ -8,6 +8,7 @@ import { BackButton } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
 import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
+import { CASTLE_SKINS } from "@/src/map3d/castle";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -17,13 +18,13 @@ const useStyles = makeStyles((c) => ({
   amount: { minWidth: 72, alignItems: "flex-end" },
 }));
 
-const KIND_ICON: Record<string, string> = { FINISH_JOB: "fast-forward", QA_GRANT: "flask", COSMETIC_HOUSE_RENAME: "rename-box", SPECIALIZATION_CHANGE: "account-star" };
+const KIND_ICON: Record<string, string> = { FINISH_JOB: "fast-forward", QA_GRANT: "flask", COSMETIC_HOUSE_RENAME: "rename-box", SPECIALIZATION_CHANGE: "account-star", STORE_PACK: "google-play", CASTLE_SKIN_PURCHASE: "castle", CASTLE_TELEPORT: "swap-horizontal-bold" };
 
 /** Ruby wallet (Bible §23): account-level balance, disabled store notice (empty catalog), append-only transactions. */
 export default function WalletScreen() {
   const s = useStyles();
   const { colors } = useTheme();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { worldId } = useGame();
@@ -34,6 +35,8 @@ export default function WalletScreen() {
     if (tx.kind === "FINISH_JOB") return `${e.target ?? e.kind}${e.target_level ? ` → L${e.target_level}` : ""}${e.count ? ` ×${e.count}` : ""} · ${e.remaining_minutes} min`;
     if (tx.kind === "COSMETIC_HOUSE_RENAME") return `${e.from} → ${e.to}`;
     if (tx.kind === "SPECIALIZATION_CHANGE") return `${e.from ?? "—"} → ${e.to}`;
+    if (tx.kind === "STORE_PACK") return `${e.product_id ?? ""}${e.multiplier && e.multiplier > 1 ? ` · ×${e.multiplier}` : ""}${e.bonus === "CASTLE_SKIN_FALLBACK" ? ` · ${t("storeSkinFallback")}` : ""}`;
+    if (tx.kind === "CASTLE_SKIN_PURCHASE") return `${CASTLE_SKINS[e.skin]?.name[lang === "it" ? "it" : "en"] ?? e.skin ?? ""}`;
     return "";
   };
 
@@ -85,12 +88,10 @@ export default function WalletScreen() {
                     </T>
                   </Row>
                 </Row>
-                <T v="caption" style={{ marginTop: 6 }} testID="wallet-store-disabled">
-                  {t("storeDisabled")}
-                </T>
                 <T v="caption" style={{ marginTop: 6, color: colors.muted }}>
                   {t("finishNowHint")}
                 </T>
+                <Button title={t("store")} icon="storefront" style={{ marginTop: spacing.sm }} onPress={() => router.push("/store")} testID="wallet-store-button" />
                 {worldId ? <Button title={t("specialization")} icon="account-star" variant="secondary" style={{ marginTop: spacing.sm }} onPress={() => router.push("/specialization")} testID="wallet-specialization-button" /> : null}
               </Panel>
               <T v="heading">{t("transactions")}</T>

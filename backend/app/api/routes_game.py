@@ -14,7 +14,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, mythic, navy, notifications, progress, pyramid, recruitment, research, return_summary, scheduler, sentinels, skins, teleport, worlds
+from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, mythic, navy, notifications, progress, pyramid, recruitment, research, return_summary, scheduler, sentinels, skins, store, teleport, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -638,13 +638,13 @@ class SkinIn(BaseModel):
 @router.get("/worlds/{world_id}/settlements/{settlement_id}/skins")
 async def settlement_skins(world_id: str, settlement_id: str, c: Ctx = Depends(ctx)):
     doc = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
-    return skins.catalog(doc)
+    return skins.catalog(doc, store.owned_skins(await db().accounts.find_one({"_id": c.account_id}, {"castle_skins": 1})))
 
 
 @router.put("/worlds/{world_id}/settlements/{settlement_id}/skin")
 async def settlement_skin_set(world_id: str, settlement_id: str, body: SkinIn, c: Ctx = Depends(ctx)):
     doc = await get_owned_settlement(world_id, settlement_id, c.player["_id"])
-    return await skins.set_skin(doc, body.skin)
+    return await skins.set_skin(doc, body.skin, store.owned_skins(await db().accounts.find_one({"_id": c.account_id}, {"castle_skins": 1})))
 
 
 @router.get("/worlds/{world_id}/settlements/{settlement_id}/battles")
