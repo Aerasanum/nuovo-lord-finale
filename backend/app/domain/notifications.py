@@ -27,6 +27,9 @@ def _catalog(event: str) -> dict:
     # Santuario Mitico ritual (Bible §12): Unicorn queued / ready
     if event == "MYTHIC_RITUAL":
         return {"severity": "INFO", "deep_link": "settlement/build"}
+    # March skin unlocked as a Prestige reward (Bible §41.3)
+    if event == "MARCH_SKIN_UNLOCKED":
+        return {"severity": "INFO", "deep_link": "house"}
     return {"severity": "INFO", "deep_link": "inbox"}
 
 

@@ -11,7 +11,7 @@ import Animated, { Easing, Extrapolation, interpolate, type SharedValue, useAnim
 
 import { fonts, spacing, textShadow } from "@/src/theme";
 
-export type ArtVariant = "standard" | "falcon" | "major" | "dragon" | "angel" | "demon" | "conquest" | "pyramid" | "intro";
+export type ArtVariant = "standard" | "falcon" | "major" | "dragon" | "angel" | "demon" | "conquest" | "pyramid" | "intro" | "rainbow" | "rainbow_conquest";
 
 const ART: Record<ArtVariant, ImageSourcePropType[]> = {
   standard: [require("../../../assets/cinematics/standard_0.jpg"), require("../../../assets/cinematics/standard_1.jpg")],
@@ -22,6 +22,8 @@ const ART: Record<ArtVariant, ImageSourcePropType[]> = {
   demon: [require("../../../assets/cinematics/demon_0.jpg"), require("../../../assets/cinematics/demon_1.jpg")],
   conquest: [require("../../../assets/cinematics/conquest_0.jpg"), require("../../../assets/cinematics/conquest_1.jpg")],
   pyramid: [require("../../../assets/cinematics/pyramid_0.jpg"), require("../../../assets/cinematics/pyramid_1.jpg")],
+  rainbow: [require("../../../assets/cinematics/rainbow_0.jpg"), require("../../../assets/cinematics/rainbow_1.jpg")],
+  rainbow_conquest: [require("../../../assets/cinematics/rainbow_conquest_0.jpg"), require("../../../assets/cinematics/rainbow_conquest_1.jpg")],
   intro: [
     require("../../../assets/cinematics/intro_0.jpg"),
     require("../../../assets/cinematics/intro_1.jpg"),
@@ -43,6 +45,8 @@ const MOOD: Record<ArtVariant, { ember: string; flash: string }> = {
   conquest: { ember: "#FFD97A", flash: "#FFF0C0" },
   pyramid: { ember: "#FFE08A", flash: "#FFF4D0" },
   intro: { ember: "#FFD27A", flash: "#FFE9C0" },
+  rainbow: { ember: "#D9A6FF", flash: "#FFFFFF" },
+  rainbow_conquest: { ember: "#FFC7F0", flash: "#FFF6E0" },
 };
 const CAPTION_COLOR = "#F5EBD6"; // parchment ink on the letterboxed artwork (theme-independent)
 

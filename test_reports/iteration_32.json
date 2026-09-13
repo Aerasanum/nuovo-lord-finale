@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 33 (frontend only, IT) — All 4 flows PASS. FLOW A (Return Summary, demo): armed via POST /api/qa/return-summary/arm {ply_b3869932233f, 14h} → login → tap first 'Entra' (Regno 1) → return-summary-screen appeared automatically within ~4s. Verified: title 'Bentornato, Signore', return-summary-away = 'Sei stato via 14 ore', return-summary-produced with resources (5888 legno, 8693 pietra, 3084 ferro, 4037 oro, 771 gemme), all 4 stats present (return-summary-battles/-queues/-marches/-missions). Tap return-summary-open ('Vai al Regno') closed the screen and landed on the map tab. Reload → summary did NOT reappear. GET /api/worlds/world_1/me returned player.return_pending=false. Opened /return-summary manually while not armed → return-summary-quiet + return-summary-open button visible, no crash. FLOW B (skins unlocked, demo, prestige 3686+): /house shows house-march-skin-panel with all 4 cards and preview. Each *-req reads 'Sbloccata' (falcon/elephant/dragon). Tap house-march-skin-falcon → PUT succeeded, banner 'Salvato' shown, preview label 'Anteprima 3D · Falco'. Then tap house-march-skin-dragon → preview label 'Anteprima 3D · Drago' — dragon restored. FLOW C (skins locked, fresh account qa-e-04f1cb@example.com, house CasaE04f1cb, world_1, prestige 0): joined via 'Fonda la tua Casata' modal + 'Conferma'. /house shows classic unlocked; falcon-req='Prestigio 500 (0) · oppure possiedi Falco', elephant-req='Prestigio 2000 (0) · oppure possiedi Elefante da Guerra', dragon-req='Prestigio 5000 (0) · oppure possiedi Drago'. Locked cards render at reduced opacity (0.55, no aria-disabled attr — Pressable disabled only during mutation). Tap locked falcon → preview label changed to 'Falco' only (no error toast). GET /api/worlds/world_1/house confirmed house.march_skin='classic', march_skin_unlocks={classic:true, falcon:false, elephant:false, dragon:false}. Then POST /api/qa/prestige {ply_1cde503b04d7, 600} → 200 OK. GET again: unlocks.falcon=true. Reload /house → falcon-req='Sbloccata' (elephant/dragon still show 'Prestigio X (600)'). Tap falcon → 'Salvato' banner, preview label 'Anteprima 3D · Falco'. Inbox tab shows notification 'Skin marcia sbloccata — Premio Prestigio 500: la skin marcia «Falco» è tua. Attivala nella Casata.' (event MARCH_SKIN_UNLOCKED, deep_link=house). FLOW D (regressions): 0 red JS errors during login+return-summary+house+inbox flows (only 1 transient console error 'Failed to load resource: 502' — non-blocking, unrelated). /battles endpoint polling counter = 0 requests in ~9s while viewing the map tab with Unicorn NOT in flight (correct). Daily gate appeared only AFTER the Return Summary was dismissed and only on the reload run (as designed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/screens/iter32_A_summary.jpg",
+    "/app/test_reports/screens/iter32_A_after_reload.jpg",
+    "/app/test_reports/screens/iter32_A_manual.jpg",
+    "/app/test_reports/screens/iter32_B_falcon.jpg",
+    "/app/test_reports/screens/iter32_B_dragon.jpg",
+    "/app/test_reports/screens/iter32_C_house_locked.jpg",
+    "/app/test_reports/screens/iter32_C_falcon_unlocked.jpg",
+    "/app/test_reports/screens/iter32_C_falcon_selected.jpg",
+    "/app/test_reports/screens/iter32_C_inbox.jpg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "house.tsx line 189: `const unlocked = q.data?.march_skin_unlocks?.[sk.key] ?? sk.requires_unit === null;` — correct: server-side unlocks are the source of truth, with fallback to sk.requires_unit===null for classic. Verified end-to-end that a fresh account with prestige=0 sees {falcon:false, elephant:false, dragon:false} and after +600 prestige only falcon flips to true.",
+    "house.tsx line 195-203: Pressable onPress always calls `setPreviewSkin(sk.key)` before checking unlocked/selected, so locked cards correctly show a preview-only interaction (verified: preview label changed to 'Falco' with 0 prestige, no PUT was fired, no toast). Consider dimming the card cursor to `not-allowed` on web for extra affordance, but not required.",
+    "ReturnGate.tsx line 22: gating conditions (worldId, player.return_pending, intro_seen, tour_seen, !tourActive, !cinematic.active, shownFor !== worldId) all met on demo login → single push to /return-summary observed. `shownFor` module-level guard correctly prevents re-open after reload within the same session (verified: after dismiss+reload the summary did not reappear).",
+    "return-summary.tsx line 52-56: `close()` calls seen.mutate() (clears return_pending server-side) then router.back() or replace('/(tabs)/map'). Confirmed via GET /api/worlds/world_1/me that player.return_pending flipped to false after tapping return-summary-open."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only per request)", "frontend": "4/4 flows PASS (A Return Summary, B skins unlocked, C skins locked + prestige unlock + inbox MARCH_SKIN_UNLOCKED, D no regressions)"},
+  "seed_data_creation": "One fresh throwaway account for Flow C: qa-e-04f1cb@example.com / Qa12345!x (player_id ply_1cde503b04d7), world_1, house 'CasaE04f1cb'. Given +600 prestige via QA (POST /api/qa/prestige). No further mutations. Home settlement stl_df1a48752af640be. Demo account state was restored: return_pending cleared to false after dismiss; march_skin returned to 'dragon' via UI tap.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Base URL: https://empire-lords-dragon.preview.emergentagent.com, viewport 390×844. Credentials in /app/memory/test_credentials.md. Notes for next iteration: (1) Fresh account world_1 join uses button text 'Fonda la tua Casata' (not testID) — modal has a single input with placeholder 'Casa Draghi' and a 'Conferma' button. (2) Existing joined accounts see 'Entra' instead. (3) DailyGate can reappear after page.goto — dismiss with data-testid='daily-close'. (4) player.return_pending is cleared server-side by POST/PUT sent by useReturnSeen (fired inside return-summary.tsx close()). (5) march_skin_unlocks is exposed in GET /api/worlds/{id}/house — trust it over sk.requires_unit heuristic. (6) The /battles endpoint is NOT polled while Unicorn is idle — 0 requests observed over ~9s on demo map view.",
+  "rca_of_issue": ""
+}

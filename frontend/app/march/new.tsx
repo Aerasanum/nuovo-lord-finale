@@ -72,7 +72,7 @@ export default function MarchComposer() {
       const r = await mm.launch.mutateAsync(body);
       show(`${t("march")} → ${r.march.target_name} · ${formatDuration(r.march.eta_seconds)}`, "success");
       // departure cinematic (Bible §41.2): real composition, house crest, Alliance banner; skippable
-      cinematic.play({ kind: "DEPARTURE", units: r.march.units, missionLabel: missionLabel(r.march.mission), targetName: r.march.target_name, etaSeconds: r.march.eta_seconds, crest: player?.house?.crest ?? null, houseName: player?.house_name ?? null, allianceTag: player?.alliance?.tag ?? null });
+      cinematic.play({ kind: "DEPARTURE", rainbow: !!r.march.rainbow, units: r.march.units, missionLabel: missionLabel(r.march.mission), targetName: r.march.target_name, etaSeconds: r.march.eta_seconds, crest: player?.house?.crest ?? null, houseName: player?.house_name ?? null, allianceTag: player?.alliance?.tag ?? null });
       router.replace("/marches");
     } catch (e) {
       showError(e);

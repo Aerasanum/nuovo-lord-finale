@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import math
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -13,7 +14,7 @@ from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
 from app.core.spec import get_spec, spec_meta
-from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, mythic, navy, notifications, progress, pyramid, recruitment, research, scheduler, sentinels, skins, teleport, worlds
+from app.domain import alliances, caravans, construction, economy, grande_mondo, house, marches, missions, mythic, navy, notifications, progress, pyramid, recruitment, research, return_summary, scheduler, sentinels, skins, teleport, worlds
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK
 from app.domain.settlements import building_catalog, catch_up_neutral, get_owned_settlement, job_dto, owner_dto, public_dto, research_catalog, running_jobs, unit_catalog
@@ -243,13 +244,13 @@ class HouseIn(BaseModel):
 
 @router.get("/worlds/{world_id}/house")
 async def house_get(c: Ctx = Depends(ctx)):
-    return {"house": house.dto(c.player), "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player)), "server_time": clock.iso(clock.now())}
+    return {"house": house.dto(c.player), "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player), int(c.player.get("prestige", 0))), "server_time": clock.iso(clock.now())}
 
 
 @router.put("/worlds/{world_id}/house")
 async def house_update(body: HouseIn, c: Ctx = Depends(ctx)):
     updated = await house.update(c.player, body.motto, body.crest, body.description, body.march_skin)
-    return {"house": updated, "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player)), "server_time": clock.iso(clock.now())}
+    return {"house": updated, "catalog": house.catalog(), "march_skin_unlocks": house.skin_unlocks(await house.owned_units(c.player), int(updated.get("prestige", 0))), "server_time": clock.iso(clock.now())}
 
 
 @router.post("/worlds/{world_id}/intro/seen")
@@ -275,6 +276,22 @@ async def hint_seen(key: str, c: Ctx = Depends(ctx)):
         raise ApiError("INVALID_HINT", "Unknown hint key", 400)
     await db().players.update_one({"_id": c.player["_id"]}, {"$addToSet": {"hints_seen": key}})
     return {"hints_seen": sorted(set(c.player.get("hints_seen") or []) | {key}), "server_time": clock.iso(clock.now())}
+
+
+# --------------------------------------------------------------------------- «Riepilogo rientro»
+@router.get("/worlds/{world_id}/return-summary")
+async def return_summary_get(c: Ctx = Depends(ctx), since: str | None = None):
+    """Digest of the window the Player was away (default: the gap detected by inactivity.touch; `since` ISO overrides for QA)."""
+    start = clock.aware(datetime.fromisoformat(since.replace("Z", "+00:00"))) if since else clock.aware(c.player.get("return_since"))
+    if not start:
+        raise ApiError("NO_RETURN_WINDOW", "No absence window to summarise", 404)
+    return {**(await return_summary.build(c.world, c.player, start)), "pending": bool(c.player.get("return_pending")), "server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/return-summary/seen")
+async def return_summary_seen(c: Ctx = Depends(ctx)):
+    await db().players.update_one({"_id": c.player["_id"]}, {"$set": {"return_pending": False}})
+    return {"return_pending": False, "server_time": clock.iso(clock.now())}
 
 
 # --------------------------------------------------------------------------- Santuario Mitico + Unicorno (Bible §12)

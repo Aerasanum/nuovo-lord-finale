@@ -179,7 +179,7 @@ export type CrestDto = {
 
 export type MarchSkin = "classic" | "dragon" | "elephant" | "falcon";
 export type HouseDto = { house_name: string; motto: string | null; description: string | null; crest: CrestDto; march_skin: MarchSkin; prestige: number; history: unknown[] };
-export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[]; march_skins: { key: MarchSkin; requires_unit: string | null }[] };
+export type CrestCatalog = { shield_bases: CrestDto["shield_base"][]; symbols: CrestDto["primary_symbol"][]; marks: CrestDto["secondary_mark"][]; borders: CrestDto["border"][]; palette: string[]; march_skins: { key: MarchSkin; requires_unit: string | null; prestige_required: number | null }[] };
 
 /** Bible §34.10 disclosure — only the fields the intel tier reveals are non-null. */
 export type IntelDto = {
@@ -879,4 +879,36 @@ export function usePremiumMutations(worldId: string) {
     rename: useMutation({ mutationFn: (house_name: string) => post<{ house: HouseDto; price_rubies: number; rubies: number }>(`/worlds/${worldId}/house/rename`, { house_name, idempotency_key: idem() }), onSuccess: invalidate }),
     specialize: useMutation({ mutationFn: (choice: string) => post<SpecializationDto>(`/worlds/${worldId}/specialization`, { choice, idempotency_key: idem() }), onSuccess: invalidate }),
   };
+}
+
+/** «Riepilogo rientro»: digest of the absence window armed by the server (players.return_since). */
+export type ReturnSummaryDto = {
+  since: string;
+  until: string;
+  hours_away: number;
+  battles: { total: number; won: number; lost: number; as_attacker: number; as_defender: number; castles_won: { settlement_id: string; name: string | null; xy: number[] | null; battle_id: string }[]; castles_lost: { settlement_id: string; name: string | null; xy: number[] | null; battle_id: string }[]; recent: { battle_id: string; mission: string; attacker: boolean; won: boolean; target_name: string | null; at: string | null }[] };
+  jobs: { done: Record<string, { target: string; level: number | null; count: number | null; settlement_id: string }[]>; counts: Record<string, number> };
+  marches: { completed: number; results: Record<string, number>; active: number; incoming_hostile: number };
+  missions_completed: number;
+  alerts: { event: string; severity: string; payload: any; deep_link: string | null; at: string | null }[];
+  unread: number;
+  resources_produced: Resources;
+  settlements: number;
+  prestige: number;
+  pending: boolean;
+};
+
+export function useReturnSummary(worldId?: string | null, enabled = true) {
+  return useQuery({ queryKey: ["return-summary", worldId], queryFn: () => get<ReturnSummaryDto>(`/worlds/${worldId}/return-summary`), enabled: !!worldId && enabled, staleTime: 60_000, retry: false });
+}
+
+export function useReturnSeen(worldId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => post<{ return_pending: boolean }>(`/worlds/${worldId}/return-summary/seen`, {}),
+    onMutate: () => {
+      qc.setQueryData(qk.me(worldId), (d: any) => (d?.player ? { ...d, player: { ...d.player, return_pending: false } } : d));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.me(worldId) }),
+  });
 }

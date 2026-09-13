@@ -20,8 +20,8 @@ export function DailyGate() {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // order of the first-session gates: intro cinematic → guided tour → daily vault
-    if (!worldId || !player || !player.intro_seen || !player.tour_seen || tourActive || cinematic.active || !daily.data?.claimable || shownFor === worldId) return;
+    // order of the session gates: intro cinematic → guided tour → «Riepilogo rientro» → daily vault
+    if (!worldId || !player || !player.intro_seen || !player.tour_seen || player.return_pending || tourActive || cinematic.active || !daily.data?.claimable || shownFor === worldId) return;
     shownFor = worldId;
     timer.current = setTimeout(() => router.push("/daily"), 900);
     return () => {

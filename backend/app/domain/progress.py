@@ -33,15 +33,19 @@ async def award_prestige(world_id: str, player_id: str | None, points: int, reas
     if not player_id or points <= 0:
         return
     key = f"{reason}:{ref}" if ref else f"{reason}:{uuid.uuid4().hex}"
-    res = await db().players.update_one(
+    before = await db().players.find_one_and_update(
         {"_id": player_id, "prestige_keys": {"$ne": key}},
         {
             "$inc": {"prestige": int(points)},
             "$push": {"prestige_keys": {"$each": [key], "$slice": -1000}, "house_history": {"$each": [{"at": clock.now(), "kind": "PRESTIGE", "reason": reason, "points": int(points), "ref": ref}], "$slice": -HISTORY_CAP}},
         },
+        projection={"prestige": 1},
     )
-    if res.modified_count:
+    if before is not None:
         await db().audit.insert_one({"world_id": world_id, "type": "prestige", "player_id": player_id, "reason": reason, "points": int(points), "ref": ref, "at": clock.now()})
+        from app.domain import house  # local import: march-skin Prestige rewards (Bible §41.3)
+
+        await house.prestige_skin_unlocks(world_id, player_id, int(before.get("prestige", 0)), int(before.get("prestige", 0)) + int(points))
 
 
 # -------------------------------------------------------------------------------------------- achievements

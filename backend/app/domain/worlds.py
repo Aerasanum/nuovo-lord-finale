@@ -314,6 +314,8 @@ def player_dto(p: dict) -> dict:
         "intro_seen": bool(p.get("intro_seen_at")),
         "tour_seen": bool(p.get("tour_seen_at")),
         "hints_seen": list(p.get("hints_seen") or []),
+        "return_pending": bool(p.get("return_pending")),
+        "return_since": clock.iso(p["return_since"]) if p.get("return_since") else None,
         "sanctuary_level": int((p.get("sanctuary") or {}).get("level", 0)),
         "unicorn": mythic.unicorn_dto(p),
         "status": p.get("status", "ACTIVE"),

@@ -185,6 +185,7 @@ export default function HouseScreen() {
             </T>
             <View style={[s.chips, { marginTop: spacing.sm }]}>
               {(cat?.march_skins ?? []).map((sk) => {
+                const prestige = q.data?.house.prestige ?? 0;
                 const unlocked = q.data?.march_skin_unlocks?.[sk.key] ?? sk.requires_unit === null;
                 const selected = q.data?.house.march_skin === sk.key;
                 const previewing = (previewSkin ?? q.data?.house.march_skin) === sk.key;
@@ -208,10 +209,12 @@ export default function HouseScreen() {
                     <T v="label" style={{ color: selected ? colors.onBrandTertiary : colors.onSurface }}>
                       {t(`marchSkin_${sk.key}` as StringKey)}
                     </T>
-                    {!unlocked ? (
+                    {sk.prestige_required ? (
                       <Row style={{ gap: 2 }}>
-                        <Icon name="lock" size={11} color={colors.muted} />
-                        <T v="caption">{fmt(t("marchSkinRequires"), { unit: sk.requires_unit ?? "" })}</T>
+                        <Icon name={unlocked ? "check-decagram" : "lock"} size={11} color={unlocked ? colors.success : colors.muted} />
+                        <T v="caption" style={{ color: unlocked ? colors.success : colors.onSurfaceSecondary }} testID={`house-march-skin-${sk.key}-req`}>
+                          {unlocked ? t("skinUnlockedBy") : `${fmt(t("skinPrestigeReq"), { n: formatNumber(sk.prestige_required) })} (${formatNumber(prestige)}) · ${fmt(t("skinOrOwn"), { unit: sk.requires_unit ?? "" })}`}
+                        </T>
                       </Row>
                     ) : null}
                   </Pressable>

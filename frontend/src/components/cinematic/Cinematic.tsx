@@ -57,6 +57,8 @@ export type CinematicSpec = {
   pyramid?: boolean;
   newLevel?: number | null;
   skin?: string | null;
+  /** Unicorn power (Bible §12.2): the Rainbow Bridge opens (DEPARTURE) / the castle falls under the rainbow (CONQUEST). */
+  rainbow?: boolean;
 };
 
 type Legendary = "dragon" | "angel" | "demon";
@@ -98,17 +100,21 @@ export function cinematicPlan(spec: CinematicSpec) {
       ? 24000
       : spec.kind === "CONQUEST"
         ? 8000
-        : major
+        : spec.rainbow || major
           ? 6000
           : 4000;
   const variant: ArtVariant =
     spec.kind === "INTRO"
       ? "intro"
       : spec.kind === "CONQUEST"
-        ? spec.pyramid
-          ? "pyramid"
-          : "conquest"
-        : (legendary ?? (major ? "major" : falcon ? "falcon" : "standard"));
+        ? spec.rainbow
+          ? "rainbow_conquest"
+          : spec.pyramid
+            ? "pyramid"
+            : "conquest"
+        : spec.rainbow
+          ? "rainbow"
+          : (legendary ?? (major ? "major" : falcon ? "falcon" : "standard"));
   const skipAfterMs = spec.kind === "INTRO" ? 2000 : 1000; // spec.cinematics.intro.skip_enabled_after_seconds
   return { total, legendary, falcon, major, durationMs, variant, skipAfterMs };
 }
@@ -205,7 +211,9 @@ function CinematicOverlay({
     spec.kind === "INTRO"
       ? t("cinIntroTitle")
       : spec.kind === "CONQUEST"
-        ? t(spec.pyramid ? "cinConquestPyramid" : "cinConquest")
+        ? t(spec.rainbow ? "cinRainbowConquest" : spec.pyramid ? "cinConquestPyramid" : "cinConquest")
+        : spec.rainbow
+          ? t("cinRainbow")
         : plan.legendary === "dragon"
           ? t("cinDragon")
           : plan.legendary === "angel"

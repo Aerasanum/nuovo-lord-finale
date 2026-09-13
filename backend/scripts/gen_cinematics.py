@@ -76,6 +76,14 @@ SHOTS: dict[str, list[str]] = {
         "A monstrous horned demon towering over a marching medieval army under a blood-red sky, lava cracks in the ground, ash falling, army with torches and black banners.",
         "Close-up of a demon's face with burning eyes and horns, smoke and embers, armored warriors with torches marching below at night.",
     ],
+    "rainbow": [
+        "A luminous white unicorn with a glowing spiral horn standing on the battlements of a medieval castle at night, a gigantic radiant rainbow bridge of light arcing from the castle across a dark sea and mountains toward a distant enemy fortress, stars, mist, magical particles.",
+        "Medieval armored knights on horseback charging down a glowing translucent rainbow bridge of light high above the clouds toward an enemy castle on a cliff at dawn, banners streaming, sparks of colored light, epic low angle.",
+    ],
+    "rainbow_conquest": [
+        "A conquered medieval castle at dawn with a fading rainbow of light dissolving into the sky above its keep, victorious knights raising a great banner on the tower, a white unicorn silhouetted on a hill, golden mist.",
+        "Close-up of a triumphant armored lord planting a heraldic banner on a castle wall while rainbow light showers down like falling stars, cheering soldiers below, soft magical glow.",
+    ],
     "conquest": [
         "A medieval stone castle at sunrise after a victorious siege, soldiers on the keep raising a great banner, cheering army below with raised swords, golden light and mist.",
         "Close-up of victorious medieval knights cheering with raised swords and spears, a banner waving against a golden sunrise, castle towers behind, sparks in the air.",

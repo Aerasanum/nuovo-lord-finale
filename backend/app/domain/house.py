@@ -54,12 +54,13 @@ def validate_crest(c: dict) -> dict:
 
 
 def catalog() -> dict:
-    return {"shield_bases": SHIELD_BASES, "symbols": SYMBOLS, "marks": MARKS, "borders": BORDERS, "palette": PALETTE, "march_skins": [{"key": k, "requires_unit": u} for k, u in MARCH_SKINS.items()]}
+    return {"shield_bases": SHIELD_BASES, "symbols": SYMBOLS, "marks": MARKS, "borders": BORDERS, "palette": PALETTE, "march_skins": [{"key": k, "requires_unit": u, "prestige_required": SKIN_PRESTIGE.get(k)} for k, u in MARCH_SKINS.items()]}
 
 
-# March skins (Bible §41.3 cosmetics): the marker of every own march on the map. Unlocked by really owning the creature
-# (≥1 unit in any garrison or in flight) — the skin shows true strength, never a purchase.
+# March skins (Bible §41.3 cosmetics): the marker of every own march on the map. Never a purchase — unlocked either as a
+# Prestige reward (owner's thresholds) or by really owning the creature (≥1 unit in any garrison or in flight).
 MARCH_SKINS: dict[str, str | None] = {"classic": None, "dragon": "Drago", "elephant": "Elefante da Guerra", "falcon": "Falco"}
+SKIN_PRESTIGE: dict[str, int] = {"falcon": 500, "elephant": 2_000, "dragon": 5_000}
 
 
 async def owned_units(player: dict) -> dict[str, int]:
@@ -74,8 +75,17 @@ async def owned_units(player: dict) -> dict[str, int]:
     return totals
 
 
-def skin_unlocks(totals: dict[str, int]) -> dict[str, bool]:
-    return {k: (u is None or totals.get(u, 0) > 0) for k, u in MARCH_SKINS.items()}
+def skin_unlocks(totals: dict[str, int], prestige: int = 0) -> dict[str, bool]:
+    return {k: (u is None or totals.get(u, 0) > 0 or int(prestige) >= SKIN_PRESTIGE.get(k, 10**12)) for k, u in MARCH_SKINS.items()}
+
+
+async def prestige_skin_unlocks(world_id: str, player_id: str, before: int, after: int) -> None:
+    """A Prestige gain crossed a skin threshold → Inbox reward (idempotent per skin)."""
+    from app.domain import notifications  # local import (progress → house → notifications)
+
+    for skin, need in SKIN_PRESTIGE.items():
+        if before < need <= after:
+            await notifications.notify(world_id, player_id, "MARCH_SKIN_UNLOCKED", {"skin": skin, "prestige_required": need, "prestige": after}, dedupe_key=f"skin_unlock:{player_id}:{skin}", deep_link="house")
 
 
 def dto(p: dict) -> dict:
@@ -96,8 +106,8 @@ async def update(player: dict, motto: str | None, crest: dict | None, descriptio
         if march_skin not in MARCH_SKINS:
             raise ApiError("INVALID_MARCH_SKIN", "Unknown march skin", 400, {"skins": list(MARCH_SKINS)})
         need = MARCH_SKINS[march_skin]
-        if need and (await owned_units(player)).get(need, 0) <= 0:
-            raise ApiError("MARCH_SKIN_LOCKED", f"This skin requires owning at least one {need}", 409, {"requires_unit": need})
+        if need and not skin_unlocks(await owned_units(player), int(player.get("prestige", 0)))[march_skin]:
+            raise ApiError("MARCH_SKIN_LOCKED", f"This skin requires {SKIN_PRESTIGE[march_skin]} Prestige or owning at least one {need}", 409, {"requires_unit": need, "prestige_required": SKIN_PRESTIGE[march_skin], "prestige": int(player.get("prestige", 0))})
         sets["march_skin"] = march_skin
     if motto is not None:
         motto = motto.strip()

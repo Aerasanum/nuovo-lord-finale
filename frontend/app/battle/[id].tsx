@@ -103,13 +103,13 @@ export default function BattleReport() {
   const cinematic = useCinematic();
   const conquered = !!b?.ownership_result?.changed && iAmAttacker;
   const autoPlayed = useRef(false);
-  const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce") })[m] ?? m;
+  const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce"), RAINBOW_BRIDGE: t("missionRainbow") })[m] ?? m;
   const buildSpec = (kind: CinematicSpec["kind"]): CinematicSpec | null => {
     if (!b || !r) return null;
     const mine = iAmAttacker;
     const units = kind === "CONQUEST" ? r.attacker_survivors ?? {} : mine ? r.attacker_start ?? {} : r.defender_start ?? {};
     const crest = mine ? (player?.house?.crest ?? null) : null;
-    return { kind, units, missionLabel: missionLabel(b.mission), targetName: b.target_name, etaSeconds: null, crest, houseName: mine ? (player?.house_name ?? null) : (b.attacker_house_name ?? null), allianceTag: mine ? (player?.alliance?.tag ?? null) : (b.attacker_alliance_tag ?? null), pyramid: !!b.target_pyramid, newLevel: b.ownership_result?.new_level ?? null };
+    return { kind, units, rainbow: b.mission === "RAINBOW_BRIDGE", missionLabel: missionLabel(b.mission), targetName: b.target_name, etaSeconds: null, crest, houseName: mine ? (player?.house_name ?? null) : (b.attacker_house_name ?? null), allianceTag: mine ? (player?.alliance?.tag ?? null) : (b.attacker_alliance_tag ?? null), pyramid: !!b.target_pyramid, newLevel: b.ownership_result?.new_level ?? null };
   };
   // Conquest Success (Bible §41.2): auto-play once per battle when the owner change was committed in my favour
   useEffect(() => {

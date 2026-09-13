@@ -162,13 +162,13 @@ frontend/
 
 ### Prossimi (P2)
 - [x] Eliminazione per inattività (3 gg nei primi 30 gg del Regno → slot riaperto; poi 120 gg → neutrale) e cap Leggendari — iteration 31
-- [ ] Skin marce/unità (idee proposte all'utente: drago, elefante, falco spia…)
+- [x] Skin marce come premio Prestigio (Falco 500 / Elefante 2000 / Drago 5000, oppure possesso creatura) — iteration 33
 - [ ] Verifica Google Auth con flusso reale su dispositivo (Expo Go / build)
 - [ ] Test scheduler su restart backend (eventi persistenti con lease: design ok, verifica pratica)
 
 ### Backlog (P3)
 - [x] Santuario Mitico + Unicorno / Ponte Arcobaleno (§12) — iteration 32
-- [ ] Santuario Mitico + Unicorno (§12)
+- [x] Cinematica Arcobaleno (ponte Unicorno / conquista) — iteration 33
 - [ ] Cinematica Intro (24s, prima entrata) rivedibile dalla Cronaca (§41.2)
 - [ ] Metadata Google Play / Android App Bundle
 
@@ -282,3 +282,10 @@ Vedi `/app/memory/test_credentials.md` (demo@empirelords.com / Demo12345!, admin
 - **Guida contestuale**: `Hint` (una-tantum, `players.hints_seen` via `POST /worlds/{w}/hints/{key}/seen`) su Ricerca, Alleanza, Marce (lista + compositore, stessa chiave).
 - QA: `POST /qa/mythic {player_id, sanctuary_level?, unicorn_state NONE|READY}`; `PUT /qa/inactivity/config` ora **richiede `only_player_ids`** (lo sweep con soglia accorciata è confinato ai giocatori indicati). ⚠️ Incidente QA: un test con soglia 3 gg senza scope aveva convertito 61 giocatori di prova di world_1 in neutrali; ripristinati da audit (`restored_reason: QA_SWEEP_ROLLBACK`: proprietà, status, territorio; eserciti/alleanze non recuperabili). Stato fixture: lord ha Santuario L5 e Unicorno **READY** (fixture QA) su Regno 2 per provare il Ponte.
 - Test: `tests/test_iteration_32_mythic.py` (catalogo/upgrade 4→5, rituale → READY → bridge 10 s → conquista immediata + COOLDOWN, warning Inbox).
+
+### Cinematica Arcobaleno, Skin marce premio Prestigio, «Riepilogo rientro» — iteration 33 — pytest 6/6 + testing agent frontend 4/4 flussi OK
+- **Cinematica Arcobaleno** (§12.2 / §41.2): `RainbowWatcher` (montato in `(tabs)/_layout`) è attivo solo con Unicorno IN_FLIGHT/COOLDOWN, polla `/battles` ogni 4 s e riproduce una sola volta la cinematica CONQUEST `rainbow:true` (asset `assets/cinematics/rainbow_*.jpg`, lista SEEN condivisa con il rapporto battaglia). Nessun polling con Unicorno inattivo (verificato).
+- **Skin marce** (§41.3): `house.SKIN_PRESTIGE` falcon 500 / elephant 2000 / dragon 5000; sblocco = possesso creatura OPPURE Prestigio ≥ soglia. `award_prestige` → `house.prestige_skin_unlocks` → Inbox `MARCH_SKIN_UNLOCKED` (dedupe per skin). PUT `/house` con skin bloccata → 409 `MARCH_SKIN_LOCKED`. Casata: card skin con requisito «Prestigio N (attuale) · oppure possiedi <unità>» / «Sbloccata», bloccate solo anteprima.
+- **Riepilogo rientro**: `players.return_since/return_pending` armati da `inactivity.touch` quando due sessioni distano ≥ 6 h (`RETURN_GAP_H`). `GET /worlds/{w}/return-summary` (battaglie/castelli, code finite, marce rientrate, missioni, produzione stimata capped magazzino, allerte, non letti); `POST …/return-summary/seen`. `ReturnGate` apre `/return-summary` una volta per sessione dopo intro+tour e prima del Login giornaliero (`DailyGate` attende `return_pending=false`).
+- QA: `POST /qa/return-summary/arm {player_id, hours_ago}`, `POST /qa/prestige {player_id, points}` (nuovo, path canonico con premio Inbox).
+- Test: `backend/tests/test_iteration_33_return_skins.py` 6/6; testing agent frontend: flusso rientro (auto-apertura, chiusura, non ricompare al reload), skin sbloccate (demo) e bloccate → +600 prestigio → Falco sbloccata + Inbox, nessun errore JS.

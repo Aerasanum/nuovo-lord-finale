@@ -40,6 +40,8 @@ export default function CinematicsScreen() {
     { id: "demon", icon: "emoticon-devil", title: t("cinDemon"), subtitle: t("cinGalleryLegendary"), seconds: 6, spec: { kind: "DEPARTURE", units: { Cavalleria: 2500, Orso: 200, Demone: 1 }, missionLabel: t("missionAttack"), targetName: "Terza Via", etaSeconds: 7200 } },
     { id: "conquest", icon: "crown", title: t("cinConquest"), subtitle: t("cinGalleryConquest"), seconds: 8, spec: { kind: "CONQUEST", units: { Fanteria: 860, Cavalleria: 240, "Carro di Conquista": 1 }, missionLabel: t("missionConquest"), targetName: "Neutrale 12,180", newLevel: 7 } },
     { id: "pyramid", icon: "triangle", title: t("cinConquestPyramid"), subtitle: t("cinGalleryPyramid"), seconds: 8, spec: { kind: "CONQUEST", units: { Fanteria: 9000, Arciere: 4000, Cavalleria: 2000, Drago: 1 }, missionLabel: t("missionAttack"), targetName: t("pyramid"), pyramid: true } },
+    { id: "rainbow", icon: "unicorn-variant", title: t("cinRainbow"), subtitle: t("cinRainbowGallery"), seconds: 6, spec: { kind: "DEPARTURE", rainbow: true, units: { Cavalleria: 1200, Fanteria: 800 }, missionLabel: t("missionRainbow"), targetName: "Casa Rivale", etaSeconds: 10 } },
+    { id: "rainbow_conquest", icon: "looks", title: t("cinRainbowConquest"), subtitle: t("cinRainbowConquestGallery"), seconds: 8, spec: { kind: "CONQUEST", rainbow: true, units: { Cavalleria: 900, Fanteria: 600 }, missionLabel: t("missionRainbow"), targetName: "Casa Rivale", newLevel: 12 } },
   ];
 
   const play = (e: Entry) => cinematic.play({ ...e.spec, crest: player?.house?.crest ?? null, houseName: player?.house_name ?? null, allianceTag: player?.alliance?.tag ?? null });

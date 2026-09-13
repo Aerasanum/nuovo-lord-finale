@@ -24,6 +24,7 @@ from app.core.db import db
 from app.core.spec import get_spec
 from app.domain import alliances, grande_mondo, notifications, progress, scheduler, territory
 from app.domain.pathfinding import CHUNK, load_terrain
+from app.domain.return_summary import RETURN_GAP_H
 from app.domain.settlements import build_neutral_state
 
 log = logging.getLogger("inactivity")
@@ -61,11 +62,20 @@ def last_active(player: dict) -> datetime:
 
 
 async def touch(player: dict) -> None:
-    """Record activity (throttled: at most one write per TOUCH_THROTTLE_S per Player)."""
+    """Record activity (throttled: at most one write per TOUCH_THROTTLE_S per Player). A gap of ≥ RETURN_GAP_H hours
+    also arms the «Riepilogo rientro» (return_summary.py) with the previous activity timestamp."""
     now = clock.now()
-    if (now - last_active(player)).total_seconds() < TOUCH_THROTTLE_S:
+    prev = last_active(player)
+    gap = (now - prev).total_seconds()
+    if gap < TOUCH_THROTTLE_S:
         return
-    await db().players.update_one({"_id": player["_id"]}, {"$set": {"last_active_at": now}})
+    sets: dict = {"last_active_at": now}
+    if gap >= RETURN_GAP_H * 3600 and not player.get("return_pending"):
+        sets["return_since"] = prev
+        sets["return_pending"] = True
+        player["return_since"] = prev
+        player["return_pending"] = True
+    await db().players.update_one({"_id": player["_id"]}, {"$set": sets})
     player["last_active_at"] = now
 
 

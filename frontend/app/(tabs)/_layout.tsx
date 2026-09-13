@@ -6,6 +6,8 @@ import { Platform, View } from "react-native";
 
 import { ChatDock } from "@/src/components/chat/ChatDock";
 import { IntroGate } from "@/src/components/cinematic/IntroGate";
+import { RainbowWatcher } from "@/src/components/cinematic/RainbowWatcher";
+import { ReturnGate } from "@/src/components/ReturnGate";
 import { DailyGate } from "@/src/components/daily/DailyGate";
 import { TourGate } from "@/src/components/tour/TourGate";
 import { Icon } from "@/src/components/ui";
@@ -49,7 +51,9 @@ export default function TabsLayout() {
     return (
       <>
         <IntroGate />
+        <RainbowWatcher />
         <TourGate />
+        <ReturnGate />
         <DailyGate />
         <ChatDock floating />
         <NativeTabs>
@@ -89,6 +93,8 @@ export default function TabsLayout() {
   return (
     <>
       <IntroGate />
+      <RainbowWatcher />
+      <ReturnGate />
       <DailyGate />
       <Tabs
         tabBar={(props) => (

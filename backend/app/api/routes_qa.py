@@ -314,3 +314,43 @@ async def qa_mythic(body: MythicIn):
         raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
     p = await db().players.find_one({"_id": body.player_id})
     return {"sanctuary_level": mythic.sanctuary_level(p), "unicorn": mythic.unicorn_dto(p)}
+
+
+# --------------------------------------------------------------------------- «Riepilogo rientro»
+class ReturnArmIn(BaseModel):
+    player_id: str
+    hours_ago: float = Field(gt=0, le=100000)
+
+
+@router.post("/return-summary/arm")
+async def qa_return_arm(body: ReturnArmIn):
+    """Test fixture: pretend the Player's previous session ended `hours_ago` hours ago (arms the digest)."""
+    _gate()
+    from datetime import timedelta
+
+    since = clock.now() - timedelta(hours=body.hours_ago)
+    res = await db().players.update_one({"_id": body.player_id}, {"$set": {"return_since": since, "return_pending": True, "last_active_at": clock.now()}})
+    if not res.matched_count:
+        raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
+    return {"player_id": body.player_id, "return_since": clock.iso(since), "return_pending": True}
+
+
+
+# --------------------------------------------------------------------------- Prestige (march-skin rewards, Bible §41.3)
+class PrestigeIn(BaseModel):
+    player_id: str
+    points: int = Field(gt=0, le=1_000_000)
+
+
+@router.post("/prestige")
+async def qa_prestige(body: PrestigeIn):
+    """Test fixture: award Prestige through the canonical path (house history + skin-unlock Inbox rewards)."""
+    _gate()
+    from app.domain import progress
+
+    p = await db().players.find_one({"_id": body.player_id}, projection={"world_id": 1})
+    if not p:
+        raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
+    await progress.award_prestige(p["world_id"], body.player_id, body.points, "qa_grant", f"qa:{clock.now().timestamp()}")
+    p = await db().players.find_one({"_id": body.player_id}, projection={"prestige": 1})
+    return {"player_id": body.player_id, "prestige": int(p.get("prestige", 0))}

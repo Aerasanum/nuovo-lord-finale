@@ -30,6 +30,7 @@ const EVENT_ICON: Record<string, IconName> = {
   PYRAMID_ATTACK_INCOMING: "alert-octagon",
   INACTIVITY_WARNING: "account-clock-outline",
   MYTHIC_RITUAL: "unicorn-variant",
+  MARCH_SKIN_UNLOCKED: "horse-variant",
   BUILD_JOB_STATE: "hammer",
   SETTLEMENT_UPGRADE_STATE: "castle",
   RESEARCH_JOB_STATE: "flask",
@@ -61,7 +62,7 @@ const FILTERS: Record<string, string[] | null> = {
   queues: ["BUILD_JOB_STATE", "SETTLEMENT_UPGRADE_STATE", "RESEARCH_JOB_STATE", "RECRUITMENT_JOB_STATE"],
   marches: ["MARCH_DEPARTED", "MARCH_ARRIVED", "MARCH_RETURNED", "CARAVAN_STATE"],
   alliance: ["ALLIANCE_INVITE", "DIPLOMACY_STATE_CHANGED", "MERCENARY_OFFER", "MERCENARY_CONTRACT_ACTIVE", "MERCENARY_CONTRACT_ENDED", "EMERALD_TREASURY_MOVEMENT", "NEGOTIATION_MESSAGE"],
-  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED", "INACTIVITY_WARNING", "MYTHIC_RITUAL"],
+  realm: ["PYRAMID_STATE_CHANGED", "MISSION_COMPLETED", "GRANDE_MONDO_PHASE", "CASTLE_TELEPORTED", "INACTIVITY_WARNING", "MYTHIC_RITUAL", "MARCH_SKIN_UNLOCKED"],
 };
 
 export default function InboxScreen() {
@@ -98,6 +99,8 @@ export default function InboxScreen() {
         return `${p.phase === "WAR" ? t("gmFogFallen") : t("gmFogReturned")} · ${t("gmCycle")} ${p.cycle}`;
       case "INACTIVITY_WARNING":
         return `${fmt(t("inactivityWarningLine"), { date: p.eliminate_at ? new Date(p.eliminate_at).toLocaleString(localeOf(lang)) : "—", n: p.timeout_days ?? "" })} ${p.mode === "REMOVE" ? t("inactivityWarningRemove") : t("inactivityWarningNeutral")}.`;
+      case "MARCH_SKIN_UNLOCKED":
+        return fmt(t("marchSkinUnlockedLine"), { n: formatNumber(p.prestige_required ?? 0), skin: tDyn(t, `marchSkin_${p.skin}`, String(p.skin)) });
       case "MYTHIC_RITUAL":
         return p.state === "READY" ? t("mythicRitualReady") : fmt(t("mythicRitualQueued"), { date: p.ready_at ? new Date(p.ready_at).toLocaleString(localeOf(lang)) : "—" });
       case "CASTLE_TELEPORTED":
@@ -183,6 +186,8 @@ export default function InboxScreen() {
     else if (n.deep_link?.startsWith("army")) router.push("/(tabs)/army");
     else if (n.deep_link?.startsWith("settlement")) router.push("/(tabs)/settlement");
     else if (n.deep_link?.startsWith("missions")) router.push("/(tabs)/missions");
+    else if (n.deep_link === "house") router.push("/house");
+    else if (n.deep_link === "settings") router.push("/settings");
   };
 
   return (

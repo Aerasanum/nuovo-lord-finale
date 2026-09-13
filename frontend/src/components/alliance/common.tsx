@@ -15,12 +15,12 @@ const useStyles = makeStyles((c) => ({
   input: { minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: c.borderStrong, backgroundColor: c.surfaceTertiary, color: c.onSurface, paddingHorizontal: 12, fontSize: 15 },
 }));
 
-export function BackButton({ testID }: { testID: string }) {
+export function BackButton({ testID, onPress }: { testID: string; onPress?: () => void }) {
   const s = useStyles();
   const { colors } = useTheme();
   const router = useRouter();
   return (
-    <Pressable style={s.back} onPress={() => router.back()} testID={testID}>
+    <Pressable style={s.back} onPress={onPress ?? (() => router.back())} testID={testID}>
       <Icon name="arrow-left" size={22} color={colors.onSurface} />
     </Pressable>
   );

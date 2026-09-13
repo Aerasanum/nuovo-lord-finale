@@ -1062,3 +1062,30 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Iteration 32 frontend: hint research/alliance/marches una-tantum OK (dismiss persistente, stessa chiave lista+compositore); Santuario L5 con 5 livelli e Unicorno pronto; chip Ponte Arcobaleno + preview 10 s vs Casa Demo Due; Inbox MYTHIC_RITUAL; 0 errori JS. Main agent: bersaglio neutrale → nessuna chip; villaggio secondario → 'Solo nella Madre'. Suite completa backend: 185 passed, 8 failed pre-esistenti/stato QA (caravans resources 500k, cavalleria 5104, sentinelle demo rimosse per grace, skins L10, daily speedup, fleet flaky)."
+
+# ---- iteration 33 (main agent) — Cinematica Arcobaleno, Skin marce come premio Prestigio, «Riepilogo rientro» ----
+backend:
+  - task: "Skin marce (house.py): SKIN_PRESTIGE falcon 500 / elephant 2000 / dragon 5000; sblocco = possesso creatura OPPURE prestigio ≥ soglia; GET/PUT /worlds/{w}/house espone catalog.march_skins[].prestige_required e march_skin_unlocks; PUT con skin bloccata → 409 MARCH_SKIN_LOCKED {requires_unit, prestige_required, prestige}. progress.award_prestige → house.prestige_skin_unlocks → Inbox MARCH_SKIN_UNLOCKED (dedupe per skin). «Riepilogo rientro» (return_summary.py): players.return_since/return_pending armati da inactivity.touch quando due sessioni distano ≥ 6 h (RETURN_GAP_H); GET /worlds/{w}/return-summary (404 NO_RETURN_WINDOW se non armato; ?since= override QA) → hours_away, battles{total,won,lost,castles_won,castles_lost,recent}, jobs{counts,done}, marches{completed,incoming_hostile}, missions_completed, settlements, resources_produced (stima capped magazzino), alerts, unread, pending; POST …/return-summary/seen → return_pending False. QA: POST /qa/return-summary/arm {player_id, hours_ago}; POST /qa/prestige {player_id, points} (nuovo, path canonico)."
+    implemented: true
+    working: true
+    file: "backend/app/domain/house.py, progress.py, return_summary.py, inactivity.py, api/routes_game.py, api/routes_qa.py, tests/test_iteration_33_return_skins.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "pytest tests/test_iteration_33_return_skins.py 6/6 (catalogo soglie + 409 su skin bloccata; +600 prestigio → Falco sbloccato + Inbox MARCH_SKIN_UNLOCKED; possesso Falco sblocca; arm 9 h → digest con produzione stimata → seen → pending False; touch 7 h arma, 2 h no; asset cinematica rainbow presenti)."
+frontend:
+  - task: "Casata (house.tsx): pannello skin marce (house-march-skin-panel) con anteprima (house-march-skin-preview), card per skin (house-march-skin-<key>) con requisito 'Prestigio N (attuale) · oppure possiedi <unità>' o 'Sbloccata' (house-march-skin-<key>-req); skin bloccate solo anteprima (opacity), sbloccate selezionabili via PUT. ReturnGate (components/ReturnGate.tsx) montato in (tabs)/_layout: se player.return_pending && intro_seen && tour_seen && !tour.active && !cinematic.active → router.push('/return-summary') una volta per sessione; DailyGate attende return_pending false. Schermata /return-summary (return-summary.tsx): testID return-summary-screen/-back/-away/-quiet/-battles/-queues/-marches/-missions/-incoming/-castles/-recent/-jobs/-produced/-alerts/-unread/-open; chiusura → POST seen + back/replace map. RainbowWatcher (components/cinematic/RainbowWatcher.tsx): attivo solo con unicorn.state IN_FLIGHT/COOLDOWN, polla /battles ogni 4 s e riproduce cinematica CONQUEST rainbow una sola volta (storage eld.cinematic.conquest.seen). Cinematic.tsx: kind CONQUEST rainbow:true usa assets/cinematics/rainbow_*.jpg. i18n IT/EN + 6 lingue."
+    implemented: true
+    working: true
+    file: "frontend/app/house.tsx, app/return-summary.tsx, src/components/ReturnGate.tsx, src/components/cinematic/RainbowWatcher.tsx, src/components/cinematic/Cinematic.tsx, src/components/daily/DailyGate.tsx, app/(tabs)/_layout.tsx, src/api/hooks.ts, src/i18n/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Smoke screenshot demo (armato 14 h via QA): login → Regno 1 → schermata 'Bentornato, Signore' con 'Sei stato via 14 ore', 'Tutto tranquillo', 4 stat, risorse prodotte, 'Vai al Regno'. tsc + eslint puliti. Da verificare: chiusura → non ricompare al reload; Casata skin bloccate/sbloccate (account nuovo vs demo che ha tutte sbloccate); nessun errore JS con RainbowWatcher inattivo."
+      - working: true
+        agent: "testing"
+        comment: "Iteration 33 frontend 4/4 PASS: riepilogo auto-aperto (14 ore, risorse, 4 stat) → 'Vai al Regno' → non ricompare al reload, return_pending false; /return-summary manuale non armato → stato quiet senza crash; Casata demo 4 skin 'Sbloccata', cambio Falco/Drago salvato; account nuovo: solo classic, requisiti 'Prestigio 500 (0) · oppure possiedi Falco', tap su bloccata = solo anteprima; +600 prestigio QA → Falco 'Sbloccata' + Inbox MARCH_SKIN_UNLOCKED; 0 errori JS, nessun polling /battles con Unicorno inattivo, Daily solo dopo il riepilogo."
