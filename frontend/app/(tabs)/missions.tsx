@@ -9,8 +9,8 @@ import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
 import { hasMissionArt, MissionBanner } from "@/src/components/MissionArt";
 import { Screen } from "@/src/components/overlay";
-import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
-import { missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
+import { Button, Chip, Countdown, Empty, Icon, type IconName, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { missionDesc, missionName, requirementLines, rewardItems } from "@/src/game/missions";
 import { fmt, formatNumber, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -18,13 +18,21 @@ import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 const useStyles = makeStyles((c) => ({
   content: { padding: spacing.md, gap: spacing.md },
   tabs: { flexDirection: "row", paddingHorizontal: spacing.md, gap: spacing.sm, height: 56, alignItems: "center" },
-  card: { gap: 6 },
+  card: { gap: spacing.sm },
   kv: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   pill: { paddingHorizontal: 8, height: 22, borderRadius: radius.pill, justifyContent: "center" },
   slot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: c.borderStrong },
   trackRow: { gap: 4, paddingVertical: 6 },
   chrRow: { flexDirection: "row", gap: spacing.sm, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border },
   histRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
+  stats: { flexDirection: "row", gap: spacing.sm },
+  stat: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, height: 36, borderRadius: radius.md, backgroundColor: c.surfaceTertiary, borderWidth: 1, borderColor: c.border },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  rewardChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, height: 28, borderRadius: radius.pill, borderWidth: 1, borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
+  reqChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, height: 26, borderRadius: radius.pill, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceTertiary },
+  sectionLabel: { textTransform: "uppercase", letterSpacing: 0.6, fontSize: 10 },
+  activeCard: { marginTop: spacing.sm, gap: 6, padding: spacing.sm, borderRadius: radius.md, backgroundColor: c.surfaceTertiary, borderWidth: 1, borderColor: c.border },
+  milestone: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1 },
 }));
 
 type Seg = "missions" | "house" | "chronicle";
@@ -100,18 +108,50 @@ export default function MissionsScreen() {
                   </Row>
                 )}
                 {desc ? <T v="caption">{desc}</T> : null}
-                <Row style={{ flexWrap: "wrap" }}>
-                  <Icon name="clock-outline" size={14} color={colors.muted} />
-                  <T v="caption">
-                    {t("missionDuration")} {m.duration_hours}h · {t("missionCooldown")} {m.cooldown_hours}h
-                  </T>
-                </Row>
-                <T v="caption" style={{ color: colors.onSurface }}>
-                  {t("missionRequirements")}: {requirementLines(t, m).join(" · ") || "—"}
+                <View style={s.stats}>
+                  <View style={s.stat}>
+                    <Icon name="clock-outline" size={16} color={colors.brandPrimary} />
+                    <T v="caption" style={{ color: colors.onSurface }}>
+                      {t("missionDuration")} {m.duration_hours}h
+                    </T>
+                  </View>
+                  <View style={s.stat}>
+                    <Icon name="timer-sand" size={16} color={colors.muted} />
+                    <T v="caption" style={{ color: colors.onSurface }}>
+                      {t("missionCooldown")} {m.cooldown_hours}h
+                    </T>
+                  </View>
+                </View>
+                <T v="caption" style={s.sectionLabel}>
+                  {t("missionRequirements")}
                 </T>
-                <T v="caption" style={{ color: colors.brandPrimary }}>
-                  {t("missionReward")}: {rewardLines(t, m).join(" · ")}
+                <View style={s.chips}>
+                  {requirementLines(t, m).length ? (
+                    requirementLines(t, m).map((line) => (
+                      <View key={line} style={s.reqChip}>
+                        <Icon name="check-decagram" size={13} color={colors.onSurfaceSecondary} />
+                        <T v="caption" style={{ color: colors.onSurface }}>
+                          {line}
+                        </T>
+                      </View>
+                    ))
+                  ) : (
+                    <T v="caption">—</T>
+                  )}
+                </View>
+                <T v="caption" style={[s.sectionLabel, { color: colors.brandPrimary }]}>
+                  {t("missionReward")}
                 </T>
+                <View style={s.chips} testID={`mission-card-${m.key}-rewards`}>
+                  {rewardItems(t, m).map((r) => (
+                    <View key={r.label} style={s.rewardChip}>
+                      <Icon name={r.icon as IconName} size={14} color={r.tone === "gold" ? colors.brandPrimary : r.tone === "resource" ? colors.success : r.tone === "intel" ? colors.info : colors.brandSecondary} />
+                      <T v="caption" style={{ color: colors.onBrandTertiary }}>
+                        {r.label}
+                      </T>
+                    </View>
+                  ))}
+                </View>
                 {st.kind === "cooldown" ? (
                   <Row>
                     <T v="caption">{t("missionOnCooldown")}:</T>
@@ -294,6 +334,7 @@ export default function MissionsScreen() {
 }
 
 function ActiveMission({ m }: { m: MissionDto }) {
+  const s = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
   const total = Object.values(m.units).reduce((a, b) => a + b, 0);
@@ -301,17 +342,25 @@ function ActiveMission({ m }: { m: MissionDto }) {
   const ends = m.ends_at ? new Date(m.ends_at).getTime() : Date.now();
   const frac = ends > started ? Math.min(1, Math.max(0, (Date.now() - started) / (ends - started))) : 1;
   return (
-    <View style={{ marginTop: spacing.sm, gap: 4 }} testID={`mission-active-${m.mission_id}`}>
+    <View style={s.activeCard} testID={`mission-active-${m.mission_id}`}>
       <Row style={{ justifyContent: "space-between" }}>
-        <T v="label" style={{ color: colors.onSurface }}>
-          {missionName(t, m.key, m.name)}
-        </T>
-        <Countdown endsAt={m.ends_at} testID={`mission-active-${m.mission_id}-eta`} />
+        <Row style={{ gap: 6, flex: 1 }}>
+          <Icon name="flag-variant" size={16} color={colors.brandPrimary} />
+          <T v="label" style={{ color: colors.onSurface, flex: 1 }} numberOfLines={1}>
+            {missionName(t, m.key, m.name)}
+          </T>
+        </Row>
+        <Countdown endsAt={m.ends_at} style={{ color: colors.brandPrimary }} testID={`mission-active-${m.mission_id}-eta`} />
       </Row>
       <ProgressBar value={frac} />
-      <T v="caption">
-        {formatNumber(total)} {t("units")} · {m.origin_xy ? `${m.origin_xy[0]},${m.origin_xy[1]}` : ""}
-      </T>
+      <Row style={{ justifyContent: "space-between" }}>
+        <T v="caption">
+          {formatNumber(total)} {t("units")} · {m.origin_xy ? `${m.origin_xy[0]},${m.origin_xy[1]}` : ""}
+        </T>
+        <T v="caption" style={{ color: colors.onSurface }}>
+          {Math.round(frac * 100)}%
+        </T>
+      </Row>
     </View>
   );
 }
@@ -329,21 +378,27 @@ function TrackRow({ tr }: { tr: ProgressTrack }) {
         <T v="label" style={{ color: colors.onSurface }}>
           {tDyn(t, `track_${tr.track}`, tr.track)}
         </T>
-        <Row>
-          {Array.from({ length: tr.thresholds.length }).map((_, i) => (
-            <Icon key={i} name={i < tr.tier ? "shield-star" : "shield-outline"} size={14} color={i < tr.tier ? colors.brandPrimary : colors.muted} />
-          ))}
-        </Row>
+        <T v="caption">
+          {tr.decoration} {tr.tier > 0 ? `· ${t("achievementTier")} ${tr.tier}` : ""}
+        </T>
       </Row>
       <ProgressBar value={frac} />
-      <Row style={s.kv}>
+      {/* milestone chests: one per achievement tier, lit when reached */}
+      <Row style={[s.kv, { marginTop: 2 }]}>
         <T v="caption">
           {formatNumber(tr.value)}
           {tr.next_threshold ? ` / ${formatNumber(tr.next_threshold)}` : ""}
         </T>
-        <T v="caption">
-          {tr.decoration} {tr.tier > 0 ? `· ${t("achievementTier")} ${tr.tier}` : ""}
-        </T>
+        <Row style={{ gap: 4 }}>
+          {tr.thresholds.map((th, i) => {
+            const done = i < tr.tier;
+            return (
+              <View key={th} style={[s.milestone, { borderColor: done ? colors.brandPrimary : colors.border, backgroundColor: done ? colors.brandTertiary : colors.surfaceTertiary }]}>
+                <Icon name={done ? "treasure-chest" : "lock-outline"} size={13} color={done ? colors.brandPrimary : colors.muted} />
+              </View>
+            );
+          })}
+        </Row>
       </Row>
     </View>
   );

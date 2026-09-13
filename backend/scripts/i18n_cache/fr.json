@@ -910,5 +910,7 @@
 "gmFirstOpenDay": "Première ouverture (jours)",
 "gmApply": "Appliquer",
 "gmInvalidDays": "Entrez un nombre de jours valide",
-"gmRule4": "Chaque région a sa Petite pyramide (règles classiques, Gardien à 250 000) : elle s’ouvre au jour {day} et seules les Alliances de la région peuvent la contester."
+"gmRule4": "Chaque région a sa Petite pyramide (règles classiques, Gardien à 250 000) : elle s’ouvre au jour {day} et seules les Alliances de la région peuvent la contester.",
+"shipsNoCasualties": "les navires ne subissent pas de pertes",
+"fastBuild": "Construction rapide"
 }

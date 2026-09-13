@@ -7,7 +7,7 @@ import * as THREE from "three";
 
 import type { CrestDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
 
-import { BANNER_Y, BRAZIER, buildCastleParts, type CastleSkin, CHIMNEY, FLAG_W, SHADOW_COLOR, settlementScale, skinFor, TORCH_COLOR, TORCHES, TOWER_RADIUS, towerAngles } from "./castle";
+import { BANNER_Y, BASTION_ANGLES, BRAZIER, buildCastleParts, type CastleSkin, CHIMNEY, FLAG_W, OUTER_RADIUS, settlementScale, settlementTier, SHADOW_COLOR, skinFor, TORCH_COLOR, TORCHES, TOWER_RADIUS, towerAngles } from "./castle";
 import type { SmokeEmitter } from "./smoke";
 
 export { CASTLE_TOP, settlementScale } from "./castle";
@@ -159,6 +159,11 @@ export class EntityFactory {
       factionRing: { geo: geos.factionRing, mat: basic({ transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }) },
       plinth: { geo: geos.plinth, mat: stone() },
       wall: { geo: geos.wall, mat: stone({ side: THREE.DoubleSide }) },
+      palisade: { geo: geos.palisade, mat: lit({ side: THREE.DoubleSide }) },
+      outerWall: { geo: geos.outerWall, mat: stone({ side: THREE.DoubleSide }) },
+      bastion: { geo: geos.bastion, mat: stone() },
+      bastionRoof: { geo: geos.bastionRoof, mat: roof() },
+      spire: { geo: geos.spire, mat: lit() },
       keep: { geo: geos.keep, mat: stone() },
       windows: { geo: geos.windows, mat: basic({ color: WINDOW_COLOR }) },
       keepRoof_pyramid: { geo: geos.keepRoof_pyramid, mat: roof() },
@@ -258,7 +263,7 @@ export class EntityFactory {
     return g;
   }
 
-  private static CASTERS = new Set(["plinth", "wall", "keep", "keepRoof_pyramid", "keepRoof_cone", "keepRoof_onion", "turrets", "tower", "towerRoof_cone", "towerRoof_pyramid", "gate", "gateRoof", "senTower", "army"]);
+  private static CASTERS = new Set(["plinth", "wall", "palisade", "outerWall", "bastion", "bastionRoof", "spire", "keep", "keepRoof_pyramid", "keepRoof_cone", "keepRoof_onion", "turrets", "tower", "towerRoof_cone", "towerRoof_pyramid", "gate", "gateRoof", "senTower", "army"]);
 
   private make(part: string, count: number): THREE.InstancedMesh {
     const p = this.parts[part];
@@ -282,11 +287,18 @@ export class EntityFactory {
     const count = (pred: (s: SettlementPublic, k: CastleSkin) => number) => castles.reduce((acc, s) => acc + pred(s, skins.get(s)!), 0);
     const towers = count((s) => towerAngles(s.level).length);
     const crested = castles.filter((s) => s.owner_house_crest);
+    const tier = (s: SettlementPublic) => settlementTier(s.level);
+    const metros = count((s) => (tier(s) === "METROPOLIS" ? 1 : 0));
     const mesh: Record<string, THREE.InstancedMesh> = {
       shadow: this.make("shadow", castles.length),
       factionRing: this.make("factionRing", castles.length),
       plinth: this.make("plinth", castles.length),
-      wall: this.make("wall", castles.length),
+      wall: this.make("wall", count((s) => (tier(s) === "VILLAGE" ? 0 : 1))),
+      palisade: this.make("palisade", count((s) => (tier(s) === "VILLAGE" ? 1 : 0))),
+      outerWall: this.make("outerWall", metros),
+      bastion: this.make("bastion", metros * BASTION_ANGLES.length),
+      bastionRoof: this.make("bastionRoof", metros * BASTION_ANGLES.length),
+      spire: this.make("spire", metros),
       keep: this.make("keep", castles.length),
       windows: this.make("windows", castles.length),
       keepRoof_pyramid: this.make("keepRoof_pyramid", count((_, k) => (k.keepRoof === "pyramid" ? 1 : 0))),
@@ -339,7 +351,19 @@ export class EntityFactory {
       put(mesh.shadow, cx, h, cz, sc, this.pal.snow);
       put(mesh.factionRing, cx, h, cz, sc, fac);
       put(mesh.plinth, cx, h, cz, sc, stoneDark);
-      put(mesh.wall, cx, h, cz, sc, stone);
+      const tr = tier(s);
+      if (tr === "VILLAGE") put(mesh.palisade, cx, h, cz, sc, wood);
+      else put(mesh.wall, cx, h, cz, sc, stone);
+      if (tr === "METROPOLIS") {
+        put(mesh.outerWall, cx, h, cz, sc, stone);
+        put(mesh.spire, cx, h, cz, sc, trim);
+        for (const a of BASTION_ANGLES) {
+          const bx = cx + Math.sin(a) * OUTER_RADIUS * sc;
+          const bz = cz + Math.cos(a) * OUTER_RADIUS * sc;
+          put(mesh.bastion, bx, h, bz, sc, stone);
+          put(mesh.bastionRoof, bx, h, bz, sc, roof);
+        }
+      }
       put(mesh.keep, cx, h, cz, sc, stone);
       put(mesh.windows, cx, h, cz, sc, this.pal.snow);
       put(mesh[`keepRoof_${skin.keepRoof}`], cx, h, cz, sc, roof);

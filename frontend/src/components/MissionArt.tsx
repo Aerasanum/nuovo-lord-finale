@@ -9,7 +9,7 @@ import React from "react";
 import { type ImageSourcePropType, StyleSheet, View } from "react-native";
 
 import { T } from "@/src/components/ui";
-import { radius, spacing } from "@/src/theme";
+import { radius, spacing, textShadow } from "@/src/theme";
 
 const ART: Record<string, ImageSourcePropType> = {
   patrol_local: require("../../assets/cinematics/mission_patrol_local_0.jpg"),
@@ -47,5 +47,5 @@ const styles = StyleSheet.create({
   box: { overflow: "hidden", borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
   footer: { position: "absolute", left: spacing.md, right: spacing.md, bottom: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   // key-art overlay text: fixed light ink on the dark scrim in every theme
-  title: { flex: 1, color: "#F2E9DC", textShadowColor: "rgba(0,0,0,0.7)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } },
+  title: { flex: 1, color: "#F2E9DC", ...textShadow(1, 6, "rgba(0,0,0,0.7)") },
 });

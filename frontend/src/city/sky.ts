@@ -9,7 +9,7 @@ import type { Daylight } from "@/src/map3d/daylight";
 export type Sky = { group: THREE.Group; apply(d: Daylight, horizon: THREE.Color): void; tick(dt: number): void; dispose(): void };
 
 const ZENITH_DAY = new THREE.Color("#3d8ee6");
-const ZENITH_NIGHT = new THREE.Color("#0d1a3f");
+const ZENITH_NIGHT = new THREE.Color("#1c3372");
 const CLOUD_DAY = new THREE.Color("#ffffff");
 const CLOUD_NIGHT = new THREE.Color("#5a6a99");
 

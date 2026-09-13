@@ -471,7 +471,7 @@
 "myCaravans": "我的商队",
 "noCaravans": "没有商队在路上。",
 "noDetectedCaravans": "搜索范围内没有外来商队。",
-"caravanserai": "Caravanserraglio",
+"caravanserai": "商队驿站",
 "perCaravan": "每支商队",
 "caravanEscortShort": "护卫",
 "tabAlliance": "联盟",
@@ -910,5 +910,7 @@
 "gmFirstOpenDay": "首次开启（天）",
 "gmApply": "应用",
 "gmInvalidDays": "请输入有效的天数",
-"gmRule4": "每个地区都有自己的小型金字塔（经典规则，250,000守卫）：在第{day}天开启，仅由该地区的联盟争夺。"
+"gmRule4": "每个地区都有自己的小型金字塔（经典规则，250,000守卫）：在第{day}天开启，仅由该地区的联盟争夺。",
+"shipsNoCasualties": "舰队不受损失",
+"fastBuild": "快速建造"
 }

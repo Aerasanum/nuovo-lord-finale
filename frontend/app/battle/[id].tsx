@@ -7,6 +7,7 @@ import { useBattle } from "@/src/api/hooks";
 import { type CinematicSpec, useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen } from "@/src/components/overlay";
 import { Button, CostRow, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { UNIT_ICON } from "@/src/game/units";
 import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -19,14 +20,22 @@ const useStyles = makeStyles((c) => ({
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   side: { flex: 1, gap: 4 },
   table: { borderTopWidth: 1, borderColor: c.divider },
-  tr: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderColor: c.divider },
+  tr: { flexDirection: "row", paddingVertical: 4, alignItems: "center" },
+  trUnit: { borderBottomWidth: 1, borderColor: c.divider, paddingBottom: 4 },
   td: { flex: 1 },
-  tdNum: { width: 64, alignItems: "flex-end" },
-  banner: { padding: spacing.sm, borderRadius: radius.md, alignItems: "center" },
+  tdNum: { width: 64, alignItems: "flex-end", textAlign: "right" },
+  bar: { height: 4, borderRadius: 2, backgroundColor: c.surfaceTertiary, overflow: "hidden" },
+  barFill: { height: 4, borderRadius: 2 },
+  banner: { padding: spacing.md, borderRadius: radius.lg, alignItems: "center", gap: 4, borderWidth: 1 },
+  powerBar: { height: 12, borderRadius: 6, overflow: "hidden", flexDirection: "row", backgroundColor: c.surfaceTertiary, marginTop: spacing.sm },
+  sideHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, height: 24, borderRadius: radius.pill, backgroundColor: c.surfaceTertiary, borderWidth: 1, borderColor: c.border },
+  mods: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.sm },
 }));
 
-function LossTable({ start, losses, s }: { start: Record<string, number>; losses: Record<string, number>; s: any }) {
+function LossTable({ start, losses, s, tone }: { start: Record<string, number>; losses: Record<string, number>; s: any; tone: string }) {
   const { t } = useI18n();
+  const { colors } = useTheme();
   return (
     <View style={s.table}>
       <View style={s.tr}>
@@ -43,22 +52,34 @@ function LossTable({ start, losses, s }: { start: Record<string, number>; losses
           {t("survivors")}
         </T>
       </View>
-      {Object.entries(start).map(([u, c]) => (
-        <View key={u} style={s.tr}>
-          <T v="body" style={s.td} numberOfLines={1}>
-            {u}
-          </T>
-          <T v="mono" style={[s.tdNum, { fontSize: 12 }]}>
-            {formatNumber(c)}
-          </T>
-          <T v="mono" style={[s.tdNum, { fontSize: 12 }]}>
-            {formatNumber(losses[u] ?? 0)}
-          </T>
-          <T v="mono" style={[s.tdNum, { fontSize: 12 }]}>
-            {formatNumber(c - (losses[u] ?? 0))}
-          </T>
-        </View>
-      ))}
+      {Object.entries(start).map(([u, c]) => {
+        const lost = losses[u] ?? 0;
+        const alive = Math.max(0, c - lost);
+        return (
+          <View key={u} style={s.trUnit}>
+            <View style={s.tr}>
+              <Row style={[s.td, { gap: 6 }]}>
+                <Icon name={UNIT_ICON[u] ?? "sword"} size={16} color={tone} />
+                <T v="body" numberOfLines={1} style={{ flex: 1 }}>
+                  {tDyn(t, `unit_${u}`, u)}
+                </T>
+              </Row>
+              <T v="mono" style={[s.tdNum, { fontSize: 12 }]}>
+                {formatNumber(c)}
+              </T>
+              <T v="mono" style={[s.tdNum, { fontSize: 12, color: lost ? colors.error : colors.onSurfaceSecondary }]}>
+                {lost ? `-${formatNumber(lost)}` : "0"}
+              </T>
+              <T v="mono" style={[s.tdNum, { fontSize: 12, color: colors.success }]}>
+                {formatNumber(alive)}
+              </T>
+            </View>
+            <View style={s.bar}>
+              <View style={[s.barFill, { width: `${c ? Math.round((alive / c) * 100) : 0}%`, backgroundColor: tone }]} />
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -76,6 +97,9 @@ export default function BattleReport() {
   const r = b?.report;
   const iAmAttacker = b?.attacker_player_id === player?.player_id;
   const won = r && ((r.winner === "ATTACKER" && iAmAttacker) || (r.winner === "DEFENDER" && !iAmAttacker));
+  const attTone = iAmAttacker ? colors.factionOwn : colors.factionEnemy;
+  const defTone = iAmAttacker ? colors.factionEnemy : colors.factionOwn;
+  const attShare = r ? Math.round((100 * (r.attacker_power || 0)) / Math.max(1, (r.attacker_power || 0) + (r.defender_power || 0))) : 50;
   const cinematic = useCinematic();
   const conquered = !!b?.ownership_result?.changed && iAmAttacker;
   const autoPlayed = useRef(false);
@@ -114,53 +138,102 @@ export default function BattleReport() {
         <Loading />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]}>
-          <View style={[s.banner, { backgroundColor: won ? colors.success : colors.error }]} testID="battle-outcome">
+          <View style={[s.banner, { backgroundColor: won ? colors.success : colors.error, borderColor: colors.brandPrimary }]} testID="battle-outcome">
+            <Icon name={won ? "trophy" : "shield-off"} size={28} color={won ? colors.onSuccess : colors.onError} />
             <T v="title" style={{ color: won ? colors.onSuccess : colors.onError }}>
-              {t("winner")}: {r.winner === "ATTACKER" ? t("attacker") : t("defender")}
+              {won ? t("victory") : t("defeat")}
             </T>
             <T v="caption" style={{ color: won ? colors.onSuccess : colors.onError }}>
-              {b.mission} · {b.target_name} ({b.target_xy?.join(",")}) · {new Date(b.created_at).toLocaleString(lang)}
+              {t("winner")}: {r.winner === "ATTACKER" ? t("attacker") : t("defender")} · {missionLabel(b.mission)} · {b.target_name} ({b.target_xy?.join(",")})
+            </T>
+            <T v="caption" style={{ color: won ? colors.onSuccess : colors.onError }}>
+              {new Date(b.created_at).toLocaleString(lang)}
             </T>
           </View>
 
           <Panel testID="battle-power">
             <Row style={{ justifyContent: "space-between" }}>
               <View style={s.side}>
-                <T v="label">{t("attacker")}</T>
-                <T v="mono">{formatNumber(r.attacker_power)}</T>
-                <T v="caption">{t("luckRoll")} ×{r.rng?.attacker}</T>
+                <View style={s.sideHead}>
+                  <Icon name="sword" size={16} color={attTone} />
+                  <T v="label">{t("attacker")}</T>
+                </View>
+                <T v="mono" style={{ color: attTone }}>
+                  {formatNumber(r.attacker_power)}
+                </T>
+                <T v="caption">
+                  {b.attacker_house_name ?? ""}
+                  {b.attacker_alliance_tag ? ` [${b.attacker_alliance_tag}]` : ""} · {t("luckRoll")} ×{r.rng?.attacker}
+                </T>
               </View>
-              <Icon name="sword-cross" size={24} color={colors.brandPrimary} />
+              <Icon name="sword-cross" size={28} color={colors.brandPrimary} />
               <View style={[s.side, { alignItems: "flex-end" }]}>
-                <T v="label">{t("defender")}</T>
-                <T v="mono">{formatNumber(r.defender_power)}</T>
-                <T v="caption">{t("luckRoll")} ×{r.rng?.defender}</T>
+                <View style={s.sideHead}>
+                  <T v="label">{t("defender")}</T>
+                  <Icon name="shield" size={16} color={defTone} />
+                </View>
+                <T v="mono" style={{ color: defTone }}>
+                  {formatNumber(r.defender_power)}
+                </T>
+                <T v="caption">
+                  {b.defender_alliance_tag ? `[${b.defender_alliance_tag}] · ` : ""}
+                  {t("luckRoll")} ×{r.rng?.defender}
+                </T>
               </View>
             </Row>
-            <T v="caption" style={{ marginTop: 6 }}>
-              {t("terrain")} {tDyn(t, String(r.terrain ?? ""), String(r.terrain ?? ""))} +{Math.round((r.modifiers?.terrain_bonus ?? 0) * 100)}% · {t("wall")} +{((r.modifiers?.wall_def_bonus_effective ?? 0) * 100).toFixed(1)}%
-              {r.wall?.before ? ` · HP ${formatNumber(r.wall.before.current_hp)} → ${formatNumber(r.wall.after.current_hp)}` : ""}
-              {r.reason ? ` · ${tDyn(t, `battleReason_${r.reason}`, String(r.reason).replace(/_/g, " ").toLowerCase())}` : ""}
-            </T>
-            {r.winner_loss_fraction != null ? (
-              <T v="caption">
-                {t("winnerLossFraction")} {(r.winner_loss_fraction * 100).toFixed(1)}%
-              </T>
-            ) : null}
+            <View style={s.powerBar} testID="battle-power-bar">
+              <View style={{ width: `${attShare}%`, backgroundColor: attTone }} />
+              <View style={{ flex: 1, backgroundColor: defTone }} />
+            </View>
+            <View style={s.mods}>
+              <View style={s.modChip}>
+                <Icon name="terrain" size={14} color={colors.onSurfaceSecondary} />
+                <T v="caption">
+                  {tDyn(t, String(r.terrain ?? ""), String(r.terrain ?? ""))} +{Math.round((r.modifiers?.terrain_bonus ?? 0) * 100)}%
+                </T>
+              </View>
+              <View style={s.modChip}>
+                <Icon name="wall" size={14} color={colors.onSurfaceSecondary} />
+                <T v="caption">
+                  {t("wall")} +{((r.modifiers?.wall_def_bonus_effective ?? 0) * 100).toFixed(1)}%
+                  {r.wall?.before ? ` · HP ${formatNumber(r.wall.before.current_hp)} → ${formatNumber(r.wall.after.current_hp)}` : ""}
+                </T>
+              </View>
+              {r.reason ? (
+                <View style={s.modChip}>
+                  <Icon name="information-outline" size={14} color={colors.onSurfaceSecondary} />
+                  <T v="caption">{tDyn(t, `battleReason_${r.reason}`, String(r.reason).replace(/_/g, " ").toLowerCase())}</T>
+                </View>
+              ) : null}
+              {r.winner_loss_fraction != null ? (
+                <View style={s.modChip}>
+                  <Icon name="percent" size={14} color={colors.onSurfaceSecondary} />
+                  <T v="caption">
+                    {t("winnerLossFraction")} {(r.winner_loss_fraction * 100).toFixed(1)}%
+                  </T>
+                </View>
+              ) : null}
+            </View>
           </Panel>
 
           <Panel testID="battle-attacker-table">
-            <T v="heading">{t("attacker")}</T>
-            <LossTable start={r.attacker_start} losses={r.attacker_losses} s={s} />
+            <Row style={{ gap: 6 }}>
+              <Icon name="sword" size={18} color={attTone} />
+              <T v="heading">{t("attacker")}</T>
+            </Row>
+            <LossTable start={r.attacker_start} losses={r.attacker_losses} s={s} tone={attTone} />
             {Object.values(r.wall_static_losses || {}).some((v: any) => v > 0) ? (
               <T v="caption" style={{ marginTop: 4 }}>
-                {t("wall")} static: {Object.entries(r.wall_static_losses).map(([u, v]) => `${u} ${v}`).join(", ")}
+                {t("wall")}: {Object.entries(r.wall_static_losses).map(([u, v]) => `${tDyn(t, `unit_${u}`, u)} ${v}`).join(", ")}
               </T>
             ) : null}
           </Panel>
           <Panel testID="battle-defender-table">
-            <T v="heading">{t("defender")}</T>
-            <LossTable start={r.defender_start} losses={r.defender_losses} s={s} />
+            <Row style={{ gap: 6 }}>
+              <Icon name="shield" size={18} color={defTone} />
+              <T v="heading">{t("defender")}</T>
+            </Row>
+            <LossTable start={r.defender_start} losses={r.defender_losses} s={s} tone={defTone} />
           </Panel>
 
           {b.loot && Object.keys(b.loot).length ? (
@@ -184,10 +257,11 @@ export default function BattleReport() {
             <Button title={t("cinReplayDeparture")} icon="movie-open-play" variant="secondary" style={{ flex: 1 }} onPress={() => { const sp = buildSpec("DEPARTURE"); if (sp) cinematic.play(sp); }} testID="battle-cinematic-departure" />
             {conquered ? <Button title={t("cinReplay")} icon="crown" style={{ flex: 1 }} onPress={() => { const sp = buildSpec("CONQUEST"); if (sp) cinematic.play(sp); }} testID="battle-cinematic-conquest" /> : null}
           </View>
-          <T v="caption">
-            {t("seed")}: {r.seed} · {b.battle_id}
-            {b.ships_excluded ? ` · ${t("ships")} ${b.ships_excluded} (no casualties)` : ""}
-          </T>
+          {b.ships_excluded ? (
+            <T v="caption">
+              {t("ships")} {b.ships_excluded} · {t("shipsNoCasualties")}
+            </T>
+          ) : null}
         </ScrollView>
       )}
     </Screen>

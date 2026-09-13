@@ -223,6 +223,8 @@ export const de: Record<StringKey, string> = {
   lastBattle: "Letzte Schlacht",
   victory: "Sieg",
   defeat: "Niederlage",
+  fastBuild: "Schnellbau",
+  shipsNoCasualties: "Schiffe erleiden keine Verluste",
   openReport: "Bericht",
   house: "Haus",
   motto: "Motto",

@@ -7,6 +7,7 @@ import type { ResearchEntry } from "@/src/api/hooks";
 import { useResearch, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
+import { branchIcon, ResearchTree, unlockOf } from "@/src/components/ResearchTree";
 import { Button, Chip, chipRowStyles, CostRow, Countdown, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
 import { formatDuration, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -19,6 +20,11 @@ const useStyles = makeStyles((c) => ({
   lvlText: { color: c.onBrandTertiary, fontSize: 12, fontWeight: "700" },
   back: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   summary: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  branchHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  reqRow: { flexDirection: "row", alignItems: "center", gap: 6 },
 }));
 
 export default function ResearchScreen() {
@@ -32,7 +38,7 @@ export default function ResearchScreen() {
   const research = useResearch(worldId, settlementId);
   const m = useSettlementMutations(worldId ?? "", settlementId ?? "");
   const { showError, show } = useToast();
-  const [branch, setBranch] = useState<string>("ALL");
+  const [branch, setBranch] = useState<string>("Economia");
   const [pick, setPick] = useState<ResearchEntry | null>(null);
 
   const nodes = useMemo(() => {
@@ -41,6 +47,9 @@ export default function ResearchScreen() {
     const order: Record<string, number> = { IN_PROGRESS: 0, AVAILABLE: 1, BLOCKED_RESOURCES: 2, BLOCKED_QUEUE: 3, LOCKED: 4, MAXED: 5 };
     return [...filtered].sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9));
   }, [research.data, branch]);
+  const branchNodes = useMemo(() => (research.data?.nodes ?? []).filter((n) => n.branch === branch), [research.data, branch]);
+  const branchDone = branchNodes.reduce((a, n) => a + n.level, 0);
+  const branchMax = branchNodes.reduce((a, n) => a + n.max_level, 0);
 
   if (!worldId || !settlementId) return null;
   const start = async () => {
@@ -80,6 +89,32 @@ export default function ResearchScreen() {
       </View>
       {research.isLoading ? (
         <Loading />
+      ) : branch !== "ALL" ? (
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.lg }} testID="research-branch-view">
+          <View style={s.branchHead}>
+            <Icon name={branchIcon(branch)} size={22} color={colors.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <T v="heading">{branch}</T>
+              <T v="caption">
+                {branchNodes.length} {t("research").toLowerCase()} · {branchDone}/{branchMax} {t("level").toLowerCase()}
+              </T>
+            </View>
+          </View>
+          <View style={s.legend} testID="research-legend">
+            {[
+              [colors.brandPrimary, t("available")],
+              [colors.info, t("inProgress")],
+              [colors.success, t("maxed")],
+              [colors.borderStrong, t("locked")],
+            ].map(([c, label]) => (
+              <View key={label} style={s.legendItem}>
+                <View style={[s.dot, { backgroundColor: c }]} />
+                <T v="caption">{label}</T>
+              </View>
+            ))}
+          </View>
+          <ResearchTree nodes={branchNodes} onPick={setPick} />
+        </ScrollView>
       ) : (
         <FlatList
           data={nodes}
@@ -123,22 +158,48 @@ export default function ResearchScreen() {
       <Sheet visible={!!pick} onClose={() => setPick(null)} title={pick?.name} testID="research-sheet">
         {pick ? (
           <>
-            <T v="caption">
-              {pick.key} · {pick.branch} · {t("level")} {pick.level}/{pick.max_level}
-            </T>
+            <Row style={{ gap: spacing.sm }}>
+              <Icon name={branchIcon(pick.branch)} size={20} color={colors.brandPrimary} />
+              <T v="caption" style={{ flex: 1 }}>
+                {pick.branch} · {t("level")} {pick.level}/{pick.max_level} · {pick.cost_class}
+              </T>
+              <StatePill state={pick.state} />
+            </Row>
             <T v="body">{pick.effect}</T>
+            {unlockOf(pick.effect) ? (
+              <Row style={{ gap: 6 }}>
+                <Icon name="lock-open-variant-outline" size={16} color={colors.brandPrimary} />
+                <T v="label" style={{ color: colors.brandPrimary }}>
+                  {t("unlocks")}: {unlockOf(pick.effect)}
+                </T>
+              </Row>
+            ) : null}
             <T v="label">{t("requirements")}</T>
-            <T v="caption">
-              Universita L{pick.required_university_level} ({uni >= pick.required_university_level ? "✓" : "✗"}) · {t("settlementLevel")} {pick.required_settlement_level} ({(settlement.data?.level ?? 0) >= pick.required_settlement_level ? "✓" : "✗"})
-            </T>
+            <View style={s.reqRow}>
+              <Icon name={uni >= pick.required_university_level ? "check-circle" : "close-circle"} size={16} color={uni >= pick.required_university_level ? colors.success : colors.error} />
+              <T v="caption">Università L{pick.required_university_level}</T>
+            </View>
+            <View style={s.reqRow}>
+              <Icon name={(settlement.data?.level ?? 0) >= pick.required_settlement_level ? "check-circle" : "close-circle"} size={16} color={(settlement.data?.level ?? 0) >= pick.required_settlement_level ? colors.success : colors.error} />
+              <T v="caption">
+                {t("settlementLevel")} {pick.required_settlement_level}
+              </T>
+            </View>
             {pick.prerequisites.length ? (
               <>
                 <T v="label">{t("prerequisites")}</T>
-                {pick.prerequisites.map((p) => (
-                  <T key={p.key} v="caption" style={{ color: p.ok ? colors.success : colors.error }}>
-                    {p.ok ? "✓" : "✗"} {p.key}
-                  </T>
-                ))}
+                {pick.prerequisites.map((p) => {
+                  const node = research.data?.nodes.find((n) => n.key === p.key);
+                  return (
+                    <View key={p.key} style={s.reqRow}>
+                      <Icon name={p.ok ? "check-circle" : "close-circle"} size={16} color={p.ok ? colors.success : colors.error} />
+                      <T v="caption" style={{ color: p.ok ? colors.success : colors.error }}>
+                        {node?.name ?? p.key}
+                        {node ? ` · ${node.branch}` : ""}
+                      </T>
+                    </View>
+                  );
+                })}
               </>
             ) : null}
             {pick.next ? (

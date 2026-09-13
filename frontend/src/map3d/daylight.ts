@@ -35,7 +35,9 @@ const P = (sun: number, sunI: number, dir: [number, number, number], sky: number
   night,
 });
 
-const NIGHT = P(0x9db2f0, 0.75, [0.3, 0.72, -0.5], 0x5a72bc, 0x1c2440, 0.72, 0x141f4a, 0.9, 0.82, 1);
+// Night is a readable "blue hour" by design (user rule): cool but bright key light, luminous sky, exposure close to
+// daytime — torches, braziers and windows still glow (night = 1), terrain and castles never sink into black.
+const NIGHT = P(0xb7c8f6, 1.35, [0.3, 0.72, -0.5], 0x7f97d6, 0x33405f, 1.0, 0x2a3f78, 0.75, 0.98, 1);
 const DAWN = P(0xffc38c, 1.75, [0.85, 0.42, 0.3], 0xf2c4a6, 0x5c5a46, 0.9, 0xf5b58c, 0.55, 1.04, 0.22);
 const DAY = P(0xfff3dc, 2.05, [0.6, 0.78, 0.36], 0xbfe1ff, 0x7c9a58, 1.0, 0xa9d6f5, 0, 1.08, 0);
 const DUSK = P(0xffa26a, 1.7, [-0.7, 0.38, 0.45], 0xe6a8ac, 0x5c4c48, 0.9, 0xf39a70, 0.6, 1.02, 0.28);

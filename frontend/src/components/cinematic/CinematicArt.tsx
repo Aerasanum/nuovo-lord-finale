@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { type ImageSourcePropType, StyleSheet, Text, useWindowDimensions } from "react-native";
 import Animated, { Easing, Extrapolation, interpolate, type SharedValue, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
-import { fonts, spacing } from "@/src/theme";
+import { fonts, spacing, textShadow } from "@/src/theme";
 
 export type ArtVariant = "standard" | "falcon" | "major" | "dragon" | "angel" | "demon" | "conquest" | "pyramid" | "intro";
 
@@ -140,13 +140,13 @@ function Ember({ t, width, height, color, seed, x, life, size }: { t: SharedValu
     const fade = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI);
     return { opacity: fade * 0.85, transform: [{ translateX: x * width + drift }, { translateY: rise }, { scale: 0.7 + fade * 0.6 }] };
   });
-  return <Animated.View style={[styles.ember, { width: size, height: size, borderRadius: size / 2, backgroundColor: color, shadowColor: color }, style]} pointerEvents="none" />;
+  return <Animated.View style={[styles.ember, { width: size, height: size, borderRadius: size / 2, backgroundColor: color, boxShadow: `0 0 4px ${color}` }, style]} pointerEvents="none" />;
 }
 
 const styles = StyleSheet.create({
   fill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, width: "100%", height: "100%" },
   bar: { position: "absolute", left: 0, right: 0, backgroundColor: "#000000" },
-  ember: { position: "absolute", left: 0, top: 0, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
+  ember: { position: "absolute", left: 0, top: 0 },
   caption: { position: "absolute", left: spacing.lg, right: spacing.lg, alignItems: "center" },
-  captionText: { fontFamily: fonts.display, fontSize: 20, lineHeight: 28, textAlign: "center", color: CAPTION_COLOR, textShadowColor: "rgba(0,0,0,0.85)", textShadowRadius: 10, textShadowOffset: { width: 0, height: 2 } },
+  captionText: { fontFamily: fonts.display, fontSize: 20, lineHeight: 28, textAlign: "center", color: CAPTION_COLOR, ...textShadow(2, 10, "rgba(0,0,0,0.85)") },
 });

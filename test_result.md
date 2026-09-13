@@ -969,3 +969,32 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshot osservatore: monumento 'Piccola Piramide IT' a 1088,583 con etichetta e card SIGILLATA · Si apre tra 57g; /pyramid con switcher Grande/Piccola; /grande-mondo con pannello Piramidi, Custodi e admin (Apri la Grande Piramide disabilitato in Isolamento, Piccole Piramidi prima apertura 90)."
+
+# ---- iteration 29 (main agent) — RESTYLING GRAFICO (solo frontend; regole/API/backend invariati; checkpoint git f0cfc17) ----
+frontend:
+  - task: "Mappa 3D: notte 'ora blu' leggibile (daylight.ts NIGHT più luminosa + AmbientLight fill in engine), skin castelli più chiare/sature (castle.ts CASTLE_SKINS), tier visivi Villaggio <10 = palizzata di legno (part `palisade`), Città 10–29 = mura in pietra, Metropoli 30 = cinta esterna + 4 bastioni + guglia dorata (entities.ts), targhe etichette con pip livello + [TAG] alleanza + icona tier (MapLabels.tsx, engine label.tag), marce come nastri con chevron animati (marchPath.ts, depthTest off: visibili sopra boschi/colline) e conteggio truppe nell'etichetta ('Saccheggio · 20 · 4h'), Piramide più chiara anche dormiente + anello/aura di stato (grigio sigillata, oro libera, colore fazione occupata) + alone rotante all'apice quando aperta (pyramid.ts). Città 3D: palizzata per villaggi senza Mura, lanterne stradali per Città ≥10, piazza con fontana/obelisco dorato + pennoni con bandiere + alberi ornamentali per Metropoli 30 (village.ts), cielo notturno più chiaro (sky.ts). Schermate: Missioni (tile durata/ricarica, chip requisiti, chip premi con icone, card missione attiva con % e barra, traguardi a forzieri), Ricerca (albero per ramo: ResearchTree.tsx con colonne per profondità prerequisiti, connettori SVG, pip livelli n/5, badge stato, chip 'Sblocca …', legenda; 'Tutte' resta lista; sheet con requisiti a spunta e prerequisiti con nome), Edificio (hero con icona, livello attuale → successivo → max, barra, tile 'Attuale' produzione/capacità, requisiti a spunta, costi, tempo, pulsante 'Migliora → L{n}'; card edifici con icone — src/game/buildings.ts), Rapporto battaglia (banner Vittoria/Sconfitta, barra confronto potenza, chip modificatori, tabelle perdite con icone unità e barra superstiti; rimossi seed/battle_id visibili). 2 nuove chiavi i18n (shipsNoCasualties, fastBuild) in 8 lingue."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/{daylight,castle,entities,engine,pyramid,marchPath}.ts, MapLabels.tsx, src/city/{village,sky}.ts, app/(tabs)/{missions,settlement}.tsx, app/research.tsx, src/components/ResearchTree.tsx, app/building/[name].tsx, src/game/{buildings,missions}.ts, app/battle/[id].tsx, src/i18n/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot prima/dopo in /app/test_reports/screens/{before,after}. tsc + eslint puliti. Nessun file backend toccato."
+
+# ---- iteration 30 (main agent) — fix post-restyling: tap etichetta marcia, textShadow, traduzioni RU/ES/PT ----
+frontend:
+  - task: "engine.tap(): il tocco sul chip etichetta della marcia (anchor marker +1.7, clamp come MapLabels.clampX, −60/−46 px, ≈150×20) seleziona la MARCIA (MarchCard: testID map-selection-card + map-selection-march-recall 'Richiama', map-selection-march-list, map-selection-march-eta) invece del castello dietro; textShadow* → helper theme.textShadow (web: shorthand CSS, native: props classiche), ember boxShadow; missions-active-panel già presente nello stato vuoto (verificato); locali RU/ES/PT ritradotti dove il modello aveva restituito l'italiano (translate_i18n.py: chiavi 'stale' = uguali all'IT rifatte con --only-missing)."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts, src/theme.ts, src/components/cinematic/{Cinematic,CinematicArt}.tsx, src/components/MissionArt.tsx, src/i18n/locales/{ru,es,pt,fr,de,zh}.ts, backend/scripts/translate_i18n.py"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot: tap su 'Saccheggio · 20 3h 17m' → card marcia 'Saccheggio → Neutrale 21,177 · In marcia · Cavalleria 20 · Richiama'. tsc pulito."
+      - working: true
+        agent: "main"
+        comment: "Iteration 30 finale: labelHit() generalizzato a targhe castello (tester aveva trovato tap su targa 'Casa Demo' → tile 'Pianura 4,184'); verificati via screenshot: targhe demo (2 castelli) → card corretta; Lord L30 Metropoli world_2 (pip 30 + corona, cinta+bastioni+guglia) → card 'Casa Lord · L30 · 491,543'; switcher 5 villaggi OK; Osservatore gm_1: niente nebbia, chip GM, map-center-pyramid-button → 'Piccola Piramide · IT 53g 20h', tap etichetta → map-pyramid-card. daily-close usa canGoBack(). Testing agent seconda run: timeout (WebGL lento), nessun report iteration_30."

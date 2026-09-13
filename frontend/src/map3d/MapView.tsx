@@ -75,6 +75,7 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramids, onSelec
         fogZones,
       });
       engineRef.current = engine;
+      engine.labelsShown = showLabels;
       if (home) {
         engine.centerOn(home.x, home.y, 30, false);
         engine.setHome(home.x, home.y);
@@ -105,6 +106,10 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramids, onSelec
   useEffect(() => {
     if (pyramids) engineRef.current?.setPyramids(pyramids);
   }, [pyramids]);
+
+  useEffect(() => {
+    if (engineRef.current) engineRef.current.labelsShown = showLabels;
+  }, [showLabels]);
 
   const boundsKey = (viewBounds ? `${viewBounds.x0}:${viewBounds.y0}:${viewBounds.x1}:${viewBounds.y1}` : "") + "|" + (fogZones ? `${fogZones.cx}:${fogZones.rIn}:${fogZones.n}:${[...fogZones.allowed].sort().join(",")}` : "");
   useEffect(() => {

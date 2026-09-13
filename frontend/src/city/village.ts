@@ -1072,6 +1072,67 @@ export function buildVillage(input: VillageInput, factory: EntityFactory, factio
   // ---- walls (Mura level): battlements, walkway, towers with tiled cones and flags, gatehouse with portcullis
   const wl = Math.max(0, input.wallLevel);
   const flags: THREE.Mesh[] = [];
+  // ---- visual tier (Bible §6): Villaggio 1–9 · Città 10–29 · Metropoli 30 — growth you can see at a glance
+  if (wl === 0 && level < 10) {
+    // Villaggio without stone walls: a wooden palisade of sharpened stakes with a plank rail and a timber gate
+    const stakes = Math.round(2 * Math.PI * R3 * 4.2);
+    for (let i = 0; i < stakes; i++) {
+      const a = ((i + 0.5) / stakes) * Math.PI * 2;
+      const norm = a > Math.PI ? a - Math.PI * 2 : a;
+      if (Math.abs(norm) < 7 * D2R) continue;
+      P.begin(Math.sin(a) * R3, Math.cos(a) * R3, a);
+      P.cyl("timber", 0.045, 0.055, 0.5 + (i % 3) * 0.03, 0, 0.25, 0, 6);
+      P.cone("timberLight", 0.05, 0.1, 0, 0.5 + (i % 3) * 0.03 + 0.05, 0, 6);
+    }
+    for (let i = 0; i < 24; i++) {
+      const a = ((i + 0.5) / 24) * Math.PI * 2;
+      const norm = a > Math.PI ? a - Math.PI * 2 : a;
+      if (Math.abs(norm) < 8 * D2R) continue;
+      P.begin(Math.sin(a) * R3, Math.cos(a) * R3, a);
+      P.box("timberLight", (2 * Math.PI * R3) / 24 + 0.02, 0.05, 0.03, 0, 0.36, 0.04);
+    }
+    for (const sx of [-1, 1]) {
+      P.begin(sx * 0.62, R3, 0);
+      P.cyl("timber", 0.09, 0.1, 0.9, 0, 0.45, 0, 8);
+      P.lantern(sx * 0.2, 0.3, 0.3);
+    }
+    P.begin(0, R3, 0);
+    P.box("timber", 1.3, 0.1, 0.12, 0, 0.9, 0);
+    waypoints.push({ x: -R3 * 0.7, z: R3 * 0.7, kind: "wall" }, { x: R3 * 0.7, z: R3 * 0.7, kind: "wall" });
+  }
+  if (level >= 10) {
+    // Città: street lanterns along the cobbled ring road and paved crossings
+    for (let i = 0; i < 10; i++) {
+      const a = ((i + 0.5) / 10) * Math.PI * 2;
+      P.begin(0, 0, 0);
+      P.lantern(Math.sin(a) * (R1 + 0.32), Math.cos(a) * (R1 + 0.32), 0.34);
+    }
+  }
+  if (level >= 30) {
+    // Metropoli: plaza in front of the keep with a gilded obelisk fountain, faction banner poles around the ring road,
+    // ornamental trees — the capital look
+    const pz = castleR + 0.75;
+    P.begin(0, 0, 0);
+    P.disc("cobble", 0.62, 0, pz, 0.006, 32, 0, 3);
+    P.disc("stoneDark", 0.42, 0, pz, 0.01, 24);
+    P.cyl("stone", 0.3, 0.34, 0.08, 0, 0.04, pz, 12);
+    P.disc("water", 0.27, 0, pz, 0.085, 24);
+    P.cyl("stoneDark", 0.05, 0.07, 0.42, 0, 0.29, pz, 8);
+    P.cone("gold", 0.055, 0.14, 0, 0.56, pz, 8);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + Math.PI / 12;
+      const norm = a > Math.PI ? a - Math.PI * 2 : a;
+      if (Math.abs(norm) < 10 * D2R) continue;
+      P.begin(0, 0, 0);
+      P.bannerPole(Math.sin(a) * (R1 - 0.3), Math.cos(a) * (R1 - 0.3), 0.62, "cloth");
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      P.begin(0, 0, 0);
+      P.treeRound(Math.sin(a) * (R2 - 0.35), Math.cos(a) * (R2 - 0.35), 0.75, 40 + i);
+      P.box("gold", 0.06, 0.02, 0.06, Math.sin(a) * (R2 - 0.35), 0.01, Math.cos(a) * (R2 - 0.35));
+    }
+  }
   if (wl > 0) {
     const segs = 36;
     const hW = (0.34 + Math.min(30, wl) * 0.02) * VS;

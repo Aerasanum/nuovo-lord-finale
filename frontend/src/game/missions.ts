@@ -25,13 +25,19 @@ export function requirementLines(t: Tr, m: MissionCatalogEntry): string[] {
 }
 
 export function rewardLines(t: Tr, m: MissionCatalogEntry): string[] {
+  return rewardItems(t, m).map((r) => r.label);
+}
+
+export type RewardItem = { icon: string; label: string; tone: "gold" | "resource" | "intel" | "cosmetic" };
+/** Structured rewards for icon chips (same wording as rewardLines). */
+export function rewardItems(t: Tr, m: MissionCatalogEntry): RewardItem[] {
   const rw = m.reward || {};
-  const out: string[] = [];
-  if (rw.local_production_hours_all_5_resources) out.push(fmt(t("rewardProductionHours"), { h: rw.local_production_hours_all_5_resources }));
-  if (rw.additional_gold_production_hours) out.push(fmt(t("rewardGoldHours"), { h: rw.additional_gold_production_hours }));
-  if (rw.intelligence_snapshot) out.push(t("rewardIntel"));
-  if (rw.prestige) out.push(fmt(t("rewardPrestige"), { p: rw.prestige }));
-  if (rw.seeded_cosmetic_chance_pct) out.push(fmt(t("rewardCosmeticChance"), { p: rw.seeded_cosmetic_chance_pct, f: rw.fallback_if_no_cosmetic?.prestige ?? 0 }));
+  const out: RewardItem[] = [];
+  if (rw.local_production_hours_all_5_resources) out.push({ icon: "barley", tone: "resource", label: fmt(t("rewardProductionHours"), { h: rw.local_production_hours_all_5_resources }) });
+  if (rw.additional_gold_production_hours) out.push({ icon: "gold", tone: "gold", label: fmt(t("rewardGoldHours"), { h: rw.additional_gold_production_hours }) });
+  if (rw.intelligence_snapshot) out.push({ icon: "eye", tone: "intel", label: t("rewardIntel") });
+  if (rw.prestige) out.push({ icon: "star", tone: "gold", label: fmt(t("rewardPrestige"), { p: rw.prestige }) });
+  if (rw.seeded_cosmetic_chance_pct) out.push({ icon: "shield-star", tone: "cosmetic", label: fmt(t("rewardCosmeticChance"), { p: rw.seeded_cosmetic_chance_pct, f: rw.fallback_if_no_cosmetic?.prestige ?? 0 }) });
   return out;
 }
 

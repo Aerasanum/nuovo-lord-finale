@@ -910,5 +910,7 @@
 "gmFirstOpenDay": "Erste Öffnung (Tage)",
 "gmApply": "Anwenden",
 "gmInvalidDays": "Gib eine gültige Anzahl Tage ein",
-"gmRule4": "Jede Region hat ihre Kleine Pyramide (klassische Regeln, Wächter mit 250.000): Sie öffnet an Tag {day} und nur die Allianzen der Region können sie angreifen."
+"gmRule4": "Jede Region hat ihre Kleine Pyramide (klassische Regeln, Wächter mit 250.000): Sie öffnet an Tag {day} und nur die Allianzen der Region können sie angreifen.",
+"shipsNoCasualties": "Schiffe erleiden keine Verluste",
+"fastBuild": "Schnellbau"
 }

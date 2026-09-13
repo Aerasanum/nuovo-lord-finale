@@ -30,6 +30,7 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
               <Icon name={returning ? "undo-variant" : "sword-cross"} size={11} color={accent} />
               <T numberOfLines={1} style={[styles.name, { color: colors.onSurface }]}>
                 {returning ? t("returning") : missionLabel(l.name, t)}
+                {l.troops ? ` · ${l.troops >= 1000 ? `${(l.troops / 1000).toFixed(l.troops >= 10000 ? 0 : 1)}k` : l.troops}` : ""}
               </T>
               {l.endsAt ? (
                 <Countdown endsAt={l.endsAt} style={[styles.level, { color: accent }]} />
@@ -53,11 +54,19 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
           );
         }
         return (
-          <View key={l.id} style={[styles.chip, { left: clampX(l.x, 40, 100), top: l.y, borderColor: accent, backgroundColor: colors.glass, opacity: isPlayer ? 1 : 0.82 }]} testID={`map-label-${l.id}`}>
+          <View key={l.id} style={[styles.chip, styles.plate, { left: clampX(l.x, 44, 110), top: l.y, borderColor: accent, backgroundColor: colors.glass, opacity: isPlayer ? 1 : 0.82 }]} testID={`map-label-${l.id}`}>
+            <View style={[styles.levelPip, { backgroundColor: accent }]}>
+              <T style={[styles.pipText, { color: colors.onBrandPrimary }]}>{l.level}</T>
+            </View>
+            {l.tag ? (
+              <T style={[styles.tag, { color: accent }]} numberOfLines={1}>
+                [{l.tag}]
+              </T>
+            ) : null}
             <T numberOfLines={1} style={[styles.name, { color: isPlayer ? colors.onSurface : colors.onSurfaceSecondary }]}>
               {l.name}
             </T>
-            <T style={[styles.level, { color: accent }]}>L{l.level}</T>
+            {l.level >= 30 ? <Icon name="crown" size={10} color={colors.brandPrimary} /> : l.level >= 10 ? <Icon name="castle" size={10} color={accent} /> : null}
           </View>
         );
       })}
@@ -79,7 +88,11 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -40 }, { translateY: -22 }],
     maxWidth: 140,
   },
-  march: { maxWidth: 170, transform: [{ translateX: -60 }, { translateY: -46 }] },
+  plate: { height: 22, paddingLeft: 3, maxWidth: 176, transform: [{ translateX: -44 }, { translateY: -24 }] },
+  levelPip: { minWidth: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  pipText: { fontFamily: fonts.body, fontSize: 9, fontWeight: "800" },
+  tag: { fontFamily: fonts.body, fontSize: 10, fontWeight: "800", maxWidth: 44 },
+  march: { maxWidth: 190, transform: [{ translateX: -60 }, { translateY: -46 }] },
   pyramid: { maxWidth: 200, height: 24, transform: [{ translateX: -70 }, { translateY: -30 }] },
   name: { fontFamily: fonts.body, fontSize: 10, maxWidth: 96 },
   level: { fontFamily: fonts.body, fontSize: 10, fontWeight: "700" },

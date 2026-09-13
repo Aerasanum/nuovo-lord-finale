@@ -19,12 +19,12 @@ export const PYRAMID_TOP = 10.6; // label anchor (local units)
 
 // Asset colours (physical materials of the 3D model, not UI tokens) — identical in every scheme by design.
 // Stone colours multiply the masonry texture (average brightness ≈ 0.6), hence the bright base tones.
-const STONE = "#EDDAB0";
-const STONE_DARK = "#B29C78";
-const STONE_SLEEP = "#948B7C";
-const STONE_SLEEP_DARK = "#625A50";
-const TRIM = "#E8C56E";
-const TRIM_SLEEP = "#857A66";
+const STONE = "#F0DFB8";
+const STONE_DARK = "#B8A27E";
+const STONE_SLEEP = "#D3C6AB";
+const STONE_SLEEP_DARK = "#9A8C76";
+const TRIM = "#F0CD73";
+const TRIM_SLEEP = "#BBA57A";
 const FIRE = "#FFB347";
 const SHADOW = "#000000";
 
@@ -73,12 +73,15 @@ export class PyramidMonument {
   private glow: THREE.MeshBasicMaterial;
   private pillar: THREE.MeshBasicMaterial;
   private ring: THREE.MeshBasicMaterial;
+  private aura: THREE.MeshBasicMaterial;
   private banner: THREE.MeshBasicMaterial;
   private fireGroup = new THREE.Group();
   private pillarMesh: THREE.Mesh;
   private pillarHalo: THREE.Mesh;
   private apexGlow: THREE.Mesh;
   private ringMesh: THREE.Mesh;
+  private auraMesh: THREE.Mesh;
+  private haloMesh: THREE.Mesh;
   private bannerGroup = new THREE.Group();
   private look: PyramidLook = { state: "DORMANT_INITIAL", faction: "NEUTRAL" };
   private factionColors: { own: THREE.Color; enemy: THREE.Color; neutral: THREE.Color };
@@ -94,6 +97,7 @@ export class PyramidMonument {
     this.glow = new THREE.MeshBasicMaterial({ color: FIRE, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
     this.pillar = new THREE.MeshBasicMaterial({ color: TRIM, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     this.ring = new THREE.MeshBasicMaterial({ color: factionColors.neutral, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+    this.aura = new THREE.MeshBasicMaterial({ color: factionColors.neutral, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
     this.banner = new THREE.MeshBasicMaterial({ color: factionColors.neutral, side: THREE.DoubleSide });
     const solid = (geo: THREE.BufferGeometry, mat: THREE.Material) => {
       const m = new THREE.Mesh(geo, mat);
@@ -219,11 +223,19 @@ export class PyramidMonument {
     this.fireGroup.add(new THREE.Mesh(mergeGeos(glows), this.glow));
     this.group.add(this.fireGroup);
 
-    // ---- holder insignia: ground ring + four tall banners on the third tier ----
-    this.ringMesh = new THREE.Mesh(new THREE.RingGeometry(PYRAMID_HALF + 0.9, PYRAMID_HALF + 1.5, 48), this.ring);
+    // ---- holder insignia: broad ground ring + soft aura disc + apex halo (readable from far) + four tall banners ----
+    this.ringMesh = new THREE.Mesh(new THREE.RingGeometry(PYRAMID_HALF + 1.2, PYRAMID_HALF + 2.3, 64), this.ring);
     this.ringMesh.rotation.x = -Math.PI / 2;
     this.ringMesh.position.y = 0.05;
     this.group.add(this.ringMesh);
+    this.auraMesh = new THREE.Mesh(new THREE.CircleGeometry(PYRAMID_HALF + 1.2, 64), this.aura);
+    this.auraMesh.rotation.x = -Math.PI / 2;
+    this.auraMesh.position.y = 0.04;
+    this.group.add(this.auraMesh);
+    this.haloMesh = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.09, 8, 48), this.ring);
+    this.haloMesh.rotation.x = Math.PI / 2;
+    this.haloMesh.position.y = topY + 3.3;
+    this.group.add(this.haloMesh);
     const poles: THREE.BufferGeometry[] = [];
     const flags: THREE.BufferGeometry[] = [];
     const backs: THREE.BufferGeometry[] = [];
@@ -259,19 +271,27 @@ export class PyramidMonument {
     this.pillarMesh.visible = look.state === "OPEN";
     this.pillarHalo.visible = look.state === "OPEN";
     const held = look.faction !== "NEUTRAL";
-    const fc = look.faction === "OWN" ? this.factionColors.own : look.faction === "ENEMY" ? this.factionColors.enemy : this.factionColors.neutral;
+    // state colours: sealed → dim stone grey, free (OPEN, Guardian) → gold, held → holder's faction colour
+    const gold = new THREE.Color(TRIM);
+    const fc = look.faction === "OWN" ? this.factionColors.own : look.faction === "ENEMY" ? this.factionColors.enemy : awake ? gold : this.factionColors.neutral;
     this.ring.color.copy(fc);
-    this.ring.opacity = held ? 0.85 : awake ? 0.35 : 0.15;
+    this.ring.opacity = held ? 0.9 : awake ? 0.6 : 0.22;
+    this.aura.color.copy(fc);
+    this.aura.opacity = held ? 0.22 : awake ? 0.14 : 0.0;
+    this.auraMesh.visible = awake;
+    this.haloMesh.visible = awake;
     this.banner.color.copy(fc);
     this.bannerGroup.visible = held && awake;
   }
 
-  /** Per-frame pulse of fire / apex / pillar (cheap: material writes only). */
+  /** Per-frame pulse of fire / apex / pillar / halo (cheap: material writes only). */
   tick(t: number) {
     if (!this.apexGlow.visible) return;
     const p = 0.5 + 0.5 * Math.sin(t * 2.4);
     this.glow.opacity = 0.28 + 0.18 * p + 0.06 * Math.sin(t * 17.3);
     this.apexGlow.scale.setScalar(1 + 0.18 * p);
+    this.haloMesh.rotation.z = t * 0.5;
+    this.haloMesh.position.y = this.apexGlow.position.y + 0.55 + 0.25 * Math.sin(t * 1.3);
     if (this.pillarMesh.visible) {
       this.pillar.opacity = 0.11 + 0.09 * p;
       this.pillarHalo.rotation.y = t * 0.3;
@@ -282,6 +302,6 @@ export class PyramidMonument {
     this.group.traverse((o: any) => {
       if (o.geometry) o.geometry.dispose();
     });
-    for (const m of [this.stone, this.stoneDark, this.trim, this.cap, this.fire, this.glow, this.pillar, this.ring, this.banner]) m.dispose();
+    for (const m of [this.stone, this.stoneDark, this.trim, this.cap, this.fire, this.glow, this.pillar, this.ring, this.aura, this.banner]) m.dispose();
   }
 }

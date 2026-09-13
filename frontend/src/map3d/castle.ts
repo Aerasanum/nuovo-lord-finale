@@ -26,12 +26,13 @@ export type CastleSkin = {
 };
 
 // Asset colours (physical materials of the 3D models, not UI tokens) — identical in every scheme by design.
+// Bright, readable stone and saturated roofs (storybook look): the map reads at a glance even at dusk.
 export const CASTLE_SKINS: Record<string, CastleSkin> = {
-  classic: { id: "classic", name: { it: "Classico", en: "Classic" }, stone: "#A0968A", stoneDark: "#726A5F", roof: "#8E3B2F", trim: "#C89B3C", wood: "#5A3B22", keepRoof: "pyramid", towerRoof: "cone", torches: true },
-  royal: { id: "royal", name: { it: "Regale", en: "Royal" }, stone: "#DBD4C6", stoneDark: "#A69E8E", roof: "#2E4A7A", trim: "#E8C56E", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
-  obsidian: { id: "obsidian", name: { it: "Ossidiana", en: "Obsidian" }, stone: "#3E3D44", stoneDark: "#25242A", roof: "#4A2340", trim: "#C89B3C", wood: "#2E241E", keepRoof: "cone", towerRoof: "pyramid", torches: true },
-  sandstone: { id: "sandstone", name: { it: "Arenaria", en: "Sandstone" }, stone: "#CBA76E", stoneDark: "#9C7A4A", roof: "#3F7A6E", trim: "#E8C56E", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
-  ruin: { id: "ruin", name: { it: "Rovina", en: "Ruin" }, stone: "#7E7F75", stoneDark: "#5A5B52", roof: "#5C4A33", trim: "#8C8074", wood: "#3E2E20", keepRoof: "pyramid", towerRoof: "pyramid", torches: false },
+  classic: { id: "classic", name: { it: "Classico", en: "Classic" }, stone: "#CFC2AC", stoneDark: "#8F8372", roof: "#B8442F", trim: "#E2B14A", wood: "#6B4726", keepRoof: "pyramid", towerRoof: "cone", torches: true },
+  royal: { id: "royal", name: { it: "Regale", en: "Royal" }, stone: "#E9E2D3", stoneDark: "#B0A896", roof: "#2F5AA0", trim: "#F0CD73", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
+  obsidian: { id: "obsidian", name: { it: "Ossidiana", en: "Obsidian" }, stone: "#5A5862", stoneDark: "#33323A", roof: "#6E2E5E", trim: "#E2B14A", wood: "#3A2D25", keepRoof: "cone", towerRoof: "pyramid", torches: true },
+  sandstone: { id: "sandstone", name: { it: "Arenaria", en: "Sandstone" }, stone: "#DDBB80", stoneDark: "#A8865A", roof: "#3F8C7C", trim: "#F0CD73", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
+  ruin: { id: "ruin", name: { it: "Rovina", en: "Ruin" }, stone: "#8D8E84", stoneDark: "#63645B", roof: "#6A5A42", trim: "#9A8E80", wood: "#463629", keepRoof: "pyramid", towerRoof: "pyramid", torches: false },
 };
 
 export const DEFAULT_SKIN = "classic";
@@ -55,6 +56,15 @@ export const CASTLE_OCTAGON = Math.PI / 8; // wall/plinth rotated so the +z dire
 export function settlementScale(level: number): number {
   return 1.05 + (Math.min(30, Math.max(1, level)) / 30) * 0.75;
 }
+
+/** Visual tier (Bible §6): Villaggio 1–9 → palisade, Città 10–29 → stone walls, Metropoli 30 → outer ring + spire. */
+export type SettlementTier = "VILLAGE" | "CITY" | "METROPOLIS";
+export function settlementTier(level: number): SettlementTier {
+  return level >= 30 ? "METROPOLIS" : level >= 10 ? "CITY" : "VILLAGE";
+}
+
+export const OUTER_RADIUS = 1.34; // metropolis outer ring (local units at scale 1)
+export const BASTION_ANGLES = [0, 1, 2, 3].map((k) => CASTLE_OCTAGON + Math.PI / 4 + (k * Math.PI) / 2);
 
 export function towerCount(level: number): number {
   return level >= 10 ? 8 : 4;
@@ -128,6 +138,25 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
     ...ring(8, 0.855, 0.78, () => rbox(0.075, 0.1, 0.07, 0.015), 0),
     ...ring(8, 0.855, 0.78, () => rbox(0.075, 0.1, 0.07, 0.015), 0.19),
   ]);
+  // Villaggio (level < 10): a wooden palisade of sharpened stakes with a plank rail instead of the stone wall
+  const palisade = mergeGeos([
+    ...ring(28, 0.86, 0.3, () => cyl(0.045, 0.055, 0.6, 5)),
+    ...ring(28, 0.86, 0.66, () => cone(0.05, 0.12, 5)),
+    place(cyl(0.885, 0.885, 0.1, 28, true), 0, 0.5, 0),
+  ]);
+  // Metropoli (level 30): outer curtain wall with merlons, four bastions and a golden spire over the keep
+  const outerWalk = new THREE.RingGeometry(OUTER_RADIUS - 0.14, OUTER_RADIUS + 0.02, 8, 1, CASTLE_OCTAGON);
+  outerWalk.rotateX(-Math.PI / 2);
+  outerWalk.translate(0, 0.42, 0);
+  const outerWall = mergeGeos([
+    place(cyl(OUTER_RADIUS - 0.02, OUTER_RADIUS + 0.04, 0.38, 8, true), 0, 0.23, 0, CASTLE_OCTAGON),
+    outerWalk,
+    ...ring(16, OUTER_RADIUS - 0.04, 0.47, () => rbox(0.07, 0.09, 0.06, 0.012), 0),
+    ...ring(16, OUTER_RADIUS - 0.04, 0.47, () => rbox(0.07, 0.09, 0.06, 0.012), 0.196),
+  ]);
+  const bastion = mergeGeos([place(cyl(0.15, 0.19, 0.62, 10), 0, 0.31, 0), place(cyl(0.19, 0.15, 0.05, 10), 0, 0.65, 0), ...ring(8, 0.16, 0.7, () => rbox(0.05, 0.06, 0.04, 0.01))]);
+  const bastionRoof = place(hat(0.22, 0.32, 10), 0, 0.84, 0);
+  const spire = mergeGeos([place(cyl(0.05, 0.09, 0.9, 8), 0, 2.55, 0), place(cone(0.14, 0.42, 8), 0, 3.12, 0), place(new THREE.SphereGeometry(0.07, 8, 6), 0, 3.38, 0)]);
 
   const keep = mergeGeos([
     place(rbox(0.66, 0.95, 0.66), 0, 0.655, 0),
@@ -187,6 +216,11 @@ export function buildCastleParts(): Record<string, THREE.BufferGeometry> {
     factionRing,
     plinth,
     wall,
+    palisade,
+    outerWall,
+    bastion,
+    bastionRoof,
+    spire,
     keep,
     windows,
     keepRoof_pyramid,

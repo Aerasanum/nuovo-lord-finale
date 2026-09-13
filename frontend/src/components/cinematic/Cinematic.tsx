@@ -41,7 +41,7 @@ import { Crest } from "@/src/components/Crest";
 import { Icon, type IconName } from "@/src/components/ui";
 import { fmt, formatDuration, formatNumber, useI18n } from "@/src/i18n";
 import { setMapRenderHold } from "@/src/map3d/engine";
-import { fonts, radius, spacing, useTheme } from "@/src/theme";
+import { fonts, radius, spacing, textShadow, useTheme } from "@/src/theme";
 
 import { type ArtVariant, CinematicArt } from "./CinematicArt";
 
@@ -458,16 +458,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     marginTop: spacing.sm,
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 8,
-    textShadowOffset: { width: 0, height: 2 },
+    ...textShadow(2, 8, "rgba(0,0,0,0.6)"),
   },
   subtitle: {
     fontFamily: fonts.body,
     fontSize: 14,
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 6,
-    textShadowOffset: { width: 0, height: 1 },
+    ...textShadow(1, 6, "rgba(0,0,0,0.6)"),
   },
   bottom: { position: "absolute", left: spacing.md, right: spacing.md, gap: 6 },
   compTitle: {

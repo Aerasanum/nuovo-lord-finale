@@ -19,6 +19,7 @@ import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlement
 import { daylightAt, realmHour } from "./daylight";
 import { FloraFactory } from "./flora";
 import { animateSkin, buildSkin } from "./markerSkins";
+import { chevronTexture, ribbonGeometry, ribbonMaterial } from "./marchPath";
 import { PYRAMID_HALF, PYRAMID_TOP, PyramidMonument } from "./pyramid";
 import { type SmokeEmitter, SmokeSystem } from "./smoke";
 import { buildGridGeometry, buildTerrainGeometry, cornerHeight, type Sampler, type TerrainPalette, tileHeight } from "./terrain";
@@ -39,7 +40,7 @@ export function overviewFactor(worldSize: number): number {
 const OV_WINDOW_TILES = 720;
 
 export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidSummary };
-export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string };
+export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string; tag?: string | null; troops?: number };
 
 type EngineOpts = {
   gl: ExpoWebGLRenderingContext;
@@ -147,8 +148,11 @@ export class MapEngine {
   private lastTick = 0;
   private startedAt = Date.now();
   private marchGroup = new THREE.Group();
-  private marchMarkers: { march: MarchDto; marker: THREE.Object3D; line: THREE.Line }[] = [];
+  private marchMarkers: { march: MarchDto; marker: THREE.Object3D; line: THREE.Mesh }[] = [];
+  private chevrons = chevronTexture();
   private selected: Selection | null = null;
+  /** Mirrors MapView's `showLabels`: the tap picker only honours label chips that are actually on screen. */
+  labelsShown = true;
   private selScale = 1;
   private selectionRing: THREE.Mesh;
   private homeBeacon: THREE.Mesh;
@@ -175,6 +179,7 @@ export class MapEngine {
   private sunDir: THREE.Vector3;
   private shadowRadius = 0;
   private hemi: THREE.HemisphereLight;
+  private fill: THREE.AmbientLight;
   private daylightMinute = -1;
   private sampler: Sampler = (x, y) => this.tileAt(x, y);
   private ovSampler: Sampler = (x, y) => this.overviewTileAt(x, y);
@@ -237,6 +242,9 @@ export class MapEngine {
     const hemi = new THREE.HemisphereLight(skyColor, groundColor, 0.85);
     this.scene.add(hemi);
     this.hemi = hemi;
+    // soft fill so castle faces turned away from the sun never go black (terrain has its own shader lighting)
+    this.fill = new THREE.AmbientLight(0xffffff, 0.3);
+    this.scene.add(this.fill);
     const sun = new THREE.DirectionalLight(sunColor, 1.7);
     sun.position.copy(sunDir).multiplyScalar(150);
     sun.castShadow = true;
@@ -445,11 +453,23 @@ export class MapEngine {
       return Math.hypot(((v.x + 1) / 2) * this.width - px, ((1 - v.y) / 2) * this.height - py);
     };
     let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: PyramidNode } | null = null;
+    // RN label chips (MapLabels) float above their anchor: anchor projected, x clamped like MapLabels.clampX(lo, hi),
+    // then shifted by −dx/−dy px, chip ≈ w×h. A tap on the chip must pick what the chip names, not the terrain behind it.
+    const labelHit = (wx: number, wy: number, wz: number, lo: number, hi: number, dx: number, dy: number, w: number, h: number) => {
+      if (!this.labelsShown) return false;
+      v.set(wx, wy, wz).project(this.camera);
+      if (v.z > 1) return false;
+      const lx = Math.max(lo, Math.min(this.width - hi, ((v.x + 1) / 2) * this.width)) - dx;
+      const ly = ((1 - v.y) / 2) * this.height - dy;
+      return px >= lx - 6 && px <= lx + w + 6 && py >= ly - 8 && py <= ly + h + 8;
+    };
     // marches first: they move over the terrain and are the most time-critical thing to inspect
     if (this.marchGroup.visible) {
+      const labelsOn = this.cam.dist < MARCH_LABEL_DIST;
       for (const mm of this.marchMarkers) {
         const p = mm.marker.position;
-        const d = Math.min(screenDist(p.x, p.y + 0.6, p.z), screenDist(p.x, p.y + 1.3, p.z));
+        let d = Math.min(screenDist(p.x, p.y + 0.6, p.z), screenDist(p.x, p.y + 1.3, p.z));
+        if (labelsOn && labelHit(p.x, p.y + 1.7, p.z, 60, 112, 60, 46, 150, 20)) d = 0;
         if (d < TOUCH_PX && (!best || d < best.d)) best = { d, m: mm.march, mx: p.x, mz: p.z };
       }
     }
@@ -465,24 +485,27 @@ export class MapEngine {
         if (!best || d < best.d) best = { d, pyr: node };
       }
     }
-    const consider = (list: SettlementPublic[]) => {
+    const near = this.cam.dist < 26;
+    const consider = (list: SettlementPublic[], lod0: boolean) => {
       for (const s of list) {
         const h = this.heightAt(s.x, s.y);
         const sc = settlementScale(s.level);
-        const d = s.kind === "PLAYER_SLOT" ? screenDist(s.x + 0.5, h + 0.25, s.y + 0.5) : Math.min(screenDist(s.x + 0.5, h + 0.6 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 1.7 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 2.6 * sc, s.y + 0.5));
+        let d = s.kind === "PLAYER_SLOT" ? screenDist(s.x + 0.5, h + 0.25, s.y + 0.5) : Math.min(screenDist(s.x + 0.5, h + 0.6 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 1.7 * sc, s.y + 0.5), screenDist(s.x + 0.5, h + 2.6 * sc, s.y + 0.5));
+        // name plate (same visibility rule as emitLabels: players always, neutrals only up close at LOD0)
+        if ((s.kind === "PLAYER" || (s.kind === "NEUTRAL" && lod0 && near)) && labelHit(s.x + 0.5, h + (CASTLE_TOP + (s.level >= 30 ? 0.5 : 0)) * sc, s.y + 0.5, 44, 110, 44, 24, 150, 22)) d = Math.min(d, TOUCH_PX * 0.5);
         if (d < TOUCH_PX && (!best || d < best.d)) best = { d, s };
       }
     };
     for (const ch of this.chunks.values()) {
       if (!ch.group.visible) continue;
       if (Math.abs(ch.cx * CHUNK + 16 - tx) > 48 || Math.abs(ch.cy * CHUNK + 16 - tz) > 48) continue;
-      consider(ch.data.settlements);
+      consider(ch.data.settlements, ch.lod === 0);
       for (const sen of ch.data.sentinels) {
         const d = screenDist(sen.x + 0.5, this.heightAt(sen.x, sen.y) + 0.5, sen.y + 0.5);
         if (d < TOUCH_PX * 0.8 && (!best || d < best.d)) best = { d, sen };
       }
     }
-    if (!best && this.overview) consider(this.overview.data.settlements);
+    if (!best && this.overview) consider(this.overview.data.settlements, false);
     const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: PyramidNode } | null;
     if (b?.m) this.select({ x: Math.floor(b.mx!), y: Math.floor(b.mz!), march: b.m });
     else if (b?.pyr) this.select({ x: b.pyr.xy[0], y: b.pyr.xy[1], pyramid: b.pyr.dto });
@@ -574,9 +597,10 @@ export class MapEngine {
       const own = !march.hostile;
       const color = own ? this.palette.own : this.palette.enemy;
       const returning = march.status === "RETURNING";
-      const pts = march.path.map(([x, y]) => new THREE.Vector3(x + 0.5, this.heightAt(x, y) + 0.12, y + 0.5));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.3, transparent: true, opacity: returning ? 0.45 : 0.85 }));
-      line.computeLineDistances();
+      // ribbon with chevrons pointing the way the army walks (a returning march walks its path backwards)
+      const pathPts = march.path.map(([x, y]) => new THREE.Vector3(x + 0.5, this.heightAt(x, y) + 0.16, y + 0.5));
+      const line = new THREE.Mesh(ribbonGeometry(returning ? [...pathPts].reverse() : pathPts), ribbonMaterial(color, this.chevrons, returning ? 0.42 : 0.88));
+      line.renderOrder = 6;
       const marker = new THREE.Group();
       marker.add(this.factory.buildArmy(color, returning));
       // Casata crest on the banner (own marches carry the full crest; a detected hostile shows its house crest too —
@@ -639,6 +663,7 @@ export class MapEngine {
     }
     disposeGroup(this.minimap.scene);
     this.smoke.dispose();
+    this.chevrons.dispose();
     for (const node of this.pyramids.values()) node.monument.dispose();
     this.pyramids.clear();
     this.fog.dispose();
@@ -838,6 +863,8 @@ export class MapEngine {
     this.hemi.color.copy(d.skyColor);
     this.hemi.groundColor.copy(d.groundColor);
     this.hemi.intensity = d.hemiIntensity;
+    this.fill.color.copy(d.skyColor).lerp(new THREE.Color(0xffffff), 0.6);
+    this.fill.intensity = 0.32 + 0.38 * d.night;
     this.renderer.toneMappingExposure = d.exposure;
     const horizon = this.palette.horizon.clone().lerp(d.horizonTint, d.horizonMix);
     (this.scene.fog as THREE.Fog).color.copy(horizon);
@@ -1249,11 +1276,11 @@ export class MapEngine {
     const push = (s: SettlementPublic) => {
       if (seen.has(s.settlement_id)) return;
       seen.add(s.settlement_id);
-      v.set(s.x + 0.5, this.heightAt(s.x, s.y) + CASTLE_TOP * settlementScale(s.level), s.y + 0.5).project(this.camera);
+      v.set(s.x + 0.5, this.heightAt(s.x, s.y) + (CASTLE_TOP + (s.level >= 30 ? 0.5 : 0)) * settlementScale(s.level), s.y + 0.5).project(this.camera);
       if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) return;
       out.push({
         d: Math.hypot(s.x - this.cam.tx, s.y - this.cam.tz),
-        label: { id: s.settlement_id, x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, name: s.name, level: s.level, faction: s.faction, kind: s.kind },
+        label: { id: s.settlement_id, x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, name: s.name, level: s.level, faction: s.faction, kind: s.kind, tag: s.kind === "PLAYER" ? s.owner_alliance_tag ?? null : null },
       });
     };
     for (const ch of this.chunks.values()) {
@@ -1291,6 +1318,7 @@ export class MapEngine {
             kind: "MARCH",
             status: march.hostile ? "HOSTILE" : march.status,
             endsAt: march.hostile ? (march.intel?.eta_range ? march.intel.eta_range[0] : null) : march.status === "RETURNING" ? march.return_at : march.arrival_at,
+            troops: march.hostile ? 0 : Object.values(march.units ?? {}).reduce((a, b) => a + (b || 0), 0),
           },
         });
       }
@@ -1397,7 +1425,10 @@ export class MapEngine {
     this.selectionRing.scale.setScalar(this.selScale * (1 + 0.08 * Math.sin(t * 3.2)));
     this.homeBeacon.scale.setScalar(1 + 0.12 * Math.sin(t * 2.1));
     (this.homeBeacon.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 2.1));
-    if (this.marchMarkers.length) this.animateMarches(now + serverOffset());
+    if (this.marchMarkers.length) {
+      this.chevrons.offset.x = -((t * 0.9) % 1); // chevrons flow along every ribbon
+      this.animateMarches(now + serverOffset());
+    }
     this.renderer.render(this.scene, this.camera);
     if (this.minimap.rect) {
       this.updateMinimapCursor();

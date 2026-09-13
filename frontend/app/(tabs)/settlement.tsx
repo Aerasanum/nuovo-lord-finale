@@ -11,6 +11,7 @@ import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
+import { buildingIcon } from "@/src/game/buildings";
 import { formatDuration, formatNumber, RESOURCE_LABELS, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { useGame } from "@/src/state/useGame";
@@ -23,6 +24,7 @@ const useStyles = makeStyles((c) => ({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   bCard: { width: "48%", flexGrow: 1, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.sm, gap: 6, minHeight: 96 },
   bCardAvail: { borderColor: c.brandSecondary },
+  bIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: c.surfaceTertiary, alignItems: "center", justifyContent: "center", marginRight: 6 },
   lvl: { width: 28, height: 28, borderRadius: 14, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
   lvlText: { color: c.onBrandTertiary, fontSize: 12, fontWeight: "700" },
   hdrBtn: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
@@ -249,6 +251,9 @@ export default function SettlementScreen() {
                 {(buildings.data?.buildings ?? []).map((b: BuildingEntry) => (
                   <Pressable key={b.name} style={[s.bCard, b.state === "AVAILABLE" && s.bCardAvail]} onPress={() => router.push({ pathname: "/building/[name]", params: { name: b.name } })} testID={`building-card-${b.name}`}>
                     <Row style={{ justifyContent: "space-between" }}>
+                      <View style={s.bIcon}>
+                        <Icon name={buildingIcon(b)} size={18} color={b.state === "LOCKED" ? colors.muted : colors.brandPrimary} />
+                      </View>
                       <T v="label" numberOfLines={1} style={{ flex: 1 }}>
                         {b.name}
                       </T>

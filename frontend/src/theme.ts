@@ -7,7 +7,7 @@
 //   const { colors } = useTheme();   // for icon colors / non-style props
 
 import { useMemo } from "react";
-import { Appearance, StyleSheet, useColorScheme } from "react-native";
+import { Appearance, Platform, StyleSheet, type TextStyle, useColorScheme } from "react-native";
 
 export type ColorScheme = "light" | "dark";
 
@@ -106,3 +106,9 @@ export const fonts = {
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 export const radius = { sm: 4, md: 8, lg: 12, pill: 999 } as const;
+
+
+/** Text drop shadow: native keeps the textShadow* props, web uses the CSS shorthand (the split props are deprecated there). */
+export function textShadow(offsetY: number, blur: number, color: string): TextStyle {
+  return Platform.OS === "web" ? ({ textShadow: `0 ${offsetY}px ${blur}px ${color}` } as TextStyle) : { textShadowColor: color, textShadowOffset: { width: 0, height: offsetY }, textShadowRadius: blur };
+}

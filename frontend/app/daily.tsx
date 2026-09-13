@@ -44,6 +44,7 @@ export default function DailyScreen() {
   const { t, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const close = () => (router.canGoBack() ? router.back() : router.replace("/(tabs)/map"));
   const { width, height } = useWindowDimensions();
   const { worldId } = useGame();
   const q = useDaily(worldId);
@@ -105,7 +106,7 @@ export default function DailyScreen() {
       </View>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.xs, paddingBottom: insets.bottom + spacing.lg, gap: spacing.md }} showsVerticalScrollIndicator={false}>
         <View style={s.header}>
-          <Pressable style={s.close} onPress={() => router.back()} testID="daily-close" accessibilityRole="button" accessibilityLabel={t("close")}>
+          <Pressable style={s.close} onPress={close} testID="daily-close" accessibilityRole="button" accessibilityLabel={t("close")}>
             <Icon name="close" size={22} color={colors.onSurface} />
           </Pressable>
           <View style={{ flex: 1 }}>
@@ -176,7 +177,7 @@ export default function DailyScreen() {
                 <T v="caption" style={{ color: colors.brandPrimary }} testID="daily-tomorrow">
                   {fmt(t("dailyTomorrow"), { day: (shown.day % 7) + 1 })}
                 </T>
-                <Button title={t("close")} icon="check" variant="secondary" onPress={() => router.back()} testID="daily-done" />
+                <Button title={t("close")} icon="check" variant="secondary" onPress={close} testID="daily-done" />
               </Animated.View>
             ) : (
               <Animated.View entering={FadeInDown.duration(400)} style={s.panel} testID="daily-claim-panel">
