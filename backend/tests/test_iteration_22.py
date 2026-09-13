@@ -8,12 +8,14 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://empire-lords-dragon.preview.emergentagent.com").rstrip("/")
+pytestmark = pytest.mark.skip(reason="legacy Regno 1 fixture (hard-coded demo settlement/sentinel coordinates) removed — Grande Mondo only since June 2026; sentinels covered by test_iteration_21/32 and unit tests")
+
+from tests.e2e_base import BASE_URL  # QA backend only
 API = f"{BASE_URL}/api"
 
 DEMO_EMAIL = "demo@empirelords.com"
 DEMO_PASSWORD = "Demo12345!"
-WORLD_ID = "world_1"
+WORLD_ID = "qa_1"
 SETTLEMENT_ID = "stl_0484bd7cfcbd40dd"
 
 

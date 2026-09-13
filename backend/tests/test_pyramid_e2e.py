@@ -6,7 +6,7 @@ rival (LEADER [MERC] MERCENARY), third (LEADER [TRZ] STRUCTURED).
 
 The cycle is driven through the admin override (`PUT /api/qa/pyramid/config`): tiny durations + small Guardian so a
 whole cycle (OPEN → capture → hold → REWARD_LOCK → DORMANT → OPEN) runs in minutes of QA clock. The last test restores
-a realistic configuration and leaves world_1 with the Pyramid OPEN (spec Guardian) for the demo.
+a realistic configuration and leaves qa_1 with the Pyramid OPEN (spec Guardian) for the demo.
 """
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ import time
 import pytest
 import requests
 
-BASE_URL = "https://empire-lords-dragon.preview.emergentagent.com"
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
-WORLD = "world_1"
+WORLD = "qa_1"
 DEMO = ("demo@empirelords.com", "Demo12345!")
 ALLY = ("ally@empirelords.com", "Ally12345!")
 RIVAL = ("rival@empirelords.com", "Rival12345!")
@@ -262,7 +262,7 @@ class TestHoldAndRewards:
 
 class TestRealisticDemoState:
     def test_restore_config_leaves_pyramid_open(self, demo):
-        """Restore spec values; keep only first_open_day low so world_1 shows an OPEN Pyramid with the spec Guardian."""
+        """Restore spec values; keep only first_open_day low so qa_1 shows an OPEN Pyramid with the spec Guardian."""
         r = requests.post(url("/qa/pyramid/reset"), json={"world_id": WORLD, "clear_config": True, "config": {"first_open_day": 1}}, headers=ADMIN_HEADERS, timeout=30)
         assert r.status_code == 200 and r.json()["config"]["hold_hours"] == 168
         run_scheduler()

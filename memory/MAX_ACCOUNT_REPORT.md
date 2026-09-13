@@ -1,10 +1,10 @@
 # Empire Lords Dragon — Account Max & rapporto di fattibilità
 
-_Generato il 2026-09-11 20:33 UTC da `backend/scripts/max_account.py` — spec v3.7._
+_Generato il 2026-09-13 21:48 UTC da `backend/scripts/max_account.py` — spec v3.7._
 
 ## Account Max (QA)
-- **Login**: `max@empirelords.com` / `Max12345!` — mondo `world_1`, Casata «Casa Max»
-- Insediamento madre `stl_8882fe23fa7643d9` a (70,121) — Metropoli L30, 20 edifici L30 + Santuario Mitico L5, 114 ricerche al massimo, risorse = cap Magazzino (5.546.450 per risorsa), Mura L30, 3 Drago / 3 Angelo / 3 Demone (cap per Metropoli), esercito standard completo, 300 navi, 999.999 Rubini, 100.000 min di accelerazione.
+- **Login**: `max@empirelords.com` / `Max12345!` — mondo `qa_1`, Casata «Casa Max»
+- Insediamento madre `stl_0492f24eaf8a4166` a (292,183) — Metropoli L30, 20 edifici L30 + Santuario Mitico L5, 114 ricerche al massimo, risorse = cap Magazzino (5.546.450 per risorsa), Mura L30, 3 Drago / 3 Angelo / 3 Demone (cap per Metropoli), esercito standard completo, 300 navi, 999.999 Rubini.
 
 ## 1. Insediamento 1 → 30 (Castello / Fortezza)
 

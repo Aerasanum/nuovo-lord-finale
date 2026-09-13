@@ -2,7 +2,7 @@
 Legendary cap (max 3 per type per Metropolis, garrison + queue + in flight).
 
 Run: cd /app/backend && pytest tests/test_iteration_31_inactivity.py -o addopts='' -v
-Uses throwaway accounts on world_1 (QA fixtures demo/lord/max are `inactivity_exempt`). The per-world threshold override
+Uses throwaway accounts on qa_1 (QA fixtures demo/lord/max are `inactivity_exempt`). The per-world threshold override
 is cleared at the end; the QA clock is never advanced.
 """
 from __future__ import annotations
@@ -15,12 +15,12 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
-WORLD = "world_1"
+WORLD = "qa_1"
 LORD = ("lord@empirelords.com", "Lord12345!")
 DEMO = ("demo@empirelords.com", "Demo12345!")
-LORD_WORLD = "world_2"
+LORD_WORLD = "qa_1"
 
 
 def url(p: str) -> str:
@@ -87,8 +87,8 @@ def test_rule_exposed_on_me_and_activity_tracked():
 
 def test_early_phase_removes_player_and_reopens_slot():
     acc = fresh_account()
-    before = next(w for w in get(acc["h"], "/worlds")["worlds"] if w["world_id"] == WORLD)["player_count"]
-    # force the EARLY phase (world_1 is months old): 3 consecutive days away → removed
+    before = get(acc["h"], f"/worlds/{WORLD}")["player_count"]
+    # force the EARLY phase (qa_1 is months old): 3 consecutive days away → removed
     rule = qa_put("/qa/inactivity/config", {"world_id": WORLD, "config": {"early_phase_days": 100000, "early_timeout_days": 3, "only_player_ids": [acc["player_id"]]}})["rule"]
     assert rule["phase"] == "EARLY" and rule["mode"] == "REMOVE" and rule["timeout_days"] == 3
     # 2 days away: still safe
@@ -106,12 +106,12 @@ def test_early_phase_removes_player_and_reopens_slot():
     demo = login(*DEMO, WORLD)
     slot = get(demo["h"], f"/worlds/{WORLD}/settlements/{acc['mother']}/public")
     assert slot["kind"] == "PLAYER_SLOT" and slot["owner_player_id"] is None and slot["level"] == 0, slot
-    mid = next(w for w in get(demo["h"], "/worlds")["worlds"] if w["world_id"] == WORLD)["player_count"]
+    mid = get(demo["h"], f"/worlds/{WORLD}")["player_count"]
     assert mid == before - 1, (before, mid)
     other = fresh_account()  # the next newcomer takes a FREE seat (the freed one is a candidate)
     taken = get(demo["h"], f"/worlds/{WORLD}/settlements/{other['mother']}/public")
     assert taken["kind"] == "PLAYER" and taken["owner_player_id"] == other["player_id"]
-    after = next(w for w in get(other["h"], "/worlds")["worlds"] if w["world_id"] == WORLD)["player_count"]
+    after = get(other["h"], f"/worlds/{WORLD}")["player_count"]
     assert after == before, (before, after)  # −1 for the removed player, +1 for `other`
     # idempotent: a second sweep does nothing for him
     res = qa_post("/qa/inactivity/sweep", {"world_id": WORLD})

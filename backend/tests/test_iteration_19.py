@@ -8,13 +8,9 @@ import os
 import pytest
 import requests
 
-BASE = (
-    os.environ.get("EXPO_BACKEND_URL")
-    or os.environ.get("EXPO_PUBLIC_BACKEND_URL")
-    or "https://empire-lords-dragon.preview.emergentagent.com"
-).rstrip("/")
+from tests.e2e_base import BASE_URL as BASE  # QA backend only
 
-WORLD_ID = "world_1"
+WORLD_ID = "qa_1"
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}
 DEMO = {"email": "demo@empirelords.com", "password": "Demo12345!"}
 

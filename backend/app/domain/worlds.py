@@ -49,13 +49,16 @@ def world_dto(w: dict, player: dict | None = None) -> dict:
 CARAVAN_SEARCH_RADIUS = 50
 
 
-async def create_world(name: str | None = None, seed: int | None = None, gen_overrides: dict | None = None) -> dict:
-    """Generate and open a new realm. `gen_overrides` (size / spacing / pyramid anchor) tune the landmass layout for
-    this world only — see worldgen.GenConfig; Bible counts, timers and costs are untouched."""
+async def create_world(name: str | None = None, seed: int | None = None, gen_overrides: dict | None = None, *, world_id: str | None = None, hidden: bool = False) -> dict:
+    """Generate and open a classic single-region realm. `gen_overrides` (size / spacing / pyramid anchor) tune the
+    landmass layout for this world only — see worldgen.GenConfig; Bible counts, timers and costs are untouched.
+
+    Product decision (June 2026): every player-facing realm is a Grande Mondo (9 regions of 600×600); classic realms
+    remain only as `hidden` QA worlds for the automated e2e suite (never listed to players)."""
     spec = get_spec()
     cfg = GenConfig.from_spec(spec, gen_overrides)
     count = await db().worlds.count_documents({})
-    world_id = f"world_{count + 1}"
+    world_id = world_id or f"world_{count + 1}"
     if seed is None:
         seed = int(hashlib.sha256(world_id.encode()).hexdigest(), 16) % 1_000_000
     now = clock.now()
@@ -69,6 +72,7 @@ async def create_world(name: str | None = None, seed: int | None = None, gen_ove
         "gen_config": cfg.to_doc(),
         "player_slots": int(spec.world["player_slots"]),
         "player_count": 0,
+        "hidden": hidden,
         "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
         "spec_version": spec.version,
         "spec_hash": spec.computed_hash,
@@ -199,6 +203,7 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         "center": {"x": cx, "y": cy, "radius": int(D["r_in"]), "pyramid_anchor": [cx, cy]},
         "player_slots": int(spec.world["player_slots"]) * n,
         "player_count": 0,
+        "hidden": False,
         "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
         # Grande Piramide monument at the centre; the classic Alliance cycle stays dormant here (regional control comes with the GM Pyramid rules)
         "pyramid_config": {"anchor": [cx, cy], "footprint": [41, 41]},  # Grande Piramide: manual open (admin, during a war) — see pyramid._kind_defaults
@@ -247,21 +252,41 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
 
 
 async def ensure_default_world() -> None:
-    if await db().worlds.count_documents({"status": "OPEN"}) == 0:
+    """First boot: the default realm is a Grande Mondo (9 regions of 600×600 — product decision, June 2026)."""
+    if await db().worlds.count_documents({"status": "OPEN", "hidden": {"$ne": True}}) == 0:
         stuck = await db().worlds.find_one({"status": "GENERATING"})
         if stuck:
-            await db().worlds.delete_one({"_id": stuck["_id"]})
-            await db().map_chunks.delete_many({"world_id": stuck["_id"]})
-            await db().settlements.delete_many({"world_id": stuck["_id"]})
-            await db().territory_tiles.delete_many({"world_id": stuck["_id"]})
-        log.info("generating default world…")
-        await create_world("Regno 1")
+            await delete_world(stuck["_id"])
+        log.info("generating default Grande Mondo…")
+        await create_grande_mondo("Grande Mondo 1", None, None, background=False)
         log.info("default world ready")
+
+
+WORLD_SCOPED_COLLECTIONS = ("map_chunks", "settlements", "territory_tiles", "sentinels", "marches", "battles", "inbox", "jobs", "scheduled_events", "chronicle", "pyramid", "missions", "teleport_log", "players", "alliances", "alliance_chat", "alliance_invites", "alliance_relations", "chat_messages", "emerald_ledger", "mercenary_contracts", "war_votes")
+
+
+async def delete_world(world_id: str) -> dict[str, int]:
+    """Remove a realm and everything scoped to it (players included — accounts survive). Admin/QA only."""
+    from app.domain import grande_mondo
+
+    counts: dict[str, int] = {}
+    names = set(await db().list_collection_names())
+    for coll in WORLD_SCOPED_COLLECTIONS:
+        if coll in names:
+            res = await db()[coll].delete_many({"world_id": world_id})
+            if res.deleted_count:
+                counts[coll] = res.deleted_count
+    res = await db().pyramid.delete_many({"_id": {"$regex": f"^{world_id}(:|$)"}})
+    if res.deleted_count:
+        counts["pyramid"] = counts.get("pyramid", 0) + res.deleted_count
+    await db().worlds.delete_one({"_id": world_id})
+    grande_mondo._zone_cache.pop(world_id, None)
+    return counts
 
 
 async def list_worlds(account_id: str) -> list[dict]:
     out = []
-    async for w in db().worlds.find({"status": {"$in": ["OPEN", "GENERATING"]}}).sort("created_at", 1):
+    async for w in db().worlds.find({"status": {"$in": ["OPEN", "GENERATING"]}, "hidden": {"$ne": True}}).sort("created_at", 1):
         p = await db().players.find_one({"world_id": w["_id"], "account_id": account_id})
         d = world_dto(w, p)
         d["joined"] = bool(p)

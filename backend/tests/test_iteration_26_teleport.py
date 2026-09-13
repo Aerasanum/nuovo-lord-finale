@@ -1,7 +1,7 @@
 """Iteration 26 — Castle Teleport (Bibbia GM §Teletrasporto) + observer + war_days 30.
 Tests run against the deployed backend (EXPO_PUBLIC_BACKEND_URL) using real accounts:
 - osservatore@empirelords.com / Demo12345! (gm_1, region IT, view_all_regions, 3 castles, ~996k Rubies)
-- demo@empirelords.com / Demo12345!  (gm_1 IT mother only; also world_1)
+- demo@empirelords.com / Demo12345!  (gm_1 IT mother only; also qa_1)
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import uuid
 import pytest
 import requests
 
-BASE = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://empire-lords-dragon.preview.emergentagent.com").rstrip("/")
+from tests.e2e_base import BASE_URL as BASE  # QA backend only
 API = f"{BASE}/api"
 ADMIN_KEY = "eld-admin-7f3c9a1d2b4e"
 
@@ -222,10 +222,10 @@ class TestTeleportNegative:
         assert "TELEPORT_MOTHER" in r.text
 
     def test_classic_realm_teleport_unavailable(self, demo_headers):
-        r = requests.get(f"{API}/worlds/world_1/me", headers=demo_headers, timeout=30)
+        r = requests.get(f"{API}/worlds/qa_1/me", headers=demo_headers, timeout=30)
         assert r.status_code == 200
         sid = r.json()["settlements"][0]["settlement_id"]
-        r2 = requests.get(f"{API}/worlds/world_1/settlements/{sid}/teleport", headers=demo_headers, timeout=30)
+        r2 = requests.get(f"{API}/worlds/qa_1/settlements/{sid}/teleport", headers=demo_headers, timeout=30)
         assert r2.status_code == 409, r2.text
         err = r2.text
         assert ("TELEPORT_NOT_AVAILABLE" in err) or ("TELEPORT_MOTHER" in err), f"unexpected error: {err}"

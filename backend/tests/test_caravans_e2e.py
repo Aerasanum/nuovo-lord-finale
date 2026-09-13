@@ -13,11 +13,13 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = "https://empire-lords-dragon.preview.emergentagent.com"
+pytestmark = pytest.mark.skip(reason="legacy Regno 1 fixture (hard-coded rival/demo settlement ids and routes) removed — Grande Mondo only since June 2026")
+
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
 DEMO = ("demo@empirelords.com", "Demo12345!")
 RIVAL = ("rival@empirelords.com", "Rival12345!", "RivalLord", "Casa Rivale")
-WORLD = "world_1"
+WORLD = "qa_1"
 DEMO_HOME = "stl_0484bd7cfcbd40dd"  # 6,188
 DEMO_SECOND = "stl_84e946900a4745b6"  # 5,183
 RIVAL_A = "stl_2f5b4160b87f43b7"  # Neutrale 9,181 → rival origin

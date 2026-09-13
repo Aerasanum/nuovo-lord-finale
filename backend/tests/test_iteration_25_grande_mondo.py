@@ -11,7 +11,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://empire-lords-dragon.preview.emergentagent.com").rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 API = f"{BASE_URL}/api"
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}
 

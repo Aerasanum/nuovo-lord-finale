@@ -79,10 +79,19 @@ async def list_worlds(account_id: str = CurrentAccount):
     return {"worlds": await worlds.list_worlds(account_id), "server_time": clock.iso(clock.now())}
 
 
+@router.get("/worlds/{world_id}")
+async def get_world(world_id: str, account_id: str = CurrentAccount):
+    """Single realm (hidden QA worlds included — they are only excluded from the player-facing list)."""
+    w = await worlds.get_world(world_id)
+    p = await db().players.find_one({"world_id": world_id, "account_id": account_id})
+    return {**world_dto(w, p), "joined": bool(p), "server_time": clock.iso(clock.now())}
+
+
 class CreateWorldIn(BaseModel):
     name: str | None = None
     seed: int | None = None
-    kind: str | None = None  # "GRANDE_MONDO" → Bibbia GM mega-realm (generated in background, listed as GENERATING)
+    kind: str = "GRANDE_MONDO"  # default (June 2026): every new realm is a Grande Mondo; "CLASSIC" only for hidden QA worlds
+    hidden: bool = False  # never listed to players (QA e2e world)
     grande_mondo: dict | None = None  # optional overrides of grande_mondo.DEFAULTS (regions, region_size, isolation_days, …)
     # optional landmass layout overrides (worldgen.GenConfig): bigger realm / more room between castles
     size: int | None = Field(default=None, ge=256, le=1024)
@@ -96,8 +105,17 @@ class CreateWorldIn(BaseModel):
 async def create_world(body: CreateWorldIn):
     if body.kind == grande_mondo.KIND:
         return world_dto(await worlds.create_grande_mondo(body.name, body.seed, body.grande_mondo, background=True))
-    overrides = {k: v for k, v in body.model_dump(exclude={"name", "seed", "kind", "grande_mondo"}).items() if v is not None}
-    return world_dto(await worlds.create_world(body.name, body.seed, overrides or None))
+    if not body.hidden:
+        raise ApiError("CLASSIC_WORLD_HIDDEN_ONLY", "Player-facing realms are Grande Mondo only; classic worlds must be hidden (QA)", 400)
+    overrides = {k: v for k, v in body.model_dump(exclude={"name", "seed", "kind", "grande_mondo", "hidden"}).items() if v is not None}
+    return world_dto(await worlds.create_world(body.name, body.seed, overrides or None, hidden=True))
+
+
+@router.delete("/worlds/{world_id}", dependencies=[Depends(require_admin)])
+async def delete_world(world_id: str):
+    if not await db().worlds.find_one({"_id": world_id}, {"_id": 1}):
+        raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
+    return {"world_id": world_id, "deleted": await worlds.delete_world(world_id)}
 
 
 class JoinIn(BaseModel):

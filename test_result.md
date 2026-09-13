@@ -1140,3 +1140,16 @@ frontend:
       - working: true
         agent: "main"
         comment: "Screenshot mappa Sovrano: header '21:45 · Notte' (ora italiana corretta), castello madre Drago con corna, sentinelle, etichette marce (Attacco/Carovana/Intercettazione/Saccheggio) con ETA."
+
+# ---- iteration 35b (main agent) — Grande Mondo unico mondo giocabile; QA backend separato; fixture Sovrano in gm_1/IT ----
+backend:
+  - task: "Decisione utente: solo Grande Mondo (9 regioni 600×600). scripts/reset_worlds.py elimina Regno 1/2/3 (worlds.delete_world: tutte le collezioni world-scoped + pyramid); POST /worlds default kind GRANDE_MONDO (CLASSIC solo hidden → 400 CLASSIC_WORLD_HIDDEN_ONLY), DELETE /worlds/{id} admin, GET /worlds/{id}, GET /worlds nasconde hidden, ensure_default_world genera un Grande Mondo. Fixture: sovrano_account.py → gm_1 regione IT (view_all_regions+gm_admin), lord_account.py (LORD_WORLD/LORD_REGION), demo_account.py (qa_1 L5 + ally), seed_qa_db.py. QA isolata: scripts/qa_backend.sh (supervisor backend_qa :8002, DB eld_qa), scripts/e2e.sh (E2E_BASE_URL), tests/e2e_base.py rifiuta host live; tutti i test e2e usano qa_1/gm_1 del DB QA. Ripristino player utente TiDemolisco eliminato dallo sweep durante il salto d'orologio (audit player_restored)."
+    implemented: true
+    working: true
+    file: "backend/app/domain/worlds.py, api/routes_game.py, scripts/reset_worlds.py, scripts/sovrano_account.py, scripts/lord_account.py, scripts/demo_account.py, scripts/seed_qa_db.py, scripts/qa_backend.sh, scripts/e2e.sh, tests/e2e_base.py, tests/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Suite e2e completa sul backend QA: 153 passed, 32 skipped (moduli legacy saldati ai vecchi Regno 1/2: test_iteration_22/24, caravans_e2e, parti di 21/18), 0 failed. Live: solo gm_1, offset orologio 0, Sovrano 20 castelli/240 sentinelle/11 marce OUTBOUND (dragon×2, elephant, falcon, classic, 4 carovane, 2 INTERCEPT) + Predone RAID e INTERCEPT su una carovana del Sovrano; TiDemolisco ACTIVE."

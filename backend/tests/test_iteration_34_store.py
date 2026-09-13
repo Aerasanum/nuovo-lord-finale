@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
 load_dotenv("/app/backend/.env")
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
 RC_AUTH = {"Authorization": f"Bearer {os.environ['RC_WEBHOOK_AUTH']}", "Content-Type": "application/json"}
-WORLD = "world_1"
+WORLD = "qa_1"
 
 
 def url(p: str) -> str:

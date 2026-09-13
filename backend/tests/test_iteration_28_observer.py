@@ -11,7 +11,7 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 WORLD = "gm_1"
 GRAND = WORLD
 IT = f"{WORLD}:IT"

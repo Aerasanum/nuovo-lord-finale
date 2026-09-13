@@ -3,7 +3,7 @@ QA fixture — "Lord" account: 5 villages, the home developed to every cap with 
 
     cd /app/backend && python scripts/lord_account.py            # create / refresh (idempotent)
 
-Account: lord@empirelords.com / Lord12345!  (Regno 2 = world_2, Casata "Casa Lord")
+Account: lord@empirelords.com / Lord12345!  (Grande Mondo 1 = gm_1, regione IT, Casata "Casa Lord")
   - home: settlement L30 (Metropolis), every building at cap, all research maxed, resources = warehouse cap, wall L30,
     full army, 12 Sentinels (4 inner r3 + 8 outer r5) GUARDED with a garrison → the whole 11×11 domain is owned
     (slots on water become natural boundaries automatically)
@@ -14,6 +14,7 @@ The spawn slot is chosen so that all 12 Sentinel tiles are land and there are �
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -35,7 +36,9 @@ EMAIL = "lord@empirelords.com"
 PASSWORD = "Lord12345!"
 DISPLAY = "LordDragon"
 HOUSE = "Casa Lord"
-WORLD = "world_2"
+WORLD = os.environ.get("LORD_WORLD", "gm_1")  # gm_1 (regione IT) for players, qa_1 (hidden classic) for the e2e suite
+REGION = os.environ.get("LORD_REGION", "IT")
+REGION_ACTIVE = True
 VILLAGE_LEVELS = (18, 14, 10, 6)
 SENTINEL_GARRISON = {"Fanteria": 400, "Arciere": 300, "Cavalleria": 120}
 
@@ -44,9 +47,10 @@ async def pick_slot(world_id: str, grid) -> dict:
     """Free player slot whose 12 Sentinel tiles are all land, with the most neutrals within 30 tiles."""
     t = get_spec().territory
     r_in, r_out = int(t["inner_sentinel_radius_tiles"]), int(t["outer_sentinel_radius_tiles"])
-    neutrals = [(n["x"], n["y"]) async for n in db().settlements.find({"world_id": world_id, "kind": "NEUTRAL", "owner_player_id": None}, {"x": 1, "y": 1})]
+    region = {"region_code": REGION} if REGION_ACTIVE else {}
+    neutrals = [(n["x"], n["y"]) async for n in db().settlements.find({"world_id": world_id, "kind": "NEUTRAL", "owner_player_id": None, **region}, {"x": 1, "y": 1})]
     best, best_score = None, -1
-    async for slot in db().settlements.find({"world_id": world_id, "kind": "PLAYER_SLOT", "slot_status": "FREE"}).sort("_id", 1):
+    async for slot in db().settlements.find({"world_id": world_id, "kind": "PLAYER_SLOT", "slot_status": "FREE", **region}).sort("_id", 1):
         ok = True
         for d, (dx, dy) in sentinels.DIRS.items():
             for r in ((r_in, r_out) if d in sentinels.INNER else (r_out,)):
@@ -95,11 +99,13 @@ async def main() -> None:
     world = await db().worlds.find_one({"_id": WORLD})
     if not world:
         raise SystemExit(f"world {WORLD} not found")
+    global REGION_ACTIVE
+    REGION_ACTIVE = world.get("kind") == "GRANDE_MONDO"
     grid = await load_terrain(WORLD)
     player = await db().players.find_one({"world_id": WORLD, "account_id": acc["_id"]})
     if not player:
         slot = await pick_slot(WORLD, grid)
-        player = await worlds.join_world(world, acc["_id"], HOUSE, slot_id=slot["_id"])
+        player = await worlds.join_world(world, acc["_id"], HOUSE, slot_id=slot["_id"], region_code=REGION if REGION_ACTIVE else None)
         print(f"joined {WORLD} as {HOUSE} at slot {slot['_id']} ({slot['x']},{slot['y']})")
     home = await db().settlements.find_one({"_id": player["mother_settlement_id"]})
 

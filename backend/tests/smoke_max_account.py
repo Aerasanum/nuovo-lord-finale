@@ -4,16 +4,16 @@ import os
 
 import requests
 
-BASE = os.environ.get("BASE", "https://empire-lords-dragon.preview.emergentagent.com/api")
+from tests.e2e_base import API as BASE  # QA backend only
 r = requests.post(f"{BASE}/auth/login", json={"email": "max@empirelords.com", "password": "Max12345!"}, timeout=20)
 r.raise_for_status()
 H = {"Authorization": f"Bearer {r.json()['access_token']}"}
-me = requests.get(f"{BASE}/worlds/world_1/me", headers=H, timeout=20)
+me = requests.get(f"{BASE}/worlds/qa_1/me", headers=H, timeout=20)
 print("me", me.status_code)
 d = me.json()
 sid = d["settlements"][0]["settlement_id"]
 print("player", d["player"].get("house", {}).get("prestige"), "rubies", d.get("rubies"), "settlement", sid)
-for path in [f"/worlds/world_1/settlements/{sid}", f"/worlds/world_1/settlements/{sid}/buildings", f"/worlds/world_1/settlements/{sid}/army", f"/worlds/world_1/settlements/{sid}/research", f"/worlds/world_1/settlements/{sid}/sentinels", f"/worlds/world_1/settlements/{sid}/caravans/info", f"/worlds/world_1/settlements/{sid}/skins", f"/worlds/world_1/house", f"/worlds/world_1/daily", f"/worlds/world_1/missions", f"/worlds/world_1/specialization", f"/worlds/world_1/settlements/{sid}/public"]:
+for path in [f"/worlds/qa_1/settlements/{sid}", f"/worlds/qa_1/settlements/{sid}/buildings", f"/worlds/qa_1/settlements/{sid}/army", f"/worlds/qa_1/settlements/{sid}/research", f"/worlds/qa_1/settlements/{sid}/sentinels", f"/worlds/qa_1/settlements/{sid}/caravans/info", f"/worlds/qa_1/settlements/{sid}/skins", f"/worlds/qa_1/house", f"/worlds/qa_1/daily", f"/worlds/qa_1/missions", f"/worlds/qa_1/specialization", f"/worlds/qa_1/settlements/{sid}/public"]:
     rr = requests.get(f"{BASE}{path}", headers=H, timeout=30)
     body = rr.json()
     extra = ""
@@ -27,7 +27,7 @@ for path in [f"/worlds/world_1/settlements/{sid}", f"/worlds/world_1/settlements
         extra = f" maxed={sum(1 for n in body['nodes'] if n['level'] >= n['max_level'])}/{len(body['nodes'])} states={sorted(set(n['state'] for n in body['nodes']))}"
     if path.endswith("/house"):
         extra = f" unlocks={body.get('march_skin_unlocks')}"
-    print(path.split("world_1")[1], rr.status_code, extra or json.dumps(body)[:160])
+    print(path.split("qa_1")[1], rr.status_code, extra or json.dumps(body)[:160])
 # a march preview with a legendary at the cap must be accepted by the server rules
-prev = requests.post(f"{BASE}/worlds/world_1/marches/preview", headers=H, json={"origin_settlement_id": sid, "target_settlement_id": None, "mission": "ATTACK", "units": {"Fanteria": 1000, "Drago": 1}}, timeout=30)
+prev = requests.post(f"{BASE}/worlds/qa_1/marches/preview", headers=H, json={"origin_settlement_id": sid, "target_settlement_id": None, "mission": "ATTACK", "units": {"Fanteria": 1000, "Drago": 1}}, timeout=30)
 print("preview", prev.status_code, json.dumps(prev.json())[:200])

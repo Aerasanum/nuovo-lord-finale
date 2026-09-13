@@ -15,10 +15,9 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get(
-    "EXPO_PUBLIC_BACKEND_URL",
-    "https://empire-lords-dragon.preview.emergentagent.com",
-).rstrip("/")
+pytestmark = pytest.mark.skip(reason="legacy Regno 2 fixture (hard-coded Lord settlement ids) removed — Grande Mondo only since June 2026; caravans covered by test_iteration_34/scripts")
+
+from tests.e2e_base import BASE_URL  # QA backend only
 API = f"{BASE_URL}/api"
 
 WORLD_ID = "world_2"

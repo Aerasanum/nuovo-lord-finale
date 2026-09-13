@@ -1,7 +1,7 @@
 """Iteration 32 — Santuario Mitico + Unicorno / Ponte Arcobaleno (Bible §12) and the inactivity Inbox warning.
 
 Run: cd /app/backend && pytest tests/test_iteration_32_mythic.py -o addopts='' -v
-Uses lord@ (Casa Lord, Metropolis L30 on world_2) as the mythic Player and a throwaway account on world_2 as the bridge
+Uses lord@ (Casa Lord, Metropolis L30 on qa_1) as the mythic Player and a throwaway account on qa_1 as the bridge
 target. Advances the QA clock (~17 days) to run the Sanctuary upgrade, the 7-day ritual and the 10 s rainbow event.
 """
 from __future__ import annotations
@@ -14,9 +14,9 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv("/app/frontend/.env")
-BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
-WORLD = "world_2"
+WORLD = "qa_1"
 LORD = ("lord@empirelords.com", "Lord12345!")
 
 
@@ -153,22 +153,22 @@ def test_unicorn_ritual_and_rainbow_bridge():
 
 
 def test_inactivity_warning_lands_in_inbox():
-    from tests.test_iteration_31_inactivity import fresh_account  # world_1 helpers
+    from tests.test_iteration_31_inactivity import fresh_account  # qa_1 helpers
 
     acc = fresh_account()
-    put = requests.put(url("/qa/inactivity/config"), json={"world_id": "world_1", "config": {"early_phase_days": 0, "timeout_days": 3, "only_player_ids": [acc["player_id"]]}}, headers=ADMIN_HEADERS, timeout=30)
+    put = requests.put(url("/qa/inactivity/config"), json={"world_id": "qa_1", "config": {"early_phase_days": 0, "timeout_days": 3, "only_player_ids": [acc["player_id"]]}}, headers=ADMIN_HEADERS, timeout=30)
     assert put.status_code == 200, put.text
     try:
         qa("/qa/inactivity/touch", {"player_id": acc["player_id"], "days_ago": 2.2})  # 0.8 days before the elimination
-        qa("/qa/inactivity/sweep", {"world_id": "world_1"})
-        inbox = get(acc["h"], "/worlds/world_1/inbox")
+        qa("/qa/inactivity/sweep", {"world_id": "qa_1"})
+        inbox = get(acc["h"], "/worlds/qa_1/inbox")
         warn = [n for n in inbox["items"] if n["event"] == "INACTIVITY_WARNING"]
         assert len(warn) == 1 and warn[0]["severity"] == "CRITICAL" and warn[0]["payload"]["timeout_days"] == 3, inbox["items"][:3]
-        qa("/qa/inactivity/sweep", {"world_id": "world_1"})  # same inactivity period → no duplicate
-        inbox = get(acc["h"], "/worlds/world_1/inbox")
+        qa("/qa/inactivity/sweep", {"world_id": "qa_1"})  # same inactivity period → no duplicate
+        inbox = get(acc["h"], "/worlds/qa_1/inbox")
         assert len([n for n in inbox["items"] if n["event"] == "INACTIVITY_WARNING"]) == 1
         # (reading the inbox touched last_active_at again: the player is safe now)
-        me = get(acc["h"], "/worlds/world_1/me")
+        me = get(acc["h"], "/worlds/qa_1/me")
         assert me["player"]["status"] == "ACTIVE"
     finally:
-        requests.put(url("/qa/inactivity/config"), json={"world_id": "world_1", "config": None}, headers=ADMIN_HEADERS, timeout=30)
+        requests.put(url("/qa/inactivity/config"), json={"world_id": "qa_1", "config": None}, headers=ADMIN_HEADERS, timeout=30)

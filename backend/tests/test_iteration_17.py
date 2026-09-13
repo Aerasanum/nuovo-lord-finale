@@ -7,7 +7,7 @@ import os
 import pytest
 import requests
 
-BASE = (os.environ.get("EXPO_BACKEND_URL") or os.environ["EXPO_PUBLIC_BACKEND_URL"]).rstrip("/") + "/api"
+from tests.e2e_base import API as BASE  # QA backend only
 
 
 def _login(email: str, password: str) -> str:
@@ -30,7 +30,7 @@ def ally_headers() -> dict:
 
 class TestMarchSkins:
     def test_get_house_reveals_skin_and_unlocks(self, demo_headers):
-        r = requests.get(f"{BASE}/worlds/world_1/house", headers=demo_headers, timeout=15)
+        r = requests.get(f"{BASE}/worlds/qa_1/house", headers=demo_headers, timeout=15)
         assert r.status_code == 200, r.text
         body = r.json()
         assert "march_skin" in body["house"], body
@@ -50,30 +50,30 @@ class TestMarchSkins:
             assert "requires_unit" in s
 
     def test_put_falcon_ok(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/world_1/house", headers=demo_headers, json={"march_skin": "falcon"}, timeout=15)
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "falcon"}, timeout=15)
         assert r.status_code == 200, r.text
         assert r.json()["house"]["march_skin"] == "falcon"
 
     def test_put_elephant_locked(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/world_1/house", headers=demo_headers, json={"march_skin": "elephant"}, timeout=15)
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "elephant"}, timeout=15)
         assert r.status_code == 409, r.text
         assert r.json().get("code") == "MARCH_SKIN_LOCKED"
 
     def test_put_invalid_skin(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/world_1/house", headers=demo_headers, json={"march_skin": "unicorn"}, timeout=15)
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "unicorn"}, timeout=15)
         assert r.status_code == 400, r.text
         assert r.json().get("code") == "INVALID_MARCH_SKIN"
 
     def test_put_dragon_and_marches_reflect(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/world_1/house", headers=demo_headers, json={"march_skin": "dragon"}, timeout=15)
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "dragon"}, timeout=15)
         assert r.status_code == 200, r.text
         assert r.json()["house"]["march_skin"] == "dragon"
         # GET house verifies persistence
-        r2 = requests.get(f"{BASE}/worlds/world_1/house", headers=demo_headers, timeout=15)
+        r2 = requests.get(f"{BASE}/worlds/qa_1/house", headers=demo_headers, timeout=15)
         assert r2.status_code == 200
         assert r2.json()["house"]["march_skin"] == "dragon"
         # Marches map: check own marches skin field
-        r3 = requests.get(f"{BASE}/worlds/world_1/map/marches", headers=demo_headers, timeout=15)
+        r3 = requests.get(f"{BASE}/worlds/qa_1/map/marches", headers=demo_headers, timeout=15)
         assert r3.status_code == 200, r3.text
         payload = r3.json()
         marches = payload.get("marches") if isinstance(payload, dict) else payload
@@ -93,18 +93,18 @@ class TestMarchSkins:
 
 class TestIntroSeen:
     def test_ally_intro_flag_is_boolean_and_toggleable(self, ally_headers):
-        r = requests.get(f"{BASE}/worlds/world_1/me", headers=ally_headers, timeout=15)
+        r = requests.get(f"{BASE}/worlds/qa_1/me", headers=ally_headers, timeout=15)
         assert r.status_code == 200, r.text
         player = r.json().get("player") or r.json()
         intro_seen = player.get("intro_seen")
         assert isinstance(intro_seen, bool), player
         # POST /intro/seen
-        r2 = requests.post(f"{BASE}/worlds/world_1/intro/seen", headers=ally_headers, timeout=15)
+        r2 = requests.post(f"{BASE}/worlds/qa_1/intro/seen", headers=ally_headers, timeout=15)
         assert r2.status_code == 200, r2.text
         body = r2.json()
         assert body.get("intro_seen") is True, body
         # GET me again should be True
-        r3 = requests.get(f"{BASE}/worlds/world_1/me", headers=ally_headers, timeout=15)
+        r3 = requests.get(f"{BASE}/worlds/qa_1/me", headers=ally_headers, timeout=15)
         assert r3.status_code == 200
         p3 = r3.json().get("player") or r3.json()
         assert p3.get("intro_seen") is True

@@ -1,6 +1,8 @@
 """
-QA fixture — «Sovrano» account in a brand-new realm («Regno 3»): everything unlocked, no fog, 20 castles at every cap
-with all Sentinels GUARDED, marches in flight with every march skin, caravans arriving and caravans under interception.
+QA fixture — «Sovrano» account in the Grande Mondo (gm_1, regione IT): everything unlocked, no fog wall for him
+(`view_all_regions` like the Osservatore + `gm_admin` controls), 20 castles at every cap with all Sentinels GUARDED,
+marches in flight with every march skin, caravans arriving and caravans under interception (all inside the IT region —
+the fog wall rules for movement still apply while the Nebbia is up).
 
     cd /app/backend && python scripts/sovrano_account.py            # create / refresh (idempotent where possible)
 
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -35,9 +38,11 @@ from scripts.max_account import LEGENDARY, STANDARD_ARMY, max_buildings, max_res
 
 EMAIL, PASSWORD, DISPLAY, HOUSE = "sovrano@empirelords.com", "Sovrano12345!", "Il Sovrano", "Casa Sovrana"
 ENEMY_EMAIL, ENEMY_PASSWORD, ENEMY_DISPLAY, ENEMY_HOUSE = "predone@empirelords.com", "Predone12345!", "Il Predone", "Casa Predone"
-WORLD_NAME = "Regno 3"
+WORLD = "gm_1"
+REGION = "IT"
 CASTLES = 20
 SENTINEL_GARRISON = {"Fanteria": 400, "Arciere": 300, "Cavalleria": 120}
+RUN = uuid.uuid4().hex[:6]  # idempotency keys must be fresh per run: replaying a key returns the old (completed) march
 CASTLE_SKINS = ["dragon", "demon", "volcano", "light", "sun", "night", "frost", "sylvan", "ocean", "royal", "obsidian", "sandstone", "classic"]
 
 
@@ -82,7 +87,7 @@ async def pick_slot(world_id: str, grid, neutrals: list[dict]) -> dict:
     """Free slot whose 12 Sentinel tiles are land, with ≥ 19 neutrals within 45 tiles and a free slot 15–35 tiles away."""
     t = get_spec().territory
     r_in, r_out = int(t["inner_sentinel_radius_tiles"]), int(t["outer_sentinel_radius_tiles"])
-    slots = [s async for s in db().settlements.find({"world_id": world_id, "kind": "PLAYER_SLOT", "slot_status": "FREE"}).sort("_id", 1)]
+    slots = [s async for s in db().settlements.find({"world_id": world_id, "kind": "PLAYER_SLOT", "slot_status": "FREE", "region_code": REGION}).sort("_id", 1)]
     best, best_score = None, -1
     for slot in slots:
         ok = True
@@ -152,33 +157,32 @@ async def conquer(world_id: str, player: dict, targets: list[dict], want: int, t
 async def main() -> None:
     spec = get_spec()
     now = clock.now()
-    world = await db().worlds.find_one({"name": WORLD_NAME})
+    world = await db().worlds.find_one({"_id": WORLD})
     if not world:
-        world = await worlds.create_world(WORLD_NAME)
-        print(f"created {world['_id']} «{WORLD_NAME}» {world['size']}×{world['size']}")
+        raise SystemExit(f"{WORLD} not found — create the Grande Mondo first (scripts/create_grande_mondo.py)")
     W = world["_id"]
     grid = await load_terrain(W)
 
     # ------------------------------------------------------------------ Sovrano
     acc = await account(EMAIL, PASSWORD, DISPLAY)
     player = await db().players.find_one({"world_id": W, "account_id": acc["_id"]})
-    neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None})]
+    neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None, "region_code": REGION})]
     if not player:
         slot = await pick_slot(W, grid, neutrals)
-        player = await worlds.join_world(world, acc["_id"], HOUSE, slot_id=slot["_id"])
-        print(f"joined {W} as {HOUSE} at ({slot['x']},{slot['y']})")
+        player = await worlds.join_world(world, acc["_id"], HOUSE, slot_id=slot["_id"], region_code=REGION)
+        print(f"joined {W} region {REGION} as {HOUSE} at ({slot['x']},{slot['y']})")
     home = await db().settlements.find_one({"_id": player["mother_settlement_id"]})
     await db().settlements.update_one({"_id": home["_id"]}, {"$set": {**max_state(30, spec, True), "skin": "dragon"}})
     await db().players.update_one(
         {"_id": player["_id"]},
-        {"$set": {"prestige": 60_000, "intro_seen_at": now, "tour_seen_at": now, "inactivity_exempt": True, "shield_ended_at": now, "shield_end_reason": "QA_SOVRANO", "march_skin": "dragon", "sanctuary": {"level": 5}, "unicorn": {"state": "READY", "qa": True}, "specialization": "ATTACKER", "specialization_changed_at": now}},
+        {"$set": {"prestige": 60_000, "intro_seen_at": now, "tour_seen_at": now, "inactivity_exempt": True, "shield_ended_at": now, "shield_end_reason": "QA_SOVRANO", "march_skin": "dragon", "sanctuary": {"level": 5}, "unicorn": {"state": "READY", "qa": True}, "specialization": "ATTACKER", "specialization_changed_at": now, "view_all_regions": True, "gm_admin": True}},
     )
     await db().accounts.update_one({"_id": acc["_id"]}, {"$set": {"rubies": 999_999, "castle_skins": [s["id"] for s in PREMIUM_SKINS]}})
 
     # 19 more castles: nearest neutrals, real conquest transfer, then every one at L30 with a different castle skin
     owned = await db().settlements.count_documents({"world_id": W, "owner_player_id": player["_id"]})
     if owned < CASTLES:
-        neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None})]
+        neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None, "region_code": REGION})]
         neutrals.sort(key=lambda n: dist(n, home))
         taken = await conquer(W, player, neutrals, CASTLES - owned, "sovrano")
         print(f"conquered {len(taken)} castles")
@@ -197,16 +201,16 @@ async def main() -> None:
     eacc = await account(ENEMY_EMAIL, ENEMY_PASSWORD, ENEMY_DISPLAY)
     enemy = await db().players.find_one({"world_id": W, "account_id": eacc["_id"]})
     if not enemy:
-        slots = [s async for s in db().settlements.find({"world_id": W, "kind": "PLAYER_SLOT", "slot_status": "FREE"})]
-        slots = [s for s in slots if 15 <= dist(s, home) <= 35] or [s for s in slots if dist(s, home) <= 45]
+        slots = [s async for s in db().settlements.find({"world_id": W, "kind": "PLAYER_SLOT", "slot_status": "FREE", "region_code": REGION})]
+        slots = [s for s in slots if 15 <= dist(s, home) <= 35] or [s for s in slots if dist(s, home) <= 45] or slots
         slots.sort(key=lambda s: dist(s, home))
-        enemy = await worlds.join_world(world, eacc["_id"], ENEMY_HOUSE, slot_id=slots[0]["_id"])
+        enemy = await worlds.join_world(world, eacc["_id"], ENEMY_HOUSE, slot_id=slots[0]["_id"], region_code=REGION)
         print(f"enemy joined at ({slots[0]['x']},{slots[0]['y']}) — {dist(slots[0], home)} tiles from the Sovrano")
     ehome = await db().settlements.find_one({"_id": enemy["mother_settlement_id"]})
     await db().settlements.update_one({"_id": ehome["_id"]}, {"$set": {**max_state(20, spec, False), "skin": "obsidian"}})
     await db().players.update_one({"_id": enemy["_id"]}, {"$set": {"prestige": 3_000, "intro_seen_at": now, "tour_seen_at": now, "inactivity_exempt": True, "shield_ended_at": now, "shield_end_reason": "QA_PREDONE", "march_skin": "falcon"}})
     if await db().settlements.count_documents({"world_id": W, "owner_player_id": enemy["_id"]}) < 2:
-        neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None})]
+        neutrals = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None, "region_code": REGION})]
         neutrals.sort(key=lambda n: dist(n, ehome))
         taken = await conquer(W, enemy, [n for n in neutrals if dist(n, ehome) >= 8], 1, "predone")
         for v in taken:
@@ -219,7 +223,7 @@ async def main() -> None:
 
     # ------------------------------------------------------------------ live traffic (only if nothing is in flight yet)
     if await db().marches.count_documents({"world_id": W, "player_id": player["_id"], "status": "OUTBOUND"}) == 0:
-        far = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None})]
+        far = [n async for n in db().settlements.find({"world_id": W, "kind": "NEUTRAL", "owner_player_id": None, "region_code": REGION})]
         far.sort(key=lambda n: dist(n, home))
         villages = [c for c in castles if not c.get("is_mother")]
         by_dist = sorted(villages, key=lambda c: dist(c, home))
@@ -229,20 +233,26 @@ async def main() -> None:
             return cands[len(cands) // 2] if cands else far[-1]
 
         async def launch(origin: dict, mission: str, units: dict, target: dict, skin: str, key: str) -> None:
-            try:
-                m = await marches.launch(world, player, origin, mission, units, target["_id"], None, key)
-            except ApiError as e:
-                print(f"  ! {mission} from {origin['_id']}: {e.code} {e.details}")
+            cands = [target] + [n for n in far if dist(n, origin) >= 20 and n["_id"] != target["_id"]][::5][:8]
+            for tgt in cands:
+                try:
+                    m = await marches.launch(world, player, origin, mission, units, tgt["_id"], None, key)
+                except ApiError as e:
+                    if e.code == "NO_LAND_PATH":
+                        continue
+                    print(f"  ! {mission} from {origin['_id']}: {e.code} {e.details}")
+                    return
+                await db().marches.update_one({"_id": m["_id"]}, {"$set": {"skin": skin}})
+                print(f"  march {mission:<9} skin {skin:<8} {origin['name'] or origin['_id']} → {tgt.get('name')} · eta {int(m['eta_seconds'] // 3600)} h {int(m['eta_seconds'] % 3600 // 60)} min")
                 return
-            await db().marches.update_one({"_id": m["_id"]}, {"$set": {"skin": skin}})
-            print(f"  march {mission:<9} skin {skin:<8} {origin['name'] or origin['_id']} → {target.get('name')} · eta {int(m['eta_seconds'] // 3600)} h {int(m['eta_seconds'] % 3600 // 60)} min")
+            print(f"  ! {mission} from {origin['_id']}: no reachable target")
 
         # one march per skin, spread over different castles and distances
-        await launch(home, "ATTACK", {"Drago": 1, "Cavalleria": 2000, "Falco": 500}, pick_far(home, 60, 120), "dragon", "qa_sov_m1")
-        await launch(by_dist[0], "RAID", {"Elefante da Guerra": 400, "Fanteria": 3000, "Arciere": 1500}, pick_far(by_dist[0], 25, 50), "elephant", "qa_sov_m2")
-        await launch(by_dist[1], "ATTACK", {"Falco": 1500, "Lupo": 800, "Cavalleria": 1200}, pick_far(by_dist[1], 30, 70), "falcon", "qa_sov_m3")
-        await launch(by_dist[2], "REINFORCE", {"Fanteria": 2000, "Arciere": 2000}, by_dist[-1], "classic", "qa_sov_m4")
-        await launch(by_dist[3], "ATTACK", {"Leone": 1200, "Orso": 600}, pick_far(by_dist[3], 30, 60), "dragon", "qa_sov_m5")
+        await launch(home, "ATTACK", {"Drago": 1, "Cavalleria": 2000, "Falco": 500}, pick_far(home, 60, 120), "dragon", f"qa_sov_m1_{RUN}")
+        await launch(by_dist[0], "RAID", {"Elefante da Guerra": 400, "Fanteria": 3000, "Arciere": 1500}, pick_far(by_dist[0], 25, 50), "elephant", f"qa_sov_m2_{RUN}")
+        await launch(by_dist[1], "ATTACK", {"Falco": 1500, "Lupo": 800, "Cavalleria": 1200}, pick_far(by_dist[1], 30, 70), "falcon", f"qa_sov_m3_{RUN}")
+        await launch(by_dist[2], "REINFORCE", {"Fanteria": 2000, "Arciere": 2000}, by_dist[-1], "classic", f"qa_sov_m4_{RUN}")
+        await launch(by_dist[3], "ATTACK", {"Leone": 1200, "Orso": 600}, pick_far(by_dist[3], 30, 60), "dragon", f"qa_sov_m5_{RUN}")
 
         # caravans arriving (own castles, escorted) — one per origin castle
         async def caravan(origin: dict, target: dict, escort: dict, key: str, who: dict = player) -> dict | None:
@@ -255,39 +265,39 @@ async def main() -> None:
             print(f"  caravan {origin.get('name') or origin['_id']} → {target.get('name')} · eta {int(m['eta_seconds'] // 3600)} h {int(m['eta_seconds'] % 3600 // 60)} min")
             return m
 
-        my_car = await caravan(home, by_dist[-2], {"Cavalleria": 60}, "qa_sov_c1")
-        await caravan(by_dist[4], home, {"Fanteria": 80}, "qa_sov_c2")
-        await caravan(by_dist[5], home, {"Lupo": 40}, "qa_sov_c3")
-        await caravan(by_dist[6], by_dist[7], {}, "qa_sov_c4")
+        my_car = await caravan(home, by_dist[-2], {"Cavalleria": 60}, f"qa_sov_c1_{RUN}")
+        await caravan(by_dist[4], home, {"Fanteria": 80}, f"qa_sov_c2_{RUN}")
+        await caravan(by_dist[5], home, {"Lupo": 40}, f"qa_sov_c3_{RUN}")
+        await caravan(by_dist[6], by_dist[7], {}, f"qa_sov_c4_{RUN}")
 
         # enemy caravans → intercepted by the Sovrano («in saccheggio»); the enemy raids one of ours back
         if evillage:
-            ec1 = await caravan(ehome, evillage, {"Fanteria": 40}, "qa_pred_c1", enemy)
-            ec2 = await caravan(evillage, ehome, {"Arciere": 30}, "qa_pred_c2", enemy)
+            ec1 = await caravan(ehome, evillage, {"Fanteria": 40}, f"qa_pred_c1_{RUN}", enemy)
+            ec2 = await caravan(evillage, ehome, {"Arciere": 30}, f"qa_pred_c2_{RUN}", enemy)
             for i, ec in enumerate([ec1, ec2]):
                 if not ec:
                     continue
                 origin = home if i == 0 else by_dist[0]
                 try:
-                    im = await caravans.intercept(world, player, origin, ec["_id"], {"Cavalleria": 800, "Falco": 300}, f"qa_sov_i{i}")
+                    im = await caravans.intercept(world, player, origin, ec["_id"], {"Drago": 1, "Falco": 600}, f"qa_sov_i{i}_{RUN}")
                     print(f"  INTERCEPT {origin['name']} → carovana Predone · eta {int(im['eta_seconds'] // 60)} min")
                 except ApiError as e:
                     print(f"  ! intercept {i}: {e.code} {e.details}")
             if my_car:
                 try:
-                    im = await caravans.intercept(world, enemy, ehome, my_car["_id"], {"Cavalleria": 150, "Fanteria": 200}, "qa_pred_i0")
+                    im = await caravans.intercept(world, enemy, ehome, my_car["_id"], {"Cavalleria": 150, "Fanteria": 200}, f"qa_pred_i0_{RUN}")
                     print(f"  enemy INTERCEPT on our caravan · eta {int(im['eta_seconds'] // 60)} min")
                 except ApiError as e:
                     print(f"  ! enemy intercept: {e.code} {e.details}")
             try:
-                m = await marches.launch(world, enemy, ehome, "RAID", {"Cavalleria": 300, "Fanteria": 400}, by_dist[0]["_id"], None, "qa_pred_raid")
+                m = await marches.launch(world, enemy, ehome, "RAID", {"Cavalleria": 300, "Fanteria": 400}, by_dist[0]["_id"], None, f"qa_pred_raid_{RUN}")
                 print(f"  enemy RAID → {by_dist[0]['name']} · eta {int(m['eta_seconds'] // 3600)} h {int(m['eta_seconds'] % 3600 // 60)} min")
             except ApiError as e:
                 print(f"  ! enemy raid: {e.code} {e.details}")
 
     await db().audit.insert_one({"world_id": W, "type": "qa_sovrano_account", "player_id": player["_id"], "settlement_id": home["_id"], "at": now})
     total = await db().settlements.count_documents({"world_id": W, "owner_player_id": player["_id"]})
-    print(f"\nLOGIN  {EMAIL} / {PASSWORD}   world {W} («{world['name']}»)  house {HOUSE}  castles {total}  mother ({home['x']},{home['y']})")
+    print(f"\nLOGIN  {EMAIL} / {PASSWORD}   world {W} («{world['name']}») region {REGION}  house {HOUSE}  castles {total}  mother ({home['x']},{home['y']})")
     print(f"LOGIN  {ENEMY_EMAIL} / {ENEMY_PASSWORD}   house {ENEMY_HOUSE}  mother ({ehome['x']},{ehome['y']})")
 
 

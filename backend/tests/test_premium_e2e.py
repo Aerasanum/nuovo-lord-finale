@@ -1,7 +1,7 @@
 """Rubies / premium flows against the PUBLIC deployment (Bible §23, spec.premium, player_specialization).
 
 Run: cd /app/backend && pytest tests/test_premium_e2e.py -o addopts='' -v
-Uses the demo account (world_1, home stl_0484bd7cfcbd40dd). Grants Rubies through the QA endpoint (store catalog is empty).
+Uses the demo account (qa_1, home stl_0484bd7cfcbd40dd). Grants Rubies through the QA endpoint (store catalog is empty).
 """
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ import uuid
 
 import requests
 
-BASE_URL = "https://empire-lords-dragon.preview.emergentagent.com"
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
-WORLD = "world_1"
-HOME = "stl_0484bd7cfcbd40dd"
+WORLD = "qa_1"
+HOME = None  # resolved from /me at runtime
 DEMO = ("demo@empirelords.com", "Demo12345!")
 
 
@@ -25,7 +25,13 @@ def url(p: str) -> str:
 def login(email, pw):
     r = requests.post(url("/auth/login"), json={"email": email, "password": pw}, timeout=30)
     assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
+    h = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
+    global HOME
+    if HOME is None:
+        me = requests.get(url(f"/worlds/{WORLD}/me"), headers=h, timeout=30)
+        if me.status_code == 200:
+            HOME = me.json()["player"]["mother_settlement_id"]
+    return h
 
 
 def advance(seconds: float) -> None:
@@ -54,7 +60,7 @@ class TestWallet:
     def test_wallet_and_qa_grant(self):
         h = login(*DEMO)
         w0 = requests.get(url("/wallet"), headers=h, timeout=30).json()
-        assert w0["store"]["status"] == "DISABLED_UNTIL_COMMERCIAL_CATALOG" and w0["store"]["products"] == []
+        assert w0["store"]["status"] == "ACTIVE" and "eld_rubies_4999" in w0["store"]["products"]  # Negozio live since iteration 34
         assert w0["cosmetics"]["items"]["house_rename"]["price_rubies"] == 500
         g = requests.post(url("/qa/rubies"), json={"email": DEMO[0], "amount": 5000}, headers=ADMIN, timeout=30).json()
         assert g["ok"] and g["rubies"] == w0["rubies"] + 5000

@@ -5,7 +5,7 @@ cooldown, slots-full, mission-type-active, idempotency, unknown key, invalid uni
 advance-clock→completion (reward, cooldown, prestige, garrison restore, inbox), progress/chronicle
 DTOs, and 401 on chronicle without bearer.
 
-Uses the demo account (already joined world_1). Marches are NOT launched here — only missions.
+Uses the demo account (already joined qa_1). Marches are NOT launched here — only missions.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = "https://empire-lords-dragon.preview.emergentagent.com"
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_KEY = "eld-admin-7f3c9a1d2b4e"
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
 DEMO_EMAIL = "demo@empirelords.com"
@@ -37,7 +37,7 @@ def demo(session):
     assert r.status_code == 200, r.text
     tok = r.json()["access_token"]
     headers = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
-    me = session.get(api("/api/worlds/world_1/me"), headers=headers, timeout=15).json()
+    me = session.get(api("/api/worlds/qa_1/me"), headers=headers, timeout=15).json()
     st = me["settlements"][0]
     return {"headers": headers, "settlement_id": st["settlement_id"], "settlement": st}
 
@@ -50,13 +50,13 @@ def _grant(session, sid: str, **kw):
 
 
 def _missions(session, headers):
-    r = session.get(api("/api/worlds/world_1/missions"), headers=headers, timeout=15)
+    r = session.get(api("/api/worlds/qa_1/missions"), headers=headers, timeout=15)
     assert r.status_code == 200, r.text
     return r.json()
 
 
 def _army(session, headers, sid):
-    r = session.get(api(f"/api/worlds/world_1/settlements/{sid}/army"), headers=headers, timeout=15)
+    r = session.get(api(f"/api/worlds/qa_1/settlements/{sid}/army"), headers=headers, timeout=15)
     assert r.status_code == 200
     return r.json().get("army", {})
 
@@ -131,7 +131,7 @@ class TestMissionsFlow:
         # ---- 1) commercial_escort success (uses 500 Fanteria)
         idem = f"iter8-ce-{uuid.uuid4().hex[:6]}"
         body = {"key": "commercial_escort", "origin_settlement_id": sid, "units": {"Fanteria": 500}, "idempotency_key": idem}
-        r = session.post(api("/api/worlds/world_1/missions"), json=body, headers=headers, timeout=15)
+        r = session.post(api("/api/worlds/qa_1/missions"), json=body, headers=headers, timeout=15)
         assert r.status_code == 201, r.text
         m1 = r.json()
         assert m1["status"] == "ACTIVE" and m1["key"] == "commercial_escort"
@@ -142,7 +142,7 @@ class TestMissionsFlow:
         assert after1["Fanteria"] == base_fan - 500, f"Fanteria: {base_fan} → {after1['Fanteria']}"
 
         # ---- 2) same idempotency key → 201 same mission_id
-        r_dup = session.post(api("/api/worlds/world_1/missions"), json=body, headers=headers, timeout=15)
+        r_dup = session.post(api("/api/worlds/qa_1/missions"), json=body, headers=headers, timeout=15)
         assert r_dup.status_code == 201, r_dup.text
         assert r_dup.json()["mission_id"] == mission_id_1
         # garrison unchanged after dup
@@ -151,7 +151,7 @@ class TestMissionsFlow:
 
         # ---- 3) same key different idempotency → 409 MISSION_TYPE_ACTIVE
         r_ta = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={**body, "idempotency_key": f"iter8-ce-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -160,7 +160,7 @@ class TestMissionsFlow:
 
         # ---- 4) patrol_local with Cavalleria → 400 MISSION_UNITS_NOT_ALLOWED (test BEFORE we fill slots)
         r_ua = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "patrol_local", "origin_settlement_id": sid, "units": {"Cavalleria": 100}, "idempotency_key": f"iter8-pn-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -169,7 +169,7 @@ class TestMissionsFlow:
 
         # ---- 5) predator_hunt with only Fanteria → 400 MISSION_MIXED_UNITS
         r_mx = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "predator_hunt", "origin_settlement_id": sid, "units": {"Fanteria": 1000}, "idempotency_key": f"iter8-ph-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -179,7 +179,7 @@ class TestMissionsFlow:
         # ---- 6) predator_hunt with mixed → 201 (2 active now)
         idem_ph = f"iter8-ph-{uuid.uuid4().hex[:6]}"
         r_ph = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "predator_hunt", "origin_settlement_id": sid, "units": {"Fanteria": 600, "Arciere": 600}, "idempotency_key": idem_ph},
             headers=headers, timeout=15,
         )
@@ -193,7 +193,7 @@ class TestMissionsFlow:
 
         # ---- 7) third mission → 409 MISSION_SLOTS_FULL
         r_sf = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "patrol_local", "origin_settlement_id": sid, "units": {"Fanteria": 100}, "idempotency_key": f"iter8-pl-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -202,7 +202,7 @@ class TestMissionsFlow:
 
         # ---- 8) distant_recon needs Falco -> without Falco → 400 MISSION_NEEDS_FALCO (before slot check would happen too but the API validates units first? Actually slots check comes before units — see missions.start ordering: idem→_check_requirements→cd→slots.) In practice with 2 active it will actually hit MISSION_SLOTS_FULL. So free a slot first is impossible without waiting; verify the error is one of the two acceptable codes at this point:
         r_dr = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "distant_recon", "origin_settlement_id": sid, "units": {"Fanteria": 10}, "idempotency_key": f"iter8-dr-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -212,7 +212,7 @@ class TestMissionsFlow:
 
         # ---- 9) unknown mission → 400 UNKNOWN_MISSION
         r_un = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "not_a_mission", "origin_settlement_id": sid, "units": {"Fanteria": 1}, "idempotency_key": f"iter8-un-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -220,7 +220,7 @@ class TestMissionsFlow:
         assert r_un.json().get("code") == "UNKNOWN_MISSION"
 
         # ---- 10) distant_recon with Falco: research check. Get settlement to see research.
-        st = session.get(api(f"/api/worlds/world_1/settlements/{sid}"), headers=headers, timeout=15).json()
+        st = session.get(api(f"/api/worlds/qa_1/settlements/{sid}"), headers=headers, timeout=15).json()
         obs_lvl = 0
         r_map = st.get("research", {}) if isinstance(st.get("research"), dict) else {}
         # research may store keys with '.' or '__'
@@ -228,7 +228,7 @@ class TestMissionsFlow:
             if "observation_1" in k and "intelligence" in k:
                 obs_lvl = int(v)
         r_falco = session.post(
-            api("/api/worlds/world_1/missions"),
+            api("/api/worlds/qa_1/missions"),
             json={"key": "distant_recon", "origin_settlement_id": sid, "units": {"Falco": 1}, "idempotency_key": f"iter8-drf-{uuid.uuid4().hex[:6]}"},
             headers=headers, timeout=15,
         )
@@ -265,7 +265,7 @@ class TestMissionsFlow:
         assert int(ov3["progress"]["prestige"]) >= prestige_before + 15, (prestige_before, ov3["progress"]["prestige"])
 
         # inbox has MISSION_COMPLETED with deep_link 'missions'
-        inbox = session.get(api("/api/worlds/world_1/inbox"), headers=headers, timeout=15).json()
+        inbox = session.get(api("/api/worlds/qa_1/inbox"), headers=headers, timeout=15).json()
         mc = [i for i in inbox.get("items", []) if i["event"] == "MISSION_COMPLETED"]
         assert mc, inbox
         assert any(i.get("deep_link") == "missions" for i in mc)
@@ -288,7 +288,7 @@ class TestMissionsFlow:
 
 class TestProgress:
     def test_progress_shape(self, session, demo):
-        r = session.get(api("/api/worlds/world_1/progress"), headers=demo["headers"], timeout=15)
+        r = session.get(api("/api/worlds/qa_1/progress"), headers=demo["headers"], timeout=15)
         assert r.status_code == 200, r.text
         d = r.json()
         for k in ("prestige", "titles", "cosmetics", "tracks", "history"):
@@ -309,7 +309,7 @@ class TestProgress:
 
 class TestChronicle:
     def test_chronicle_shape(self, session, demo):
-        r = session.get(api("/api/worlds/world_1/chronicle"), headers=demo["headers"], timeout=15)
+        r = session.get(api("/api/worlds/qa_1/chronicle"), headers=demo["headers"], timeout=15)
         assert r.status_code == 200, r.text
         d = r.json()
         for k in ("entries", "house_names", "records"):
@@ -324,5 +324,5 @@ class TestChronicle:
             assert "power" in lb and "holder" in lb, lb
 
     def test_chronicle_requires_bearer(self, session):
-        r = session.get(api("/api/worlds/world_1/chronicle"), timeout=15)
+        r = session.get(api("/api/worlds/qa_1/chronicle"), timeout=15)
         assert r.status_code == 401, r.text

@@ -4,7 +4,7 @@ QA / balancing tool — "Max account" bootstrap + feasibility report.
     cd /app/backend && python scripts/max_account.py            # create/refresh max@empirelords.com at every cap + report
     cd /app/backend && python scripts/max_account.py --report   # report only (no DB writes)
 
-Account: max@empirelords.com / Max12345!  (world_1, Casata "Casa Max")
+Account: max@empirelords.com / Max12345!  (hidden QA world qa_1, Casata "Casa Max")
 State written (server data model, same fields the runtime reads):
   settlement level 30 (Metropolis), every building L30 (Santuario Mitico L5 = its own 5-level table), all 114 research
   nodes at max level, resources = warehouse cap, wall L30 full HP, a full garrison of every standard unit and 3 of each
@@ -36,7 +36,7 @@ EMAIL = "max@empirelords.com"
 PASSWORD = "Max12345!"
 DISPLAY = "MaxLord"
 HOUSE = "Casa Max"
-WORLD = "world_1"
+WORLD = "qa_1"
 REPORT = Path("/app/memory/MAX_ACCOUNT_REPORT.md")
 
 STANDARD_ARMY = {

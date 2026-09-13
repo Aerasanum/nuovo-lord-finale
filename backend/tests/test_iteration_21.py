@@ -2,11 +2,11 @@
 Iteration 21 backend regression tests (public preview URL, demo player).
 
 Coverage:
-- GET /api/worlds → lists world_1 (400) and world_2 (600), OPEN, 100 slots
-- Chunk API bounds for world_1 (13 chunks) and world_2 (19 chunks)
+- GET /api/worlds → lists only Grande Mondo realms (gm_1); hidden classic QA world qa_1 reachable by id
+- Chunk API bounds for qa_1 (13 chunks) and world_2 (19 chunks)
 - Chunk DTO shape (terrain_b64 32*32 bytes, sentinels[], territory[])
-- Map overview sizes (100 for world_1, 150 for world_2), terrain_b64 length
-- Pyramid anchors: world_1 [200,200], world_2 [300,300]
+- Map overview sizes (100 for qa_1, 150 for world_2), terrain_b64 length
+- Pyramid anchors: qa_1 [200,200], world_2 [300,300]
 - Sentinel wedge geometry around Casa Demo (6,188) → 4 wedges cover 7x7 minus water
 - POST /api/worlds without admin key → 401/403
 - POST /api/worlds with admin key + invalid body (size=100) → 422
@@ -20,7 +20,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://empire-lords-dragon.preview.emergentagent.com").rstrip("/")
+from tests.e2e_base import BASE_URL  # QA backend only
 ADMIN_KEY = "eld-admin-7f3c9a1d2b4e"
 
 DEMO_EMAIL = "demo@empirelords.com"
@@ -38,6 +38,7 @@ def demo_headers():
 # ---------------------------- WORLDS LIST ----------------------------
 
 def test_worlds_list_contains_two_worlds(demo_headers):
+    """Product decision (June 2026): players only see Grande Mondo realms; the classic QA world is hidden."""
     r = requests.get(f"{BASE_URL}/api/worlds", headers=demo_headers, timeout=20)
     assert r.status_code == 200, r.text
     data = r.json()
@@ -45,19 +46,25 @@ def test_worlds_list_contains_two_worlds(demo_headers):
     worlds = data if isinstance(data, list) else data.get("worlds", data)
     assert isinstance(worlds, list), f"unexpected shape: {data}"
     ids = {w["world_id"]: w for w in worlds}
-    assert "world_1" in ids and "world_2" in ids, f"missing worlds: {list(ids)}"
-    w1, w2 = ids["world_1"], ids["world_2"]
-    assert w1["size"] == 400, w1
-    assert w2["size"] == 600, w2
-    for w in (w1, w2):
-        assert w.get("status") == "OPEN", w
-        assert w.get("player_slots") == 100, w
+    assert "gm_1" in ids and "qa_1" not in ids, f"unexpected worlds: {list(ids)}"
+    assert all(w.get("kind") == "GRANDE_MONDO" for w in worlds), worlds
+    w2 = ids["gm_1"]
+    assert w2["size"] == 2176 and w2.get("status") == "OPEN", w2
+    assert w2.get("grande_mondo", {}).get("regions") and len(w2["grande_mondo"]["regions"]) == 9, w2
 
 
 # ---------------------------- CHUNK BOUNDS ----------------------------
 
-def test_world2_chunk_18_18_ok(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_2/map/chunk/18/18", headers=demo_headers, timeout=20)
+@pytest.fixture(scope="module")
+def obs_headers():
+    """Osservatore sees every Grande Mondo region (no fog) — used for the gm_1 map assertions."""
+    r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": "osservatore@empirelords.com", "password": "Demo12345!"}, timeout=20)
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def test_world2_chunk_18_18_ok(obs_headers):
+    r = requests.get(f"{BASE_URL}/api/worlds/gm_1/map/chunk/18/18", headers=obs_headers, timeout=20)
     assert r.status_code == 200, r.text
     body = r.json()
     assert "terrain_b64" in body
@@ -67,14 +74,14 @@ def test_world2_chunk_18_18_ok(demo_headers):
     assert isinstance(body.get("territory", []), list)
 
 
-def test_world2_chunk_out_of_range(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_2/map/chunk/19/0", headers=demo_headers, timeout=20)
+def test_world2_chunk_out_of_range(obs_headers):
+    r = requests.get(f"{BASE_URL}/api/worlds/gm_1/map/chunk/68/0", headers=obs_headers, timeout=20)
     assert r.status_code == 400, r.text
     assert "CHUNK_OUT_OF_RANGE" in r.text
 
 
 def test_world1_chunk_out_of_range(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/map/chunk/13/0", headers=demo_headers, timeout=20)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/map/chunk/13/0", headers=demo_headers, timeout=20)
     assert r.status_code == 400, r.text
     assert "CHUNK_OUT_OF_RANGE" in r.text
 
@@ -82,7 +89,7 @@ def test_world1_chunk_out_of_range(demo_headers):
 # ---------------------------- MAP OVERVIEW ----------------------------
 
 def test_map_overview_world1(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/map/overview", headers=demo_headers, timeout=30)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/map/overview", headers=demo_headers, timeout=30)
     assert r.status_code == 200, r.text
     body = r.json()
     assert body.get("size") == 100, body.get("size")
@@ -90,13 +97,13 @@ def test_map_overview_world1(demo_headers):
     assert len(raw) == 100 * 100
 
 
-def test_map_overview_world2(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_2/map/overview", headers=demo_headers, timeout=30)
+def test_map_overview_world2(obs_headers):
+    r = requests.get(f"{BASE_URL}/api/worlds/gm_1/map/overview", headers=obs_headers, timeout=60)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body.get("size") == 150, body.get("size")
+    size = body.get("size")
     raw = base64.b64decode(body["terrain_b64"])
-    assert len(raw) == 150 * 150
+    assert size and len(raw) == size * size, (size, len(raw))
 
 
 # ---------------------------- PYRAMID ----------------------------
@@ -110,11 +117,11 @@ def _fetch_pyramid(world_id, headers):
     return None
 
 
-def test_pyramid_anchors(demo_headers):
-    p1 = _fetch_pyramid("world_1", demo_headers)
-    p2 = _fetch_pyramid("world_2", demo_headers)
-    assert p1 is not None, "pyramid endpoint missing for world_1"
-    assert p2 is not None, "pyramid endpoint missing for world_2"
+def test_pyramid_anchors(demo_headers, obs_headers):
+    p1 = _fetch_pyramid("qa_1", demo_headers)
+    p2 = _fetch_pyramid("gm_1", obs_headers)
+    assert p1 is not None, "pyramid endpoint missing for qa_1"
+    assert p2 is not None, "pyramid endpoint missing for gm_1"
 
     def anchor(p):
         # possible shapes: {"anchor":[x,y]} or {"x":..,"y":..} or {"position":{"x":..,"y":..}}
@@ -127,15 +134,16 @@ def test_pyramid_anchors(demo_headers):
         return None
 
     a1, a2 = anchor(p1), anchor(p2)
-    assert a1 == [200, 200], f"world_1 anchor {a1} raw {p1}"
-    assert a2 == [300, 300], f"world_2 anchor {a2} raw {p2}"
+    assert a1 == [200, 200], f"qa_1 anchor {a1} raw {p1}"
+    assert a2 and p2.get("kind") in ("REGIONAL", "GRAND"), f"gm_1 pyramid {a2} raw {p2}"
 
 
 # ---------------------------- SENTINEL WEDGES ----------------------------
 
+@pytest.mark.skip(reason="legacy fixture of the deleted Regno 1 (hard-coded settlement ids); Grande Mondo only since June 2026")
 def test_sentinels_wedges_world1(demo_headers):
     stl = "stl_0484bd7cfcbd40dd"
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/settlements/{stl}/sentinels", headers=demo_headers, timeout=20)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/settlements/{stl}/sentinels", headers=demo_headers, timeout=20)
     assert r.status_code == 200, r.text
     body = r.json()
     sents = body if isinstance(body, list) else body.get("sentinels", [])
@@ -148,8 +156,9 @@ def test_sentinels_wedges_world1(demo_headers):
         assert s.get("state") == "GUARDED", s
 
 
+@pytest.mark.skip(reason="legacy fixture of the deleted Regno 1 (hard-coded settlement ids); Grande Mondo only since June 2026")
 def test_territory_wedge_chunk_world1(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/map/chunk/0/5", headers=demo_headers, timeout=20)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/map/chunk/0/5", headers=demo_headers, timeout=20)
     assert r.status_code == 200, r.text
     body = r.json()
     territory = body.get("territory", [])
@@ -186,12 +195,13 @@ def test_post_worlds_validation_size_too_small():
 # ---------------------------- REGRESSIONS ----------------------------
 
 def test_marches_list_world1(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/marches", headers=demo_headers, timeout=20)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/marches", headers=demo_headers, timeout=20)
     assert r.status_code == 200, r.text
 
 
+@pytest.mark.skip(reason="legacy fixture of the deleted Regno 1 (hard-coded settlement ids); Grande Mondo only since June 2026")
 def test_settlement_read_world1(demo_headers):
-    r = requests.get(f"{BASE_URL}/api/worlds/world_1/settlements/stl_0484bd7cfcbd40dd", headers=demo_headers, timeout=20)
+    r = requests.get(f"{BASE_URL}/api/worlds/qa_1/settlements/stl_0484bd7cfcbd40dd", headers=demo_headers, timeout=20)
     assert r.status_code == 200, r.text
     body = r.json()
     # sanity: contains coordinates

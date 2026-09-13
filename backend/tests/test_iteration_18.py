@@ -14,13 +14,9 @@ import uuid
 import pytest
 import requests
 
-BASE = (
-    os.environ.get("EXPO_BACKEND_URL")
-    or os.environ.get("EXPO_PUBLIC_BACKEND_URL")
-    or "https://empire-lords-dragon.preview.emergentagent.com"
-).rstrip("/")
+from tests.e2e_base import BASE_URL as BASE  # QA backend only
 
-WORLD_ID = "world_1"
+WORLD_ID = "qa_1"
 ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}
 
 DEMO = {"email": "demo@empirelords.com", "password": "Demo12345!"}
@@ -52,6 +48,7 @@ def rival_hdr():
 
 # ==================================================================== DAILY LOGIN VAULT
 class TestDaily:
+    @pytest.mark.skip(reason="legacy: daily speed-up minutes removed — the Tesoro del Regno pays resources only (iteration 30+)")
     def test_max_daily_status_shape(self, max_hdr):
         r = requests.get(f"{BASE}/api/worlds/{WORLD_ID}/daily", headers=max_hdr, timeout=30)
         assert r.status_code == 200, r.text
@@ -116,6 +113,7 @@ class TestDaily:
 
 # ==================================================================== SPEED-UP
 class TestSpeedup:
+    @pytest.mark.skip(reason="legacy: daily speed-up minutes removed — the Tesoro del Regno pays resources only (iteration 30+)")
     def test_speedup_nonexistent_job_returns_clean_404(self, max_hdr):
         fake = f"job_{uuid.uuid4().hex[:12]}"
         r = requests.post(
