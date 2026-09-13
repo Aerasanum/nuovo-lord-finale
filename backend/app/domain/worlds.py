@@ -198,7 +198,7 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         "player_count": 0,
         "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
         # Grande Piramide monument at the centre; the classic Alliance cycle stays dormant here (regional control comes with the GM Pyramid rules)
-        "pyramid_config": {"anchor": [cx, cy], "first_open_day": 1_000_000, "footprint": [41, 41]},
+        "pyramid_config": {"anchor": [cx, cy], "footprint": [41, 41]},  # Grande Piramide: manual open (admin, during a war) — see pyramid._kind_defaults
         "gm": gm_state,
         "spec_version": spec.version,
         "spec_hash": spec.computed_hash,

@@ -1,19 +1,20 @@
-import { useRouter } from "expo-router";
-import React from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { usePyramid } from "@/src/api/hooks";
+import { usePyramid, usePyramids } from "@/src/api/hooks";
 import { BackButton } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
-import { PyramidActions, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
-import { Countdown, Divider, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { PyramidActions, PyramidPhase, PyramidStatePill, pyramidDescription, pyramidName } from "@/src/components/PyramidCard";
+import { Chip, Countdown, Divider, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
   content: { padding: spacing.md, gap: spacing.md },
+  switcher: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap" },
   hero: { gap: spacing.sm },
   heroTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   heroIcon: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.borderStrong },
@@ -31,7 +32,8 @@ const useStyles = makeStyles((c) => ({
   incoming: { backgroundColor: c.surfaceTertiary, borderRadius: radius.sm, padding: spacing.sm, gap: 4 },
 }));
 
-/** Pyramid endgame (Bible §21): cycle state, deadlines, holder & garrison, rewards, timeline and history. */
+/** Pyramid endgame (Bible §21): cycle state, deadlines, holder & garrison, rewards, timeline and history.
+ * Grande Mondo: `?id=` selects the Piccola Piramide of a region or the Grande Piramide (chips on top). */
 export default function PyramidScreen() {
   const s = useStyles();
   const { colors } = useTheme();
@@ -39,10 +41,16 @@ export default function PyramidScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { worldId } = useGame();
-  const q = usePyramid(worldId);
+  const params = useLocalSearchParams<{ id?: string }>();
+  const [picked, setPicked] = useState<string | null>(null);
+  const id = picked ?? params.id ?? null;
+  const q = usePyramid(worldId, id);
+  const list = usePyramids(worldId);
   const d = q.data;
+  // switcher: my Piccola Piramide + the Grande Piramide (+ any other Pyramid already selected, e.g. from the map)
+  const options = (list.data?.pyramids ?? []).filter((p) => p.kind !== "REGIONAL" || p.mine || p.id === d?.id);
 
-  const goMarch = (mission: "ATTACK" | "REINFORCE") => router.push({ pathname: "/march/new", params: { pyramid: "1", mission } });
+  const goMarch = (mission: "ATTACK" | "REINFORCE") => d && router.push({ pathname: "/march/new", params: { pyramid: d.id, mission } });
   const fmtDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString(lang, { dateStyle: "medium", timeStyle: "short" }) : "—");
 
   return (
@@ -51,6 +59,13 @@ export default function PyramidScreen() {
         <Loading />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+          {options.length > 1 ? (
+            <View style={s.switcher} testID="pyramid-switcher">
+              {options.map((p) => (
+                <Chip key={p.id} label={pyramidName(t, p)} selected={p.id === d.id} onPress={() => setPicked(p.id)} testID={`pyramid-switch-${p.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`} />
+              ))}
+            </View>
+          ) : null}
           {/* hero */}
           <Panel style={s.hero} testID="pyramid-hero">
             <View style={s.heroTop}>
@@ -59,7 +74,7 @@ export default function PyramidScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <T v="heading" testID="pyramid-name">
-                  {d.name}
+                  {pyramidName(t, d)}
                 </T>
                 <T v="caption">
                   {fmt(t("pyramidSubtitle"), { cycle: d.cycle_id })} · {d.anchor[0]},{d.anchor[1]} · {d.footprint[0]}×{d.footprint[1]}
@@ -70,12 +85,22 @@ export default function PyramidScreen() {
             <T v="body" testID="pyramid-description">
               {pyramidDescription(t, d)}
             </T>
+            {d.kind === "GRAND" ? (
+              <T v="caption" testID="pyramid-grand-hint">
+                {t("pyramidGrandHint")}
+              </T>
+            ) : d.kind === "REGIONAL" ? (
+              <T v="caption" testID="pyramid-regional-hint">
+                {t("pyramidRegionalHint")}
+              </T>
+            ) : null}
             <PyramidPhase dto={d} testID="pyramid-phase" />
             {d.owner ? (
               <Row>
                 <Icon name="crown" size={16} color={d.faction === "OWN" ? colors.factionOwn : colors.factionEnemy} />
                 <T v="caption" testID="pyramid-holder">
                   {t("pyramidHolder")}: [{d.owner.tag}] {d.owner.name}
+                  {d.owner.region_code ? ` · ${d.owner.region_code}` : ""}
                 </T>
               </Row>
             ) : null}
@@ -186,7 +211,7 @@ export default function PyramidScreen() {
                 {t("pyramidRewards")}
               </T>
             </Row>
-            <T v="caption">{fmt(t("pyramidRewardDays"), { days: d.config.reward_days })}</T>
+            <T v="caption">{fmt(t(d.config.reward_scope === "REGION" ? "pyramidRewardDaysRegion" : "pyramidRewardDays"), { days: d.config.reward_days })}</T>
             {[
               ["sprout", t("pyramidRewardProduction"), `+${d.config.reward.production_pct}%`],
               ["flask", t("pyramidRewardResearch"), `+${d.config.reward.research_pct}%`],
@@ -219,10 +244,10 @@ export default function PyramidScreen() {
               </T>
             </Row>
             {[
-              { k: "OPEN", icon: "fire", title: t("pyramidCycleOpen"), desc: t("pyramidCycleOpenDesc"), active: d.state === "OPEN" && !d.owner },
+              { k: "OPEN", icon: "fire", title: t("pyramidCycleOpen"), desc: d.config.manual_open ? t("pyramidCycleOpenGrandDesc") : t("pyramidCycleOpenDesc"), active: d.state === "OPEN" && !d.owner },
               { k: "HOLD", icon: "timer-sand", title: t("pyramidCycleHold"), desc: fmt(t("pyramidCycleHoldDesc"), { hours: d.config.hold_hours }), active: d.state === "OPEN" && !!d.owner },
               { k: "LOCK", icon: "trophy", title: t("pyramidCycleLock"), desc: fmt(t("pyramidCycleLockDesc"), { days: d.config.reward_days }), active: d.state === "REWARD_LOCK" },
-              { k: "DORMANT", icon: "sleep", title: t("pyramidCycleDormant"), desc: fmt(t("pyramidCycleDormantDesc"), { days: d.config.dormant_days }), active: d.state === "DORMANT" || d.state === "DORMANT_INITIAL" },
+              { k: "DORMANT", icon: "sleep", title: t("pyramidCycleDormant"), desc: d.config.manual_open ? t("pyramidCycleDormantGrandDesc") : fmt(t("pyramidCycleDormantDesc"), { days: d.config.dormant_days }), active: d.state === "DORMANT" || d.state === "DORMANT_INITIAL" },
             ].map((st, i, arr) => (
               <View key={st.k} style={[s.step, { paddingVertical: 6, position: "relative" }]}>
                 {i < arr.length - 1 ? <View style={s.stepLine} /> : null}
@@ -285,6 +310,7 @@ export default function PyramidScreen() {
                   <View style={{ flex: 1 }}>
                     <T v="body">
                       [{h.tag}] {h.name}
+                      {h.region_code ? ` · ${h.region_code}` : ""}
                     </T>
                     <T v="caption">
                       {fmt(t("pyramidSubtitle"), { cycle: h.cycle_id })} · {h.member_count} {t("members").toLowerCase()} · {fmtDate(h.won_at)}

@@ -159,25 +159,29 @@ async def qa_rubies(body: RubiesIn):
 class PyramidConfigIn(BaseModel):
     world_id: str
     config: dict
+    pyramid_id: str | None = None  # Grande Mondo: "<world>" (Grande Piramide) or "<world>:<REG>" (Piccola Piramide)
+    all_regions: bool = False
 
 
 class PyramidWorldIn(BaseModel):
     world_id: str
     clear_config: bool = False
     config: dict | None = None
+    pyramid_id: str | None = None
 
 
 @router.get("/pyramid/config")
-async def qa_pyramid_config_get(world_id: str):
-    """Effective Pyramid parameters (spec defaults ⊕ per-world override) and the current cycle state."""
+async def qa_pyramid_config_get(world_id: str, pyramid_id: str | None = None):
+    """Effective Pyramid parameters (spec defaults ⊕ kind defaults ⊕ per-world override) and the current cycle state."""
     _gate()
     from app.domain import pyramid
 
     world = await db().worlds.find_one({"_id": world_id})
     if not world:
         raise ApiError("WORLD_NOT_FOUND", "World not found", 404)
-    doc = await pyramid.ensure_state(world)
-    return {"config": pyramid.config(world), "override": world.get("pyramid_config") or {}, "state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "owner_alliance_id": doc.get("owner_alliance_id")}
+    doc = await pyramid.ensure_state(world, pyramid_id)
+    override = world.get("pyramid_config") or {} if doc.get("kind") != "REGIONAL" else (world.get("pyramid_regional_config") or {})
+    return {"id": doc["_id"], "kind": doc.get("kind"), "config": pyramid.config(world, pyramid_id), "override": override, "state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "owner_alliance_id": doc.get("owner_alliance_id"), "pyramids": [i["id"] for i in pyramid.instances(world)]}
 
 
 @router.put("/pyramid/config")
@@ -187,7 +191,7 @@ async def qa_pyramid_config_set(body: PyramidConfigIn):
     _gate()
     from app.domain import pyramid
 
-    return await pyramid.set_config(body.world_id, body.config)
+    return await pyramid.set_config(body.world_id, body.config, body.pyramid_id, body.all_regions)
 
 
 @router.post("/pyramid/reset")
@@ -196,8 +200,8 @@ async def qa_pyramid_reset(body: PyramidWorldIn):
     _gate()
     from app.domain import pyramid
 
-    doc = await pyramid.reset(body.world_id, body.clear_config, body.config)
-    return {"state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "config": pyramid.config(await db().worlds.find_one({"_id": body.world_id}))}
+    doc = await pyramid.reset(body.world_id, body.clear_config, body.config, body.pyramid_id)
+    return {"id": doc["_id"], "state": doc["state"], "cycle_id": doc["cycle_id"], "deadline": clock.iso(doc.get("deadline")), "config": pyramid.config(await db().worlds.find_one({"_id": body.world_id}), body.pyramid_id)}
 
 
 # --------------------------------------------------------------------------- Grande Mondo (Bibbia GM) — phase control

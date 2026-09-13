@@ -36,6 +36,8 @@ def dto(m: dict) -> dict:
         "target_settlement_id": m.get("target_settlement_id"),
         "target_sentinel_id": m.get("target_sentinel_id"),
         "target_pyramid": bool(m.get("target_pyramid")),
+        "pyramid_id": m.get("pyramid_id"),
+        "speed_multiplier": float(m.get("speed_multiplier") or 1.0),
         "target_name": m.get("target_name"),
         "target_xy": m.get("target_xy"),
         "mission": m["mission"],
@@ -153,7 +155,7 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
     }
 
 
-async def launch(world: dict, player: dict, origin: dict, mission: str, units: dict[str, int], target_settlement_id: str | None, target_sentinel_id: str | None, idempotency_key: str | None, naval: bool = False, ships: int = 0, target_pyramid: bool = False) -> dict:
+async def launch(world: dict, player: dict, origin: dict, mission: str, units: dict[str, int], target_settlement_id: str | None, target_sentinel_id: str | None, idempotency_key: str | None, naval: bool = False, ships: int = 0, target_pyramid: bool = False, pyramid_id: str | None = None) -> dict:
     spec = get_spec()
     if idempotency_key:
         existing = await db().marches.find_one({"world_id": world["_id"], "player_id": player["_id"], "idempotency_key": idempotency_key})
@@ -178,14 +180,15 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
     # ---- target resolution + revalidation at launch ----
     target_doc = None
     sentinel_doc = None
+    pyr_doc = None
     if target_pyramid:
-        # Pyramid endgame (Bible §21): legality (OPEN, Structured Alliance, mission vs owner) is validated in its domain
+        # Pyramid endgame (Bible §21): legality (OPEN, Structured Alliance, region, mission vs owner) is validated in its domain
         from app.domain import pyramid
 
-        pyr_doc, pyr_alliance = await pyramid.validate_launch(world, player, mission)
-        tx, ty = (pyr_doc.get("config_snapshot") or pyramid.config(world))["anchor"]
+        pyr_doc, pyr_alliance = await pyramid.validate_launch(world, player, mission, pyramid_id)
+        tx, ty = (pyr_doc.get("config_snapshot") or pyramid.config(world, pyr_doc["_id"]))["anchor"]
         target_terrain = spec.terrain_name(int((await load_terrain(world["_id"]))[ty, tx]))
-        target_name = pyramid.NAME
+        target_name = pyr_doc.get("name") or pyramid.NAME
         if naval:
             raise ApiError("INVALID_TARGET", "The Pyramid is a land target", 400)
     elif target_sentinel_id:
@@ -313,6 +316,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "target_settlement_id": target_doc["_id"] if target_doc else None,
         "target_sentinel_id": sentinel_doc["_id"] if sentinel_doc else None,
         "target_pyramid": bool(target_pyramid),
+        "pyramid_id": pyr_doc["_id"] if pyr_doc else None,
         "target_xy": [tx, ty],
         "target_name": target_name,
         "target_terrain": target_terrain,

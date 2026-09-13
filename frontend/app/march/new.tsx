@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useArmy, useMarchMutations, usePublicSettlement, usePyramid } from "@/src/api/hooks";
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen, useToast } from "@/src/components/overlay";
+import { pyramidName } from "@/src/components/PyramidCard";
 import { UnitStepper } from "@/src/components/UnitStepper";
 import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { formatDuration, formatNumber, useI18n } from "@/src/i18n";
@@ -30,12 +31,13 @@ export default function MarchComposer() {
   const router = useRouter();
   const params = useLocalSearchParams<{ target?: string; sentinel?: string; pyramid?: string; mission?: string }>();
   const { target, sentinel } = params;
-  const isPyramid = params.pyramid === "1";
+  const isPyramid = !!params.pyramid;
+  const pyramidId = params.pyramid && params.pyramid !== "1" ? params.pyramid : null; // "1" = legacy: the viewer's own Pyramid
   const { worldId, settlementId, settlement, player } = useGame();
   const cinematic = useCinematic();
   const army = useArmy(worldId, settlementId);
   const pub = usePublicSettlement(worldId, target);
-  const pyr = usePyramid(isPyramid ? worldId : null);
+  const pyr = usePyramid(isPyramid ? worldId : null, pyramidId);
   const mm = useMarchMutations(worldId ?? "");
   const { showError, show } = useToast();
   const [mission, setMission] = useState<string>(sentinel ? "GARRISON_SENTINEL" : isPyramid ? (params.mission === "REINFORCE" ? "REINFORCE" : "ATTACK") : "ATTACK");
@@ -49,7 +51,7 @@ export default function MarchComposer() {
   const available = army.data?.army ?? {};
   const totalUnits = Object.values(units).reduce((a, c) => a + c, 0);
   const cap = settlement.data?.march_capacity ?? 0;
-  const body = useMemo(() => ({ origin_settlement_id: settlementId, target_settlement_id: target ?? null, target_sentinel_id: sentinel ?? null, target_pyramid: isPyramid, mission, units }), [settlementId, target, sentinel, isPyramid, mission, units]);
+  const body = useMemo(() => ({ origin_settlement_id: settlementId, target_settlement_id: target ?? null, target_sentinel_id: sentinel ?? null, target_pyramid: isPyramid, pyramid_id: pyramidId, mission, units }), [settlementId, target, sentinel, isPyramid, pyramidId, mission, units]);
 
   useEffect(() => {
     if (!settlementId || (!target && !sentinel && !isPyramid)) return;
@@ -76,7 +78,7 @@ export default function MarchComposer() {
     }
   };
   const missionLabel = (m: string) => ({ ATTACK: t("missionAttack"), RAID: t("missionRaid"), CONQUEST: t("missionConquest"), REINFORCE: t("missionReinforce"), GARRISON_SENTINEL: t("missionGarrison") })[m] ?? m;
-  const targetName = isPyramid ? (pyr.data?.name ?? t("pyramid")) : (pub.data?.name ?? (sentinel ? `${t("sentinels")}` : "…"));
+  const targetName = isPyramid ? (pyr.data ? pyramidName(t, pyr.data) : t("pyramid")) : (pub.data?.name ?? (sentinel ? `${t("sentinels")}` : "…"));
   // Pyramid (Bible §21): ATTACK while another Alliance/the Guardian holds it, REINFORCE only while ours holds it
   const pyramidMissions = pyr.data ? ([pyr.data.me.can_reinforce ? "REINFORCE" : null, pyr.data.me.can_attack ? "ATTACK" : null].filter(Boolean) as string[]) : [];
   const canLaunch = totalUnits > 0 && !!preview && !preview.error && !mm.launch.isPending && totalUnits <= cap;

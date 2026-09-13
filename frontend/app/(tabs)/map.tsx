@@ -5,13 +5,13 @@ import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { serverNow } from "@/src/api/client";
-import { useCaravanSearch, useDaily, useMarches, useMarchMutations, usePyramid, useSettlementBattles } from "@/src/api/hooks";
+import { useCaravanSearch, useDaily, useMarches, useMarchMutations, usePyramid, usePyramids, useSettlementBattles } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
-import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
+import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription, pyramidName } from "@/src/components/PyramidCard";
 import { SettlementSwitcher } from "@/src/components/SettlementSwitcher";
-import { Button, CostRow, Icon, type IconName, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Icon, type IconName, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
@@ -56,7 +56,8 @@ export default function MapScreen() {
   const { worldId, settlementId, settlement, settlements, player, world } = useGame();
   const marches = useMarches(worldId);
   const caravanSearch = useCaravanSearch(worldId, settlementId);
-  const pyramid = usePyramid(worldId);
+  const pyramid = usePyramid(worldId); // the viewer's own Pyramid (alert banner, centre button)
+  const pyramidsQ = usePyramids(worldId);
   const daily = useDaily(worldId);
   const marchMut = useMarchMutations(worldId ?? "");
   const { showError } = useToast();
@@ -87,7 +88,6 @@ export default function MapScreen() {
     const z = active ? zoneAt(gm, active.x, active.y) : myRegion ? myRegion.index + 1 : null;
     return z == null ? null : allowedZones(gm, z);
   }, [gm, active?.x, active?.y, myRegion]); // eslint-disable-line react-hooks/exhaustive-deps
-  const fogView = !!reach;
   const viewBounds = useMemo(() => (gm && reach ? zonesBounds(gm, reach) : null), [gm, reach]);
   const fogZones = useMemo(() => (gm && reach ? fogZonesFor(gm, reach) : null), [gm, reach]);
   const gmLeft = secondsLeft(gm, realmNow);
@@ -124,7 +124,18 @@ export default function MapScreen() {
   );
   const selS = sel?.settlement;
   const selM = sel?.march;
-  const selP = sel?.pyramid ? (pyramid.data ?? sel.pyramid) : null;
+  // monuments: every Pyramid the viewer may see (fog up → only the ones inside the reachable zones), localised names for the labels
+  const pyramids = useMemo(() => {
+    const all = (pyramidsQ.data?.pyramids ?? []).map((p) => ({ ...p, name: pyramidName(t, p) }));
+    if (!gm || !reach) return all;
+    return all.filter((p) => {
+      const z = zoneAt(gm, p.anchor[0], p.anchor[1]);
+      return z != null && reach.has(z);
+    });
+  }, [pyramidsQ.data, gm, reach, t]);
+  const selPyr = usePyramid(sel?.pyramid ? worldId : null, sel?.pyramid?.id ?? null);
+  const selP = sel?.pyramid ? (selPyr.data && selPyr.data.id === sel.pyramid.id ? selPyr.data : null) : null;
+  const selPSummary = sel?.pyramid ?? null;
   const history = useSettlementBattles(worldId, selS && selS.kind !== "PLAYER_SLOT" ? selS.settlement_id : null);
 
   if (!worldId) return null;
@@ -134,7 +145,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} fogZones={fogZones} /> : null}
+      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramids={pyramids} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} fogZones={fogZones} /> : null}
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -160,7 +171,7 @@ export default function MapScreen() {
             </T>
           </Pressable>
         ) : null}
-        <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push("/pyramid")} style={{ marginTop: spacing.xs }} />
+        <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push({ pathname: "/pyramid", params: pyramid.data ? { id: pyramid.data.id } : {} })} style={{ marginTop: spacing.xs }} />
         {settlements.length > 1 ? (
           <SettlementSwitcher
             settlements={settlements}
@@ -194,8 +205,8 @@ export default function MapScreen() {
         <Pressable
           style={s.iconBtn}
           onPress={() => {
-            // fog up: the Grande Piramide lies beyond the wall → frame the regional Pyramid instead
-            const target = fogView && myRegion?.pyramid_anchor ? myRegion.pyramid_anchor : pyramid.data?.anchor ?? [200, 200];
+            // the viewer's own Pyramid (Grande Mondo: the region's Piccola Piramide — the Grande Piramide lies beyond the fog)
+            const target = pyramid.data?.anchor ?? myRegion?.pyramid_anchor ?? [200, 200];
             engineRef.current?.centerOn(target[0], target[1], 44);
           }}
           testID="map-center-pyramid-button"
@@ -259,29 +270,35 @@ export default function MapScreen() {
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
           <MarchCard march={selM} onClose={() => engineRef.current?.select(null)} onRecall={(id) => marchMut.recall.mutateAsync(id).catch(showError)} />
         </Animated.View>
-      ) : sel && selP ? (
+      ) : sel && selPSummary ? (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
           <Panel glass testID="map-pyramid-card">
             <Row>
-              <Icon name="pyramid" size={24} color={selP.faction === "OWN" ? colors.factionOwn : selP.faction === "ENEMY" ? colors.factionEnemy : colors.brandPrimary} />
+              <Icon name="pyramid" size={24} color={selPSummary.faction === "OWN" ? colors.factionOwn : selPSummary.faction === "ENEMY" ? colors.factionEnemy : colors.brandPrimary} />
               <View style={s.selName}>
                 <T v="heading" numberOfLines={1} testID="map-pyramid-name">
-                  {selP.name}
-                  {selP.owner ? ` · [${selP.owner.tag}]` : ""}
+                  {pyramidName(t, selPSummary)}
+                  {selPSummary.owner ? ` · [${selPSummary.owner.tag}]` : ""}
                 </T>
                 <T v="caption" numberOfLines={2}>
-                  {pyramidDescription(t, selP)}
+                  {selP ? pyramidDescription(t, selP) : selPSummary.kind === "REGIONAL" ? t("pyramidRegionalHint") : selPSummary.kind === "GRAND" ? t("pyramidGrandHint") : ""}
                 </T>
               </View>
-              <PyramidStatePill dto={selP} testID="map-pyramid-state" />
+              <PyramidStatePill dto={selPSummary} testID="map-pyramid-state" />
               <Pressable onPress={() => engineRef.current?.select(null)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }} testID="map-selection-close">
                 <Icon name="close" size={20} color={colors.muted} />
               </Pressable>
             </Row>
-            <View style={{ marginTop: spacing.sm }}>
-              <PyramidPhase dto={selP} />
-            </View>
-            <PyramidActions dto={selP} compact onDetails={() => router.push("/pyramid")} onAttack={() => router.push({ pathname: "/march/new", params: { pyramid: "1", mission: "ATTACK" } })} onReinforce={() => router.push({ pathname: "/march/new", params: { pyramid: "1", mission: "REINFORCE" } })} />
+            {selP ? (
+              <>
+                <View style={{ marginTop: spacing.sm }}>
+                  <PyramidPhase dto={selP} />
+                </View>
+                <PyramidActions dto={selP} compact onDetails={() => router.push({ pathname: "/pyramid", params: { id: selP.id } })} onAttack={() => router.push({ pathname: "/march/new", params: { pyramid: selP.id, mission: "ATTACK" } })} onReinforce={() => router.push({ pathname: "/march/new", params: { pyramid: selP.id, mission: "REINFORCE" } })} />
+              </>
+            ) : (
+              <Loading />
+            )}
           </Panel>
         </Animated.View>
       ) : sel ? (

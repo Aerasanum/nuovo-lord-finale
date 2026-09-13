@@ -126,6 +126,7 @@ async def transfer_ownership(target: dict, new_player: dict, survivors: dict[str
                 "owner_alliance_id": new_player.get("alliance_id"),
                 "owner_alliance_tag": new_player.get("alliance_tag"),
                 "pyramid_reward": new_player.get("pyramid_reward"),
+                "grand_pyramid_reward": new_player.get("grand_pyramid_reward"),
                 "name": f"{new_player['house_name']} · {target['x']},{target['y']}",
                 "army": {k: int(v) for k, v in survivors.items() if int(v) > 0},
                 "is_mother": False,

@@ -129,13 +129,29 @@ async def teleport_castle(settlement_id: str, body: TeleportIn, c: Ctx = Depends
     return await teleport.teleport(c.world, c.player, c.account_id, doc, body.slot_id, body.idempotency_key)
 
 
-@router.get("/worlds/{world_id}/grande-mondo")
-async def grande_mondo_status(c: Ctx = Depends(ctx)):
-    """Grande Mondo phase (fog wall / War of the Regions), countdown and the regions with their population."""
-    d = grande_mondo.dto(c.world, c.player)
+async def _gm_response(world: dict, player: dict) -> dict:
+    d = grande_mondo.dto(world, player)
     if d is None:
         raise ApiError("NOT_GRANDE_MONDO", "This realm is not a Grande Mondo", 404)
-    return {**d, "server_time": clock.iso(clock.now())}
+    pyrs = await pyramid.summaries(world, player)
+    gm = world.get("gm") or {}
+    return {
+        **d,
+        "pyramids": pyrs,
+        "grand_pyramid": next((p for p in pyrs if p["kind"] == "GRAND"), None),
+        "my_pyramid": next((p for p in pyrs if p["mine"]), None),
+        "regional_first_open_day": (pyramid.regional_shared_config(world) or {}).get("first_open_day"),
+        "regional_overrides": world.get("pyramid_regional_config") or {},
+        "grand_wins": [{**w, "at": clock.iso(w.get("at")), "reward_until": clock.iso(w.get("reward_until"))} for w in reversed(gm.get("grand_wins") or [])][:10],
+        "server_time": clock.iso(clock.now()),
+    }
+
+
+@router.get("/worlds/{world_id}/grande-mondo")
+async def grande_mondo_status(c: Ctx = Depends(ctx)):
+    """Grande Mondo phase (fog wall / War of the Regions), countdown, the regions with their population and every
+    Pyramid of the realm (Grande Piramide + one Piccola Piramide per region)."""
+    return await _gm_response(c.world, c.player)
 
 
 class WarConfigIn(BaseModel):
@@ -145,6 +161,15 @@ class WarConfigIn(BaseModel):
 
 class PhaseIn(BaseModel):
     to: str  # WAR | ISOLATION
+
+
+class GrandPyramidIn(BaseModel):
+    action: str  # OPEN | CLOSE
+
+
+class RegionalPyramidConfigIn(BaseModel):
+    region: str | None = None  # None = every region
+    config: dict  # whitelisted patch: first_open_day, hold_hours, reward_days, dormant_days, garrison_cap_units, reward{}, ...
 
 
 def _require_gm_admin(c: Ctx) -> None:
@@ -159,7 +184,7 @@ async def grande_mondo_war_config(body: WarConfigIn, c: Ctx = Depends(ctx)):
     """Administrator (Bibbia GM: decided cycle by cycle): regions admitted to the next war + interregional march speed."""
     _require_gm_admin(c)
     w = await grande_mondo.set_war_config(c.world, body.regions, body.speed_multiplier, c.player["_id"])
-    return {**grande_mondo.dto(w, c.player), "server_time": clock.iso(clock.now())}
+    return await _gm_response(w, c.player)
 
 
 @router.post("/worlds/{world_id}/grande-mondo/admin/phase")
@@ -167,7 +192,33 @@ async def grande_mondo_force_phase(body: PhaseIn, c: Ctx = Depends(ctx)):
     """Administrator: drop the fog now (WAR) or bring it back (ISOLATION) through the real transition."""
     _require_gm_admin(c)
     w = await grande_mondo.transition(c.world, body.to.upper(), reason=f"ADMIN:{c.player['_id']}")
-    return {**grande_mondo.dto(w, c.player), "server_time": clock.iso(clock.now())}
+    return await _gm_response(w, c.player)
+
+
+@router.post("/worlds/{world_id}/grande-mondo/admin/grand-pyramid")
+async def grande_mondo_grand_pyramid(body: GrandPyramidIn, c: Ctx = Depends(ctx)):
+    """Administrator: open the Grande Piramide (only while the fog is down) or close it (garrison marches home)."""
+    _require_gm_admin(c)
+    action = body.action.upper()
+    if action == "OPEN":
+        await pyramid.open_grand(c.world)
+    elif action == "CLOSE":
+        await pyramid.close_grand(c.world, reason=f"ADMIN:{c.player['_id']}")
+    else:
+        raise ApiError("INVALID_ACTION", "action must be OPEN or CLOSE", 400)
+    return await _gm_response(await db().worlds.find_one({"_id": c.world["_id"]}), c.player)
+
+
+@router.post("/worlds/{world_id}/grande-mondo/admin/regional-pyramid-config")
+async def grande_mondo_regional_pyramid_config(body: RegionalPyramidConfigIn, c: Ctx = Depends(ctx)):
+    """Administrator: tune the Piccole Piramidi (e.g. first_open_day) for every region or for one region only."""
+    _require_gm_admin(c)
+    regions = c.world.get("regions") or []
+    code = body.region or (regions[0]["code"] if regions else None)
+    if not code or not grande_mondo.region_by_code(c.world, code):
+        raise ApiError("REGION_NOT_FOUND", "Unknown region", 404)
+    res = await pyramid.set_config(c.world["_id"], body.config, pyramid_id=f"{c.world['_id']}:{code}", all_regions=body.region is None)
+    return {**(await _gm_response(await db().worlds.find_one({"_id": c.world["_id"]}), c.player)), "applied": res}
 
 
 @router.get("/worlds/{world_id}/me")
@@ -558,10 +609,18 @@ async def settlement_public(world_id: str, settlement_id: str, c: Ctx = Depends(
 
 # --------------------------------------------------------------------------- pyramid (Bible §21)
 @router.get("/worlds/{world_id}/pyramid")
-async def pyramid_status(world_id: str, c: Ctx = Depends(ctx)):
+async def pyramid_status(id: str | None = Query(default=None), c: Ctx = Depends(ctx)):
     """Cycle state, deadlines, owner/hold, garrison (composition only when neutral or held by the viewer's Alliance),
-    recent battles, the viewer's eligibility/reward window and the effective (configurable) cycle parameters."""
-    return await pyramid.status(c.world, c.player)
+    recent battles, the viewer's eligibility/reward window and the effective (configurable) cycle parameters.
+    `id` selects a Pyramid of the realm (Grande Mondo: `<world>` = Grande Piramide, `<world>:<REG>` = Piccola Piramide);
+    default = the viewer's own region's Pyramid (classic realm: the only one)."""
+    return await pyramid.status(c.world, c.player, id)
+
+
+@router.get("/worlds/{world_id}/pyramids")
+async def pyramid_list(c: Ctx = Depends(ctx)):
+    """Every Pyramid of the realm (compact): monument anchors/footprints for the map, state, owner, deadlines."""
+    return {"pyramids": await pyramid.summaries(c.world, c.player), "server_time": clock.iso(clock.now())}
 
 
 # --------------------------------------------------------------------------- marches
@@ -570,6 +629,7 @@ class MarchIn(IdemIn):
     target_settlement_id: str | None = None
     target_sentinel_id: str | None = None
     target_pyramid: bool = False
+    pyramid_id: str | None = None
     mission: str
     units: dict[str, int]
     naval: bool = False
@@ -580,7 +640,7 @@ class MarchIn(IdemIn):
 async def march_preview(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
     origin = await get_owned_settlement(world_id, body.origin_settlement_id, c.player["_id"])
     if body.target_pyramid:
-        ax, ay = pyramid.config(c.world)["anchor"]
+        ax, ay = pyramid.config(c.world, body.pyramid_id or pyramid.default_pid(c.world, c.player))["anchor"]
         grid = await __import__("app.domain.pathfinding", fromlist=["load_terrain"]).load_terrain(world_id)
         target = {"x": ax, "y": ay, "terrain": get_spec().terrain_name(int(grid[ay, ax]))}
     elif body.target_sentinel_id:
@@ -599,7 +659,7 @@ async def march_preview(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
 @router.post("/worlds/{world_id}/marches")
 async def march_launch(world_id: str, body: MarchIn, c: Ctx = Depends(ctx)):
     origin = await _fresh_settlement(world_id, body.origin_settlement_id, c.player["_id"])
-    m = await marches.launch(c.world, c.player, origin, body.mission, body.units, body.target_settlement_id, body.target_sentinel_id, body.idempotency_key, naval=body.naval, ships=body.ships, target_pyramid=body.target_pyramid)
+    m = await marches.launch(c.world, c.player, origin, body.mission, body.units, body.target_settlement_id, body.target_sentinel_id, body.idempotency_key, naval=body.naval, ships=body.ships, target_pyramid=body.target_pyramid, pyramid_id=body.pyramid_id)
     return {"march": marches.dto(m)}
 
 
@@ -640,6 +700,7 @@ def _battle_dto(b: dict) -> dict:
         "target_sentinel_id": b.get("target_sentinel_id"),
         "target_caravan_id": b.get("target_caravan_id"),
         "target_pyramid": bool(b.get("target_pyramid")),
+        "pyramid_id": b.get("pyramid_id"),
         "attacker_house_name": b.get("attacker_house_name"),
         "attacker_alliance_tag": b.get("attacker_alliance_tag"),
         "defender_alliance_tag": b.get("defender_alliance_tag"),

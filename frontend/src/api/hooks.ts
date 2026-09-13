@@ -159,6 +159,8 @@ export type MarchDto = {
   target_settlement_id: string | null;
   target_sentinel_id: string | null;
   target_pyramid?: boolean;
+  pyramid_id?: string | null;
+  speed_multiplier?: number;
   target_name: string;
   target_xy?: [number, number] | null;
   mission: string;
@@ -354,6 +356,12 @@ export type GrandeMondoDto = {
   my_region: string | null;
   view_all: boolean;
   is_admin: boolean;
+  pyramids?: PyramidSummary[];
+  grand_pyramid?: PyramidSummary | null;
+  my_pyramid?: PyramidSummary | null;
+  regional_first_open_day?: number | null;
+  regional_overrides?: Record<string, Record<string, any>>;
+  grand_wins?: { cycle_id: number; gm_cycle: number; alliance_id: string; tag: string; name: string; region_code: string | null; at: string | null; reward_until: string | null }[];
 };
 
 export function useGrandeMondoAdmin(worldId: string) {
@@ -362,10 +370,14 @@ export function useGrandeMondoAdmin(worldId: string) {
     qc.invalidateQueries({ queryKey: ["grande-mondo", worldId] });
     qc.invalidateQueries({ queryKey: qk.me(worldId) });
     qc.invalidateQueries({ queryKey: qk.worlds });
+    qc.invalidateQueries({ queryKey: ["pyramid", worldId] });
+    qc.invalidateQueries({ queryKey: ["pyramids", worldId] });
   };
   const warConfig = useMutation({ mutationFn: (body: { regions: string[] | null; speed_multiplier: number }) => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/war-config`, body), onSuccess: done });
   const phase = useMutation({ mutationFn: (to: "WAR" | "ISOLATION") => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/phase`, { to }), onSuccess: done });
-  return { warConfig, phase };
+  const grandPyramid = useMutation({ mutationFn: (action: "OPEN" | "CLOSE") => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/grand-pyramid`, { action }), onSuccess: done });
+  const regionalPyramidConfig = useMutation({ mutationFn: (body: { region: string | null; config: Record<string, any> }) => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/regional-pyramid-config`, body), onSuccess: done });
+  return { warConfig, phase, grandPyramid, regionalPyramidConfig };
 }
 export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
 
@@ -680,11 +692,35 @@ export function useAllianceMutations(worldId: string) {
 
 // ---------------------------------------------------------------------------------------------- pyramid (Bible §21)
 export type PyramidState = "DORMANT_INITIAL" | "OPEN" | "REWARD_LOCK" | "DORMANT";
+export type PyramidKind = "CLASSIC" | "GRAND" | "REGIONAL";
 export type PyramidBattle = { battle_id: string; at: string; attacker_house_name: string | null; attacker_alliance_tag: string | null; defender_alliance_tag: string | null; winner: "ATTACKER" | "DEFENDER" | null; captured: boolean; attacker_losses: number; defender_losses: number; mine: boolean };
-export type PyramidHistoryEntry = { cycle_id: number; alliance_id: string; tag: string; name: string; member_count: number; won_at: string | null; reward_until: string | null };
+export type PyramidHistoryEntry = { cycle_id: number; alliance_id: string; tag: string; name: string; region_code: string | null; member_count: number; won_at: string | null; reward_until: string | null };
 export type PyramidReward = { production_pct: number; research_pct: number; training_pct: number; caravan_capacity_pct: number; until: string | null; cycle_id: number | null; tag: string | null };
+export type PyramidOwner = { alliance_id: string; tag: string | null; name: string | null; region_code: string | null };
+/** Compact per-instance view (GET /pyramids): monument anchors for the map, state and owner. */
+export type PyramidSummary = {
+  id: string;
+  kind: PyramidKind;
+  region_code: string | null;
+  name: string;
+  anchor: [number, number];
+  footprint: [number, number];
+  state: PyramidState;
+  cycle_id: number;
+  faction: "OWN" | "ENEMY" | "NEUTRAL";
+  owner: PyramidOwner | null;
+  deadline: string | null;
+  hold_deadline: string | null;
+  garrison_total: number;
+  manual_open: boolean;
+  winner: { tag: string | null; region_code: string | null; reward_until: string | null } | null;
+  mine: boolean;
+};
 export type PyramidDto = {
+  id: string;
   world_id: string;
+  kind: PyramidKind;
+  region_code: string | null;
   name: string;
   anchor: [number, number];
   footprint: [number, number];
@@ -695,7 +731,7 @@ export type PyramidDto = {
   opens_at: string | null;
   lock_until: string | null;
   dormant_until: string | null;
-  owner: { alliance_id: string; tag: string | null; name: string | null } | null;
+  owner: PyramidOwner | null;
   faction: "OWN" | "ENEMY" | "NEUTRAL";
   hold: { started_at: string | null; deadline: string | null; hours: number; progress: number } | null;
   garrison_total: number;
@@ -703,17 +739,23 @@ export type PyramidDto = {
   garrison_cap: number;
   guardian: { target_power: number | null; unit_count: number | null; sample_size: number | null } | null;
   participants: number;
-  winner: { cycle_id: number; alliance_id: string; tag: string; name: string; member_count: number; won_at: string | null; reward_until: string | null } | null;
+  winner: { cycle_id: number; alliance_id: string; tag: string; name: string; region_code: string | null; member_count: number; won_at: string | null; reward_until: string | null } | null;
   history: PyramidHistoryEntry[];
   recent_battles: PyramidBattle[];
   incoming: { march_id: string; attacker_alliance_tag: string | null; arrival_at: string | null }[];
-  me: { alliance_id: string | null; alliance_kind: AllianceKind | null; eligible: boolean; is_owner: boolean; can_attack: boolean; can_reinforce: boolean; participated: boolean; my_garrison: Record<string, number>; reward: PyramidReward | null };
-  config: { first_open_day: number; hold_hours: number; reward_days: number; dormant_days: number; garrison_cap_units: number; reward: Record<string, number>; emeralds: { participation: number; victory: number }; prestige: { participation: number; victory: number }; title: string };
+  me: { alliance_id: string | null; alliance_kind: AllianceKind | null; eligible: boolean; in_region: boolean; is_owner: boolean; can_attack: boolean; can_reinforce: boolean; participated: boolean; my_garrison: Record<string, number>; reward: PyramidReward | null };
+  config: { first_open_day: number; manual_open: boolean; reward_scope: "ALLIANCE" | "REGION"; hold_hours: number; reward_days: number; dormant_days: number; garrison_cap_units: number; reward: Record<string, number>; emeralds: { participation: number; victory: number }; prestige: { participation: number; victory: number }; title: string };
   server_time: string;
 };
 
-export function usePyramid(worldId?: string | null) {
-  return useQuery<PyramidDto>({ queryKey: ["pyramid", worldId], queryFn: () => get(`/worlds/${worldId}/pyramid`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+/** One Pyramid: `id` = "<world>" (classic / Grande Piramide) or "<world>:<REG>" (Piccola Piramide); default = the viewer's own. */
+export function usePyramid(worldId?: string | null, id?: string | null) {
+  return useQuery<PyramidDto>({ queryKey: ["pyramid", worldId, id ?? "mine"], queryFn: () => get(`/worlds/${worldId}/pyramid${id ? `?id=${encodeURIComponent(id)}` : ""}`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+}
+
+/** Every Pyramid of the realm (Grande Piramide + Piccole Piramidi) — monuments on the map. */
+export function usePyramids(worldId?: string | null) {
+  return useQuery<{ pyramids: PyramidSummary[]; server_time: string }>({ queryKey: ["pyramids", worldId], queryFn: () => get(`/worlds/${worldId}/pyramids`).then(sync), enabled: !!worldId, refetchInterval: 20000 });
 }
 
 // ---------------------------------------------------------------------------------------------- premium / rubies (Bible §23)

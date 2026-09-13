@@ -949,3 +949,23 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshot osservatore: switcher con frecce e sheet 'Insediamenti · 3' OK; Grande Piramide a 1088,1088 (grande); minimap mostra il mondo circolare a 9 spicchi; /grande-mondo con freccia indietro e pannello admin (IT+FR ×5)."
+
+# ---- iteration 28 (main agent) — Piccole Piramidi (una per regione) + Grande Piramide (apertura admin, premio regionale) ----
+backend:
+  - task: "pyramid.py multi-istanza: collection `pyramid` con un doc per Piramide: `_id = world_id` (CLASSIC nei regni classici; GRAND = Grande Piramide nel Grande Mondo, kind/manual_open) e `_id = f'{world_id}:{CODE}'` (REGIONAL = Piccola Piramide, ancora = regions[k].pyramid_anchor, footprint 15×15, Guardiano fisso 250k = guardian.min_power 250000 + median_multiplier 0, contendibile solo dai giocatori con region_code della regione → 409 PYRAMID_WRONG_REGION). GRAND: manual_open (nessun calendario), reward_scope REGION (7 gg, +10% prod, +5% ricerca, +10% addestramento a TUTTI i giocatori della regione dell'Alleanza vincitrice, slot `grand_pyramid_reward` che si SOMMA a `pyramid_reward`), titolo 'Custode della Grande Piramide', prestigio vittoria 500; alla vittoria la guerra finisce prima (transition → ISOLATION reason GRAND_PYRAMID_WON) e `gm.grand_wins` registra il vincitore; al ritorno della nebbia una Grande Piramide OPEN si chiude (close_grand: DORMANT, presidio torna a casa). API: GET /worlds/{w}/pyramid?id=…, GET /worlds/{w}/pyramids (lista compatta), MarchIn.pyramid_id (preview/launch), GET /grande-mondo → + pyramids/grand_pyramid/my_pyramid/regional_first_open_day/regional_overrides/grand_wins; admin: POST …/grande-mondo/admin/grand-pyramid {action: OPEN|CLOSE} (409 GRAND_PYRAMID_NEEDS_WAR se non in guerra), POST …/admin/regional-pyramid-config {region: CODE|null, config: {first_open_day…}} (null = tutte le regioni, slot '*'); QA: /qa/pyramid/config|reset accettano pyramid_id (+ all_regions). Test: tests/test_iteration_28_pyramids.py 10/10, tests/test_pyramid_e2e.py 8/8 (classico, nessuna regressione)."
+    implemented: true
+    working: true
+    file: "backend/app/domain/pyramid.py, pyramid_reward.py, marches.py, grande_mondo.py, conquest.py, worlds.py, backend/app/api/routes_game.py, routes_qa.py, tests/test_iteration_28_pyramids.py"
+    stuck_count: 0
+    priority: "high"
+frontend:
+  - task: "Monumenti multipli: engine.setPyramids(list) (un PyramidMonument per Piramide, scala per footprint, picking/label/minimap per ognuno), MapView prop `pyramids`; map.tsx usa usePyramids (filtrate alle zone raggiungibili con la nebbia alta) + usePyramid(id) per la card della Piramide selezionata (map-pyramid-card, Dettagli → /pyramid?id=, Attacca/Rinforza → /march/new?pyramid=<id>); pulsante piramide centra sulla PROPRIA Piramide (Piccola nella regione). /pyramid: param `id`, chips switcher (pyramid-switcher, pyramid-switch-<id con : → ->), hint per kind (pyramid-grand-hint / pyramid-regional-hint), premi per kind. /grande-mondo: pannello 'Le Piramidi' (gm-pyramids, gm-my-pyramid, gm-grand-pyramid, gm-grand-win-<cycle>), admin: gm-admin-grand-open / gm-admin-grand-close, Piccole Piramidi: gm-admin-pyr-scope-ALL|<CODE>, gm-admin-pyr-days, gm-admin-pyr-save; regola 4 (gmRule4). march/new: pyramid param = id (legacy '1' = propria), body.pyramid_id. Inbox deep link pyramid?id=. 25 nuove chiavi i18n in 8 lingue."
+    implemented: true
+    working: "NA"
+    file: "frontend/src/map3d/engine.ts, MapView.tsx, MapLabels.tsx, app/(tabs)/map.tsx, app/pyramid.tsx, app/grande-mondo.tsx, app/march/new.tsx, app/(tabs)/inbox.tsx, src/components/PyramidCard.tsx, src/api/hooks.ts, src/i18n/*"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot osservatore: monumento 'Piccola Piramide IT' a 1088,583 con etichetta e card SIGILLATA · Si apre tra 57g; /pyramid con switcher Grande/Piccola; /grande-mondo con pannello Piramidi, Custodi e admin (Apri la Grande Piramide disabilitato in Isolamento, Piccole Piramidi prima apertura 90)."

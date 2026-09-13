@@ -1,13 +1,14 @@
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import { FlatList, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { serverNow } from "@/src/api/client";
-import { type GmRegion, useGrandeMondo, useGrandeMondoAdmin } from "@/src/api/hooks";
+import { type GmRegion, type PyramidSummary, useGrandeMondo, useGrandeMondoAdmin } from "@/src/api/hooks";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
-import { Button, Chip, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { PyramidStatePill, pyramidName } from "@/src/components/PyramidCard";
+import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { formatCountdown, langKey, regionFlag, secondsLeft } from "@/src/game/grandeMondo";
 import { fmt, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -28,6 +29,10 @@ const useStyles = makeStyles((c) => ({
   warText: { color: c.onBrandSecondary, fontSize: 11, fontFamily: fonts.body, fontWeight: "600" },
   rule: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  pyrRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 8 },
+  pyrIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: c.borderStrong },
+  daysInput: { minWidth: 72, height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.surfaceTertiary, color: c.onSurface, paddingHorizontal: spacing.sm, fontFamily: fonts.body, fontSize: 16, textAlign: "center" },
+  winRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6 },
 }));
 
 export default function GrandeMondoScreen() {
@@ -92,6 +97,52 @@ export default function GrandeMondoScreen() {
   const showOnMap = (x: number, y: number) => router.push({ pathname: "/(tabs)/map", params: { fx: String(x), fy: String(y), ft: String(Date.now()) } });
   const warLabel = (cfg: { regions: string[] | null; speed_multiplier: number } | null | undefined) => (cfg ? `${cfg.regions ? cfg.regions.map(regionFlag).join(" ") : t("gmWarAll")} · ×${cfg.speed_multiplier}` : "—");
 
+  // ---- Pyramids: my Piccola Piramide + the Grande Piramide; admin: open/close the Grande, tune the Piccole ----
+  const grand = d?.grand_pyramid ?? null;
+  const mine = d?.my_pyramid ?? null;
+  const pyramidOf = (code: string) => d?.pyramids?.find((p) => p.kind === "REGIONAL" && p.region_code === code) ?? null;
+  const [daysDraft, setDaysDraft] = useState<string | undefined>(undefined);
+  const [scope, setScope] = useState<string | null>(null); // null = every region
+  const days = daysDraft ?? String(d?.regional_first_open_day ?? 90);
+  const saveRegionalDays = () => {
+    const n = Number(days.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) {
+      show(t("gmInvalidDays"), "error");
+      return;
+    }
+    admin.regionalPyramidConfig
+      .mutateAsync({ region: scope, config: { first_open_day: n } })
+      .then(() => {
+        show(t("gmSaved"), "success");
+        setDaysDraft(undefined);
+      })
+      .catch(showError);
+  };
+  const grandAction = (action: "OPEN" | "CLOSE") =>
+    admin.grandPyramid
+      .mutateAsync(action)
+      .then(() => show(t(action === "OPEN" ? "gmGrandOpened" : "gmGrandClosed"), "success"))
+      .catch(showError);
+  const pyramidRow = (p: PyramidSummary, testID: string) => (
+    <Pressable style={s.pyrRow} onPress={() => router.push({ pathname: "/pyramid", params: { id: p.id } })} testID={testID}>
+      <View style={s.pyrIcon}>
+        <Icon name="pyramid" size={22} color={p.faction === "OWN" ? colors.factionOwn : p.faction === "ENEMY" ? colors.factionEnemy : colors.brandPrimary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <T v="body" numberOfLines={1}>
+          {pyramidName(t, p)}
+          {p.owner ? ` · [${p.owner.tag}]${p.owner.region_code ? ` ${regionFlag(p.owner.region_code)}` : ""}` : ""}
+        </T>
+        <Row style={{ gap: 6 }}>
+          <T v="caption">{p.state === "OPEN" && p.hold_deadline ? t("pyramidHoldEnds") : p.state === "REWARD_LOCK" ? t("pyramidLockEnds") : p.state === "DORMANT_INITIAL" || p.state === "DORMANT" ? (p.manual_open ? t("gmGrandWaitsAdmin") : t("pyramidOpensIn")) : t("pyramidGuardian")}</T>
+          {p.state === "OPEN" && p.hold_deadline ? <Countdown endsAt={p.hold_deadline} style={{ color: colors.brandPrimary }} /> : p.deadline ? <Countdown endsAt={p.deadline} style={{ color: colors.onSurface }} /> : null}
+        </Row>
+      </View>
+      <PyramidStatePill dto={p} />
+      <Icon name="chevron-right" size={18} color={colors.muted} />
+    </Pressable>
+  );
+
   return (
     <Screen title={t("gmTitle")} left={<BackButton testID="grande-mondo-back" />} testID="grande-mondo-screen">
       {gm.isLoading ? (
@@ -133,6 +184,34 @@ export default function GrandeMondoScreen() {
                 ) : null}
                 {d.center ? <Button title={`${t("gmCenterPyramid")} · ${t("gmShowOnMap")}`} icon="pyramid" variant="secondary" onPress={() => showOnMap(d.center!.pyramid_anchor[0], d.center!.pyramid_anchor[1])} testID="gm-center-pyramid" /> : null}
               </Panel>
+              {mine || grand ? (
+                <Panel style={s.card} testID="gm-pyramids">
+                  <Row>
+                    <Icon name="pyramid" size={20} color={colors.brandPrimary} />
+                    <T v="heading" style={{ flex: 1 }}>
+                      {t("gmPyramidsTitle")}
+                    </T>
+                  </Row>
+                  <T v="caption">{t("gmPyramidsHint")}</T>
+                  {mine ? pyramidRow(mine, "gm-my-pyramid") : null}
+                  {grand ? pyramidRow(grand, "gm-grand-pyramid") : null}
+                  {d.grand_wins?.length ? (
+                    <>
+                      <T v="label" style={{ marginTop: spacing.xs }}>
+                        {t("gmGrandWinners")}
+                      </T>
+                      {d.grand_wins.slice(0, 5).map((w) => (
+                        <View key={`${w.cycle_id}-${w.at}`} style={s.winRow} testID={`gm-grand-win-${w.cycle_id}`}>
+                          <Icon name="crown" size={16} color={colors.brandPrimary} />
+                          <T v="caption" style={{ flex: 1 }}>
+                            {w.region_code ? `${regionFlag(w.region_code)} ${w.region_code} · ` : ""}[{w.tag}] {w.name} · {t("gmCycle")} {w.gm_cycle}
+                          </T>
+                        </View>
+                      ))}
+                    </>
+                  ) : null}
+                </Panel>
+              ) : null}
               {d.is_admin ? (
                 <Panel style={s.card} testID="gm-admin">
                   <Row>
@@ -161,6 +240,37 @@ export default function GrandeMondoScreen() {
                   ) : (
                     <Button title={t("gmDropFog")} icon="sword-cross" variant="secondary" onPress={() => setConfirm("WAR")} testID="gm-admin-drop-fog" />
                   )}
+                  {grand ? (
+                    <>
+                      <T v="label" style={{ marginTop: spacing.xs }}>
+                        {t("gmCenterPyramid")} · {t(`pyrState_${grand.state}` as any)}
+                      </T>
+                      <T v="caption">{t("gmGrandAdminHint")}</T>
+                      {grand.state === "OPEN" || grand.state === "REWARD_LOCK" ? (
+                        <Button title={t("gmGrandClose")} icon="lock" variant="secondary" onPress={() => grandAction("CLOSE")} loading={admin.grandPyramid.isPending} disabled={grand.state !== "OPEN"} testID="gm-admin-grand-close" />
+                      ) : (
+                        <Button title={t("gmGrandOpen")} icon="fire" onPress={() => grandAction("OPEN")} loading={admin.grandPyramid.isPending} disabled={!war} testID="gm-admin-grand-open" />
+                      )}
+                      {!war && grand.state !== "OPEN" ? <T v="caption">{t("gmGrandNeedsWar")}</T> : null}
+                    </>
+                  ) : null}
+                  <T v="label" style={{ marginTop: spacing.xs }}>
+                    {t("gmRegionalPyramidsAdmin")}
+                  </T>
+                  <T v="caption">{t("gmRegionalPyramidsAdminHint")}</T>
+                  <View style={s.chips}>
+                    <Chip label={t("gmWarAll")} selected={scope === null} onPress={() => setScope(null)} testID="gm-admin-pyr-scope-ALL" />
+                    {d.regions.map((r) => (
+                      <Chip key={r.code} label={`${regionFlag(r.code)} ${r.code}`} selected={scope === r.code} onPress={() => setScope(r.code)} testID={`gm-admin-pyr-scope-${r.code}`} />
+                    ))}
+                  </View>
+                  <Row style={{ gap: spacing.sm }}>
+                    <T v="body" style={{ flex: 1 }}>
+                      {t("gmFirstOpenDay")}
+                    </T>
+                    <TextInput value={days} onChangeText={setDaysDraft} keyboardType="decimal-pad" style={s.daysInput} testID="gm-admin-pyr-days" />
+                    <Button title={t("gmApply")} icon="check" onPress={saveRegionalDays} loading={admin.regionalPyramidConfig.isPending} testID="gm-admin-pyr-save" />
+                  </Row>
                 </Panel>
               ) : null}
               <Panel style={s.card} testID="gm-rules">
@@ -169,8 +279,9 @@ export default function GrandeMondoScreen() {
                   ["weather-fog", fmt(t("gmRule1"), { days: d.isolation_days })],
                   ["sword-cross", fmt(t("gmRule2"), { days: d.war_days })],
                   ["pyramid", fmt(t("gmRule3"), { hours: d.pyramid_hold_hours })],
+                  ["pyramid", fmt(t("gmRule4"), { day: d.regional_first_open_day ?? 90 })],
                 ].map(([icon, text]) => (
-                  <View key={icon} style={s.rule}>
+                  <View key={text} style={s.rule}>
                     <Icon name={icon as any} size={18} color={colors.brandPrimary} />
                     <T v="caption" style={{ flex: 1 }}>
                       {text}
@@ -187,6 +298,7 @@ export default function GrandeMondoScreen() {
           }
           renderItem={({ item: r }) => {
             const reachable = !d.my_fog_up || d.view_all || r.code === d.my_region || (war && r.at_war && !d.my_fog_up);
+            const rp = pyramidOf(r.code);
             return (
               <Pressable style={[s.regionRow, { marginHorizontal: spacing.md }]} onPress={() => showOnMap(r.center[0], r.center[1])} disabled={!reachable} testID={`gm-region-${r.code}`}>
                 <T style={s.flag}>{regionFlag(r.code)}</T>
@@ -206,6 +318,7 @@ export default function GrandeMondoScreen() {
                   </Row>
                   <T v="caption">
                     {tDyn(t, langKey(r.lang), r.lang)} · {r.player_count}/{r.player_slots} {t("gmPlayers")}
+                    {rp ? ` · ${t("pyramidSmall")}: ${t(`pyrState_${rp.state}` as any)}${rp.owner?.tag ? ` [${rp.owner.tag}]` : ""}` : ""}
                   </T>
                 </View>
                 <Icon name={reachable ? "map-marker-radius" : "weather-fog"} size={20} color={reachable ? colors.onSurfaceSecondary : colors.muted} />

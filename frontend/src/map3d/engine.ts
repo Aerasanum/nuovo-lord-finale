@@ -12,7 +12,7 @@
 import type { ExpoWebGLRenderingContext } from "expo-gl";
 import * as THREE from "three";
 
-import type { ChunkDto, MarchDto, OverviewDto, PyramidDto, SentinelDto, SettlementPublic } from "@/src/api/hooks";
+import type { ChunkDto, MarchDto, OverviewDto, PyramidSummary, SentinelDto, SettlementPublic } from "@/src/api/hooks";
 import type { ThemeColors } from "@/src/theme";
 
 import { CASTLE_TOP, disposeGroup, EntityFactory, type EntityPalette, settlementScale } from "./entities";
@@ -38,7 +38,7 @@ export function overviewFactor(worldSize: number): number {
 /** Far-LOD tiles are only kept within this many tiles of the camera target (mega-realms have ~10k chunks). */
 const OV_WINDOW_TILES = 720;
 
-export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidDto };
+export type Selection = { x: number; y: number; settlement?: SettlementPublic; sentinel?: SentinelDto; march?: MarchDto; pyramid?: PyramidSummary };
 export type MapLabel = { id: string; x: number; y: number; name: string; level: number; faction: string; kind: string; endsAt?: string | null; status?: string };
 
 type EngineOpts = {
@@ -54,8 +54,8 @@ type EngineOpts = {
   onLabels?: (labels: MapLabel[]) => void;
   /** realm size in tiles (world DTO `size`); defaults to the spec 400 */
   worldSize?: number;
-  /** pyramid anchor (pyramid DTO `anchor`); defaults to the centre of the realm */
-  pyramidXY?: [number, number];
+  /** every Pyramid of the realm (GET /pyramids): monument anchors, footprints, cycle state */
+  pyramids?: PyramidSummary[];
   /** Grande Mondo: reachable area while the fog wall is up (camera clamp, minimap); null = whole realm */
   viewBounds?: FogBounds | null;
   /** Grande Mondo: fog geometry + reachable zones (null = no fog) */
@@ -97,8 +97,8 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/** Local tile indices (within the chunk) occupied by settlements / sentinels — kept clear of trees and props. */
-function blockedTiles(data: ChunkDto, pyr: [number, number]): Set<number> {
+/** Local tile indices (within the chunk) occupied by settlements / sentinels / Pyramid plateaus — kept clear of trees and props. */
+function blockedTiles(data: ChunkDto, pyramids: Iterable<{ xy: [number, number]; scale: number }>): Set<number> {
   const out = new Set<number>();
   const ox = data.cx * CHUNK;
   const oz = data.cy * CHUNK;
@@ -113,9 +113,11 @@ function blockedTiles(data: ChunkDto, pyr: [number, number]): Set<number> {
   };
   for (const s of data.settlements) mark(s.x, s.y, s.kind === "PLAYER_SLOT" ? 0 : s.level >= 10 ? 2 : 1);
   for (const s of data.sentinels) mark(s.x, s.y, 0);
-  mark(pyr[0], pyr[1], Math.ceil(PYRAMID_HALF) + 1); // Pyramid plateau stays clear of flora (Bible §21)
+  for (const p of pyramids) mark(p.xy[0], p.xy[1], Math.ceil(PYRAMID_HALF * p.scale) + 1); // Pyramid plateau stays clear of flora (Bible §21)
   return out;
 }
+
+type PyramidNode = { monument: PyramidMonument; xy: [number, number]; scale: number; dto: PyramidSummary };
 
 export class MapEngine {
   readonly world: number;
@@ -126,7 +128,7 @@ export class MapEngine {
   private bounds: FogBounds;
   private fog: FogWall;
   private ovWindowAt: { tx: number; tz: number } | null = null;
-  private pyr: [number, number];
+  private pyramids = new Map<string, PyramidNode>();
   private gl: ExpoWebGLRenderingContext;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -148,8 +150,6 @@ export class MapEngine {
   private marchMarkers: { march: MarchDto; marker: THREE.Object3D; line: THREE.Line }[] = [];
   private selected: Selection | null = null;
   private selScale = 1;
-  private pyramid: PyramidMonument;
-  private pyramidDto: PyramidDto | null = null;
   private selectionRing: THREE.Mesh;
   private homeBeacon: THREE.Mesh;
   private palette: TerrainPalette & EntityPalette & { bg: THREE.Color; horizon: THREE.Color };
@@ -191,7 +191,6 @@ export class MapEngine {
     this.ovPerChunk = CHUNK / this.ovFactor;
     this.ovSize = Math.floor(this.world / this.ovFactor);
     this.bounds = opts.viewBounds ?? { x0: -10, y0: -10, x1: this.world + 10, y1: this.world + 10 };
-    this.pyr = opts.pyramidXY ?? [Math.floor(this.world / 2), Math.floor(this.world / 2)];
     this.gl = opts.gl;
     this.width = opts.width;
     this.height = opts.height;
@@ -280,10 +279,6 @@ export class MapEngine {
     this.homeBeacon.visible = false;
     this.scene.add(this.homeBeacon);
 
-    this.pyramid = new PyramidMonument({ own: this.palette.own, enemy: this.palette.enemy, neutral: this.palette.neutral }, this.textures.stone);
-    this.scene.add(this.pyramid.group);
-    this.placePyramid();
-
     // Grande Mondo fog wall (visuals only — the server rejects every interregional order while it stands)
     this.fog = new FogWall(this.palette.snow.clone().lerp(this.palette.horizon, 0.3).offsetHSL(0, -0.35, -0.08));
     this.scene.add(this.fog.group);
@@ -291,6 +286,7 @@ export class MapEngine {
 
     this.scene.add(this.marchGroup);
     this.minimap = this.createMinimap();
+    if (opts.pyramids) this.setPyramids(opts.pyramids);
     this.updateCamera();
     this.loadOverview();
     this.loop = this.loop.bind(this);
@@ -448,7 +444,7 @@ export class MapEngine {
       if (v.z > 1) return Infinity;
       return Math.hypot(((v.x + 1) / 2) * this.width - px, ((1 - v.y) / 2) * this.height - py);
     };
-    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: boolean } | null = null;
+    let best: { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: PyramidNode } | null = null;
     // marches first: they move over the terrain and are the most time-critical thing to inspect
     if (this.marchGroup.visible) {
       for (const mm of this.marchMarkers) {
@@ -457,14 +453,16 @@ export class MapEngine {
         if (d < TOUCH_PX && (!best || d < best.d)) best = { d, m: mm.march, mx: p.x, mz: p.z };
       }
     }
-    // the Pyramid is a 15×15 monument: pick on its apex/body or on any footprint tile
-    {
-      const py = this.pyramid.group.position.y;
-      const dp = Math.min(screenDist(this.pyr[0] + 0.5, py + PYRAMID_TOP, this.pyr[1] + 0.5), screenDist(this.pyr[0] + 0.5, py + PYRAMID_TOP * 0.5, this.pyr[1] + 0.5));
-      const inside = Math.abs(hit.x - (this.pyr[0] + 0.5)) <= PYRAMID_HALF && Math.abs(hit.z - (this.pyr[1] + 0.5)) <= PYRAMID_HALF;
+    // Pyramids are 15×15 (41×41 Grande Piramide) monuments: pick on the apex/body or on any footprint tile
+    for (const node of this.pyramids.values()) {
+      const [px, pz] = node.xy;
+      const py = node.monument.group.position.y;
+      const half = PYRAMID_HALF * node.scale;
+      const dp = Math.min(screenDist(px + 0.5, py + PYRAMID_TOP * node.scale, pz + 0.5), screenDist(px + 0.5, py + PYRAMID_TOP * node.scale * 0.5, pz + 0.5));
+      const inside = Math.abs(hit.x - (px + 0.5)) <= half && Math.abs(hit.z - (pz + 0.5)) <= half;
       if (inside || dp < TOUCH_PX * 1.6) {
         const d = inside ? TOUCH_PX * 0.9 : dp; // a march marker tapped directly still wins
-        if (!best || d < best.d) best = { d, pyr: true };
+        if (!best || d < best.d) best = { d, pyr: node };
       }
     }
     const consider = (list: SettlementPublic[]) => {
@@ -485,19 +483,24 @@ export class MapEngine {
       }
     }
     if (!best && this.overview) consider(this.overview.data.settlements);
-    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: boolean } | null;
+    const b = best as { d: number; s?: SettlementPublic; sen?: SentinelDto; m?: MarchDto; mx?: number; mz?: number; pyr?: PyramidNode } | null;
     if (b?.m) this.select({ x: Math.floor(b.mx!), y: Math.floor(b.mz!), march: b.m });
-    else if (b?.pyr) this.select({ x: this.pyr[0], y: this.pyr[1], pyramid: this.pyramidDto ?? undefined });
+    else if (b?.pyr) this.select({ x: b.pyr.xy[0], y: b.pyr.xy[1], pyramid: b.pyr.dto });
     else if (b?.s) this.select({ x: b.s.x, y: b.s.y, settlement: b.s });
     else if (b?.sen) this.select({ x: b.sen.x, y: b.sen.y, sentinel: b.sen });
     else this.select({ x: tx, y: tz });
   }
 
+  private pyramidAt(x: number, y: number): PyramidNode | null {
+    for (const node of this.pyramids.values()) if (node.xy[0] === x && node.xy[1] === y) return node;
+    return null;
+  }
+
   select(sel: Selection | null) {
     this.selected = sel;
-    const isPyr = !!sel && sel.x === this.pyr[0] && sel.y === this.pyr[1] && !sel.march && !sel.settlement && !sel.sentinel;
-    if (sel && isPyr && !sel.pyramid && this.pyramidDto) sel.pyramid = this.pyramidDto;
-    this.selScale = isPyr ? (PYRAMID_HALF + 1.9) / 0.8 : 1;
+    const node = sel && !sel.march && !sel.settlement && !sel.sentinel ? this.pyramidAt(sel.x, sel.y) : null;
+    if (sel && node) sel.pyramid = node.dto;
+    this.selScale = node ? (PYRAMID_HALF * node.scale + 1.9) / 0.8 : 1;
     if (sel) {
       this.selectionRing.position.set(sel.x + 0.5, this.heightAt(sel.x, sel.y) + 0.06, sel.y + 0.5);
       this.selectionRing.visible = true;
@@ -506,25 +509,55 @@ export class MapEngine {
     this.opts.onSelect(sel);
   }
 
-  /** Pyramid cycle state from the server → monument look + label; the anchor is fixed (spec.world.pyramid_anchor). */
-  setPyramid(dto: PyramidDto | null) {
-    this.pyramidDto = dto;
-    if (dto?.anchor && (dto.anchor[0] !== this.pyr[0] || dto.anchor[1] !== this.pyr[1])) {
-      this.pyr = [dto.anchor[0], dto.anchor[1]];
-      this.placePyramid();
+  /** Every Pyramid of the realm from the server → one monument each (look by cycle state / faction, size by footprint:
+   * classic & Piccola Piramide 15×15, Grande Piramide 41×41). Monuments missing from the list are removed. */
+  setPyramids(list: PyramidSummary[]) {
+    const seen = new Set<string>();
+    let moved = false;
+    for (const dto of list) {
+      seen.add(dto.id);
+      const xy: [number, number] = [dto.anchor[0], dto.anchor[1]];
+      const scale = dto.footprint?.[0] ? Math.max(1, dto.footprint[0] / 15) : 1;
+      let node = this.pyramids.get(dto.id);
+      if (!node) {
+        const monument = new PyramidMonument({ own: this.palette.own, enemy: this.palette.enemy, neutral: this.palette.neutral }, this.textures.stone);
+        this.scene.add(monument.group);
+        node = { monument, xy, scale, dto };
+        this.pyramids.set(dto.id, node);
+        moved = true;
+      } else if (node.xy[0] !== xy[0] || node.xy[1] !== xy[1] || node.scale !== scale) {
+        node.xy = xy;
+        node.scale = scale;
+        moved = true;
+      }
+      node.dto = dto;
+      node.monument.setLook({ state: dto.state ?? "DORMANT_INITIAL", faction: dto.faction ?? "NEUTRAL" });
+      node.monument.group.scale.setScalar(scale);
+      this.placePyramid(node);
     }
-    this.pyramid.setLook({ state: dto?.state ?? "DORMANT_INITIAL", faction: dto?.faction ?? "NEUTRAL" });
-    // Grande Piramide (Grande Mondo): the monument scales with its footprint (classic Pyramid = 15×15)
-    const scale = dto?.footprint?.[0] ? Math.max(1, dto.footprint[0] / 15) : 1;
-    this.pyramid.group.scale.setScalar(scale);
-    if (this.selected?.pyramid && dto) this.select({ ...this.selected, pyramid: dto });
+    for (const [id, node] of this.pyramids) {
+      if (seen.has(id)) continue;
+      this.scene.remove(node.monument.group);
+      node.monument.dispose();
+      this.pyramids.delete(id);
+      moved = true;
+    }
+    if (moved && this.overview) this.buildMinimapStatics();
+    if (this.selected?.pyramid) {
+      const node = this.pyramids.get(this.selected.pyramid.id);
+      if (node) this.select({ ...this.selected, pyramid: node.dto });
+    }
     this.dirty = true;
     this.labelsDirty = true;
   }
 
-  private placePyramid() {
-    this.pyramid.group.position.set(this.pyr[0] + 0.5, this.heightAt(this.pyr[0], this.pyr[1]), this.pyr[1] + 0.5);
+  private placePyramid(node: PyramidNode) {
+    node.monument.group.position.set(node.xy[0] + 0.5, this.heightAt(node.xy[0], node.xy[1]), node.xy[1] + 0.5);
     this.dirty = true;
+  }
+
+  private placePyramids() {
+    for (const node of this.pyramids.values()) this.placePyramid(node);
   }
 
   setMarches(marches: MarchDto[]) {
@@ -606,7 +639,8 @@ export class MapEngine {
     }
     disposeGroup(this.minimap.scene);
     this.smoke.dispose();
-    this.pyramid.dispose();
+    for (const node of this.pyramids.values()) node.monument.dispose();
+    this.pyramids.clear();
     this.fog.dispose();
     for (const t of Object.values(this.textures)) t.dispose();
     this.sun.shadow.dispose();
@@ -731,9 +765,13 @@ export class MapEngine {
     }
     const pyrGeo = new THREE.CircleGeometry(Math.max(5, f.size / 45), 4);
     pyrGeo.rotateX(-Math.PI / 2);
-    const pyr = new THREE.Mesh(pyrGeo, new THREE.MeshBasicMaterial({ color: this.palette.own.clone().offsetHSL(0, 0.1, 0.15) }));
-    pyr.position.set(this.pyr[0] + 0.5, 1.2, this.pyr[1] + 0.5);
-    mm.statics.add(pyr);
+    const pyrMat = new THREE.MeshBasicMaterial({ color: this.palette.own.clone().offsetHSL(0, 0.1, 0.15) });
+    for (const node of this.pyramids.values()) {
+      const pyr = new THREE.Mesh(pyrGeo, pyrMat);
+      pyr.position.set(node.xy[0] + 0.5, 1.2, node.xy[1] + 0.5);
+      pyr.scale.setScalar(node.scale > 1 ? 1.6 : 1);
+      mm.statics.add(pyr);
+    }
   }
 
   private updateMinimapMarches(marches: MarchDto[]) {
@@ -884,7 +922,7 @@ export class MapEngine {
         this.ensureOverviewTiles(true);
         this.rebuildPins();
         this.buildMinimapStatics();
-        this.placePyramid();
+        this.placePyramids();
         if (this.homeBeacon.visible) this.setHome(Math.floor(this.homeBeacon.position.x), Math.floor(this.homeBeacon.position.z));
         this.dirty = true;
         this.labelsDirty = true;
@@ -1094,7 +1132,7 @@ export class MapEngine {
     this.terrainGrid.set(key, base64ToBytes(data.terrain_b64));
     const group = new THREE.Group();
     group.visible = false;
-    const blocked = blockedTiles(data, this.pyr);
+    const blocked = blockedTiles(data, this.pyramids.values());
     const ground = (wx: number, wz: number) => this.groundAt(wx, wz);
     const flora = [this.flora.buildFull(data.cx, data.cy, this.sampler, blocked, ground), this.flora.buildSparse(data.cx, data.cy, this.sampler, blocked, ground)];
     for (const f of flora) {
@@ -1125,7 +1163,7 @@ export class MapEngine {
     this.scene.add(group);
     const node: ChunkNode = { key, cx: data.cx, cy: data.cy, group, terrain: [null, null], flora, territory, entities, emitters, data, lastUsed: now, lod: -1 };
     this.chunks.set(key, node);
-    if (data.cx === Math.floor(this.pyr[0] / CHUNK) && data.cy === Math.floor(this.pyr[1] / CHUNK)) this.placePyramid();
+    for (const node of this.pyramids.values()) if (data.cx === Math.floor(node.xy[0] / CHUNK) && data.cy === Math.floor(node.xy[1] / CHUNK)) this.placePyramid(node);
     this.applyLod(node, this.chunkDistance(data.cx, data.cy));
     // neighbours share corner heights: rebuild their terrain so seams close
     for (const [dx, dy] of [
@@ -1227,15 +1265,14 @@ export class MapEngine {
       }
     }
     if (this.overview) for (const s of this.overview.data.settlements) push(s);
-    {
-      const d = this.pyramidDto;
-      v.set(this.pyr[0] + 0.5, this.pyramid.group.position.y + PYRAMID_TOP + 0.6, this.pyr[1] + 0.5).project(this.camera);
-      if (!(v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1)) {
-        out.push({
-          d: -2000, // the monument always keeps its label
-          label: { id: "pyramid", x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, name: d?.owner?.tag ? `${d.name} [${d.owner.tag}]` : d?.name ?? "Piramide", level: 0, faction: d?.faction ?? "NEUTRAL", kind: "PYRAMID", status: d?.state ?? "DORMANT_INITIAL", endsAt: d?.deadline ?? null },
-        });
-      }
+    for (const node of this.pyramids.values()) {
+      const d = node.dto;
+      v.set(node.xy[0] + 0.5, node.monument.group.position.y + PYRAMID_TOP * node.scale + 0.6, node.xy[1] + 0.5).project(this.camera);
+      if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) continue;
+      out.push({
+        d: -2000, // monuments always keep their label
+        label: { id: `pyramid:${d.id}`, x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height, name: d.owner?.tag ? `${d.name} [${d.owner.tag}]` : d.name, level: 0, faction: d.faction ?? "NEUTRAL", kind: "PYRAMID", status: d.state ?? "DORMANT_INITIAL", endsAt: d.deadline ?? null },
+      });
     }
     if (this.marchGroup.visible && this.cam.dist < MARCH_LABEL_DIST) {
       for (const { march, marker } of this.marchMarkers) {
@@ -1354,7 +1391,7 @@ export class MapEngine {
     const t = (now - this.startedAt) / 1000;
     this.water.update(t);
     this.factory.tick(t);
-    this.pyramid.tick(t);
+    for (const node of this.pyramids.values()) node.monument.tick(t);
     this.fog.tick(t, this.cam.dist);
     this.animateSmoke(t);
     this.selectionRing.scale.setScalar(this.selScale * (1 + 0.08 * Math.sin(t * 3.2)));

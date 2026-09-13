@@ -4,7 +4,7 @@ import { PixelRatio, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { get, serverNow } from "@/src/api/client";
-import type { ChunkDto, MarchDto, OverviewDto, PyramidDto } from "@/src/api/hooks";
+import type { ChunkDto, MarchDto, OverviewDto, PyramidSummary } from "@/src/api/hooks";
 import { useTheme } from "@/src/theme";
 
 import { MapEngine, MapLabel, Selection, setEngineServerOffset } from "./engine";
@@ -17,7 +17,8 @@ type Props = {
   worldSize: number;
   home?: { x: number; y: number } | null;
   marches?: MarchDto[];
-  pyramid?: PyramidDto | null;
+  /** every Pyramid of the realm (monuments); Grande Mondo: pass only the ones the viewer may see */
+  pyramids?: PyramidSummary[];
   onSelect: (sel: Selection | null) => void;
   onEngine?: (engine: MapEngine | null) => void;
   onCameraChange?: (cam: { tx: number; tz: number; dist: number }) => void;
@@ -29,7 +30,7 @@ type Props = {
   fogZones?: FogZones | null;
 };
 
-export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true, viewBounds = null, fogZones = null }: Props) {
+export function MapView3D({ worldId, worldSize, home, marches, pyramids, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true, viewBounds = null, fogZones = null }: Props) {
   const { colors } = useTheme();
   const engineRef = useRef<MapEngine | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
@@ -69,7 +70,7 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
         onCameraChange,
         onLabels: setLabels,
         worldSize,
-        pyramidXY: pyramid?.anchor ? [pyramid.anchor[0], pyramid.anchor[1]] : undefined,
+        pyramids: pyramids ?? undefined,
         viewBounds,
         fogZones,
       });
@@ -80,7 +81,6 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
         centeredRef.current = true;
       }
       if (marches) engine.setMarches(marches);
-      if (pyramid) engine.setPyramid(pyramid);
       onEngine?.(engine);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,8 +103,8 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
   }, [marches]);
 
   useEffect(() => {
-    engineRef.current?.setPyramid(pyramid ?? null);
-  }, [pyramid]);
+    if (pyramids) engineRef.current?.setPyramids(pyramids);
+  }, [pyramids]);
 
   const boundsKey = (viewBounds ? `${viewBounds.x0}:${viewBounds.y0}:${viewBounds.x1}:${viewBounds.y1}` : "") + "|" + (fogZones ? `${fogZones.cx}:${fogZones.rIn}:${fogZones.n}:${[...fogZones.allowed].sort().join(",")}` : "");
   useEffect(() => {

@@ -163,8 +163,10 @@ export default function InboxScreen() {
     if (!n.read_at) mut.read.mutate(n.notification_id);
     if ((n.event === "BATTLE_REPORT_READY" || n.event === "BATTLE_RESOLVED") && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
     else if (n.deep_link?.startsWith("battle/")) router.push({ pathname: "/battle/[id]", params: { id: n.deep_link.slice("battle/".length) } });
-    else if (n.deep_link?.startsWith("pyramid")) router.push("/pyramid");
-    else if (n.deep_link?.startsWith("grande-mondo")) router.push("/grande-mondo");
+    else if (n.deep_link?.startsWith("pyramid")) {
+      const id = n.deep_link.match(/[?&]id=([^&]+)/)?.[1];
+      router.push(id ? { pathname: "/pyramid", params: { id: decodeURIComponent(id) } } : "/pyramid");
+    } else if (n.deep_link?.startsWith("grande-mondo")) router.push("/grande-mondo");
     else if (n.deep_link?.startsWith("research")) router.push("/research");
     else if (n.deep_link?.startsWith("caravans")) router.push("/caravans");
     else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");

@@ -188,7 +188,7 @@ class TestCycleOpen:
         for acc in (demo, ally):
             inbox = get(acc["h"], f"/worlds/{WORLD}/inbox?limit=50")["items"]
             al = [n for n in inbox if n["event"] == "PYRAMID_ATTACK_INCOMING" and n["payload"].get("march_id") == r2["march_id"]]
-            assert al and al[0]["payload"]["attacker_alliance_tag"] == "TRZ" and al[0]["payload"]["eta"][:19] == r2["arrival_at"][:19] and al[0]["deep_link"] == "pyramid" and al[0]["severity"] == "HIGH"
+            assert al and al[0]["payload"]["attacker_alliance_tag"] == "TRZ" and al[0]["payload"]["eta"][:19] == r2["arrival_at"][:19] and al[0]["deep_link"].startswith("pyramid") and al[0]["severity"] == "HIGH"
             assert "house_name" not in al[0]["payload"] and "units" not in al[0]["payload"]
         chat = get(demo["h"], f"/worlds/{WORLD}/alliance/chat")["messages"]
         assert any(m["role"] == "SYSTEM" and "Attacco alla Piramide" in m["text"] and "[TRZ]" in m["text"] for m in chat)
@@ -250,7 +250,7 @@ class TestHoldAndRewards:
         assert s["me"]["reward"] is None  # window (0.01 d) already elapsed with the tiny test config
         inbox = get(demo["h"], f"/worlds/{WORLD}/inbox?limit=200")["items"]
         states = {n["payload"]["state"] for n in inbox if n["event"] == "PYRAMID_STATE_CHANGED"}
-        assert {"OPEN", "REWARD_LOCK", "DORMANT"} <= states and all(n["deep_link"] == "pyramid" for n in inbox if n["event"] == "PYRAMID_STATE_CHANGED")
+        assert {"OPEN", "REWARD_LOCK", "DORMANT"} <= states and all(n["deep_link"].startswith("pyramid") for n in inbox if n["event"] == "PYRAMID_STATE_CHANGED")
 
     def test_dormant_to_new_cycle(self, demo):
         advance(0.01 * 86400 + 30)

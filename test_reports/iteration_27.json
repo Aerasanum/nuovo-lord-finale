@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 28 GREEN (osservatore) — Piccole & Grande Piramide su gm_1 verificate end-to-end. BACKEND (leggero, non-destructive): 10/10 pytest passed in tests/test_iteration_28_observer.py (list 10 piramidi con GRAND anchor [1088,1088]/41x41/manual_open + 9 REGIONAL con 'gm_1:IT' mine=true anchor [1088,583]/15x15; default /pyramid=IT name 'Piccola Piramide IT' first_open_day 90; QA config guardian.min_power=250000; /pyramid?id=gm_1 kind GRAND manual_open=true reward_scope REGION reward_days 7 reward {prod 10, res 5, train 10}; ?id=gm_1:XX → 404 PYRAMID_NOT_FOUND; demo /pyramid → gm_1:FR e ?id=gm_1:IT → me.in_region=false; /grande-mondo pyramids(10) grand.kind GRAND my_pyramid.id gm_1:IT regional_first_open_day=90 grand_wins array; admin/grand-pyramid {OPEN} in ISOLATION → 409 GRAND_PYRAMID_NEEDS_WAR; demo su admin/grand-pyramid → 403; admin/regional-pyramid-config region=null 60 → poi 90 ripristinato). FRONTEND (osservatore/IT, viewport 390x844): map-center-pyramid-button → camera 1089,584 ×44, label 'Piccola Piramide · IT 57g 8h', tap → map-pyramid-card con name 'Piccola Piramide · IT' pill SIGILLATA, testo 'Si apre tra 57g 8h', bottone Dettagli. /pyramid mostra pyramid-switcher (chip Grande Piramide + Piccola Piramide · IT), pyramid-regional-hint presente con 'per 14 giorni' + Produzione +8%. Switch Grand: pyramid-name 'Grande Piramide', pyramid-grand-hint presente, 'chiusa'/'In attesa dell'apertura'/'per 7 giorni'/'tutti i giocatori della regione'/+10%/+5%/'Custode della Grande Piramide' tutti presenti; '00:00' non presente. pyramid-back → /map. /grande-mondo (map-gm-chip): gm-pyramids con gm-my-pyramid (Piccola IT · SIGILLATA · 57g 7h) + gm-grand-pyramid (In attesa dell'apertura · SIGILLATA); lista 'Custodi della Grande Piramide' con 2 voci [OSS] cicli 12/13; gm-region-IT caption 'Piccola Piramide: Sigillata'; regola 4 'Come funziona' 'giorno 90' presente; tap gm-grand-pyramid → /pyramid?id=gm_1 pyramid-name 'Grande Piramide'. Admin panel: gm-admin-grand-open aria-disabled=true in ISOLATION; drop-fog+confirm → WAR → gm-admin-grand-open abilitato; click → toast 'Grande Piramide aperta' + gm-grand-pyramid pill APERTA + Guardiano; gm-admin-grand-close → toast 'Grande Piramide chiusa'; gm-admin-raise-fog+confirm → ISOLATION (grand_state=DORMANT). Piccole Piramidi admin: scope-ALL selezionato, days='90', digitando '60'+save → toast 'Impostazioni salvate' e testo regola 4 diventa 'giorno 60'; digitando 'abc' → toast 'Inserisci un numero di giorni valido'; scope-FR+save '30' ok, poi ripristino ALL=90 e FR=90, poi POST /api/qa/pyramid/reset {gm_1:FR clear_config:true} per rimuovere override FR redundante. Demo/FR: map-center-pyramid-button → coords 1414,702, monumento 'Piccola Piramide · FR 57g 7h', card 'Piccola Piramide · FR'; Grande e altre Piccole NON visibili (fog). Regressione world_1 (demo): map-center-pyramid-button → 201,201 ×44, label 'Piramide APERTA', card 'Piramide' → Dettagli → /pyramid name 'Piramide' senza pyramid-switcher. Stato finale: gm_1 ISOLATION, next_war FR+IT ×5, regional_first_open_day 90, grand DORMANT, regional_overrides={'*':{'first_open_day':90}}.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles (shadow*/textShadow*)", "issue": "Console warnings su React Native web: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' e '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Non bloccante ma da sistemare. Reference: cercare `shadowColor`, `shadowOffset`, `shadowOpacity`, `shadowRadius`, `textShadowColor`, `textShadowOffset`, `textShadowRadius` nei componenti (probabile /app/frontend/src/components/*, /app/frontend/app/*.tsx)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_28_observer.py",
+    "/app/test_reports/pytest/iter28.xml",
+    "/app/test_reports/screens/iter28_pyramid_it.jpg",
+    "/app/test_reports/screens/iter28_card.jpg",
+    "/app/test_reports/screens/iter28_pyramid_regional.jpg",
+    "/app/test_reports/screens/iter28_pyramid_grand.jpg",
+    "/app/test_reports/screens/iter28_gm_panel.jpg",
+    "/app/test_reports/screens/iter28_gm_admin.jpg",
+    "/app/test_reports/screens/iter28_admin_final.jpg",
+    "/app/test_reports/screens/iter28_admin_grand_flow.jpg",
+    "/app/test_reports/screens/iter28_demo_fr.jpg",
+    "/app/test_reports/screens/iter28_world1.jpg"
+  ],
+  "action_items": [
+    "(non bloccante) Migrare gli stili deprecati React Native shadow*/textShadow* a boxShadow/textShadow per rimuovere i warning in console.",
+    "(nota di igiene QA) I test frontend admin di questa iterazione non sono in grado di rimuovere da soli l'override 'FR' quando si passa da scope=FR a scope=ALL: dopo un save su FR resta in regional_overrides. L'endpoint di 'salva ALL' aggiorna solo la wildcard '*', non elimina i 'per-region' esistenti. Valutare se la UI 'salva ALL 90' debba anche azzerare gli override per-region (o offrire un pulsante 'reset regione') — attualmente serve una POST /api/qa/pyramid/reset {pyramid_id:'gm_1:FR', clear_config:true} per pulire. Non è un bug hard ma un behavior da chiarire."
+  ],
+  "critical_code_review_comments": [
+    "app/domain/pyramid.py + routes_game.py: il modello a 10 piramidi (1 GRAND + 9 REGIONAL) è coerente. Il payload /pyramid espone config.guardian=null quando lo stato è DORMANT_INITIAL (correttamente derivato al momento dell'apertura); i test devono usare il QA endpoint (/api/qa/pyramid/config) per verificare il min_power configurato — implementato in test_iteration_28_observer.py.",
+    "grande-mondo aggregate: pyramids(10), my_pyramid, grand_pyramid, regional_first_open_day, grand_wins tutti presenti. Il flag manual_open=true sul GRAND lo isola dal ciclo automatico e blocca correttamente admin OPEN in ISOLATION (409 GRAND_PYRAMID_NEEDS_WAR).",
+    "Admin regional-pyramid-config: region=null → aggiorna wildcard '*'; region=CODE → aggiunge override per-region; region=XX → 404; config bogus → 400. RBAC verificato (demo 403). Le override 'FR' persistono anche dopo un salvataggio ALL: potenziale sorpresa per admin che si aspettano un reset completo.",
+    "map.tsx: la logica di visibilità delle Piccole Piramidi rispetta correttamente la nebbia (demo/FR vede solo la propria; osservatore vede tutte grazie a view_all_regions).",
+    "PyramidCard.tsx: chip switcher pyramid-switch-<pid> + hint regionale/grand + rimozione del countdown 00:00 per stato 'In attesa dell'apertura' della Grande."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_28_observer.py",
+    "/app/test_reports/pytest/iter28.xml"
+  ],
+  "success_rate": {"backend": "10/10 (100%)", "frontend": "11/11 flow verificati (100%)"},
+  "seed_data_creation": "Nessuno. Solo stati transitori: gm_1 ha ciclato ISOLATION→WAR→ISOLATION per testare admin grand-open/close; regional first_open_day toccato (60/30 su ALL/FR) e ripristinato a 90; override FR pulito via QA reset. Stato finale: ISOLATION, next_war FR+IT ×5, regional_first_open_day=90, grand DORMANT, regional_overrides={'*':{'first_open_day':90}}. world_1 non toccato.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend URL https://empire-lords-dragon.preview.emergentagent.com. gm_1 ha 10 piramidi (1 GRAND 'gm_1' anchor [1088,1088] 41x41 manual_open + 9 REGIONAL 'gm_1:<CC>' 15x15 con IT anchor [1088,583], FR anchor [1413,701]). Osservatore vede tutto (view_all_regions), demo vede solo FR (fog). GET /api/worlds/gm_1/pyramid[?id=<pid>] → 200; ?id=gm_1:XX → 404 PYRAMID_NOT_FOUND. Admin POST /api/worlds/gm_1/grande-mondo/admin/grand-pyramid {action:'OPEN'|'CLOSE'} richiede WAR (409 GRAND_PYRAMID_NEEDS_WAR altrimenti); action non valida → 400. POST /api/worlds/gm_1/grande-mondo/admin/regional-pyramid-config {region:null|'IT'|..., config:{first_open_day:int}} → aggiorna wildcard '*' o override per-region; NON pulisce le override per-region esistenti quando si salva su ALL — usare /api/qa/pyramid/reset {pyramid_id:'gm_1:<CC>', clear_config:true} per un vero reset. Il player-facing /pyramid restituisce config.guardian=null in DORMANT_INITIAL; usare /api/qa/pyramid/config?world_id=gm_1&pyramid_id=<pid> (X-Admin-Key: eld-admin-7f3c9a1d2b4e) per ispezionare la config raw. UI: pyramid-screen ha pyramid-switcher solo su gm_ worlds; su world_1 c'è una sola Piramide senza chip. map-center-pyramid-button porta al pyramid_anchor della regione del player (view_all → GRAND). map-label-pyramid-gm_1 (Grande), map-label-pyramid-gm_1-<CC> (Piccole). Card map-pyramid-card + map-pyramid-name/state/… + bottone Dettagli. /grande-mondo espone gm-pyramids/gm-my-pyramid/gm-grand-pyramid + lista gm-grand-win-*. Admin panel: gm-admin-grand-open (disabled in ISOLATION), gm-admin-grand-close (visible in WAR after OPEN), gm-admin-pyr-scope-ALL/<CC>, gm-admin-pyr-days, gm-admin-pyr-save. Nessuna march avviata verso piramidi in questo run (piramidi tutte SIGILLATE)."
+}

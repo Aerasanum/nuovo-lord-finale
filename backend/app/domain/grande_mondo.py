@@ -326,6 +326,10 @@ async def transition(world: dict, to: str, reason: str = "DEADLINE") -> dict:
         await scheduler.cancel(gm["deadline_key"])
     await scheduler.schedule(world["_id"], EVENT, until, world["_id"], key, payload)
     fresh = await db().worlds.find_one({"_id": world["_id"]})
+    if to == "ISOLATION":
+        from app.domain import pyramid  # local: pyramid imports this module
+
+        await pyramid.close_grand(fresh, reason)
     war = (fresh.get("gm") or {}).get("war") or {}
     kind = "GM_FOG_FALLEN" if to == "WAR" else "GM_FOG_RETURNED"
     await progress.chronicle(world["_id"], kind, {"cycle": cycle, "until": clock.iso(until), "reason": reason, "regions": war.get("regions"), "speed_multiplier": war.get("speed_multiplier")}, [], ref=f"{kind}:{cycle}")

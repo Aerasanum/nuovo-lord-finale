@@ -5,10 +5,12 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 
-import type { PyramidDto } from "@/src/api/hooks";
+import type { PyramidDto, PyramidSummary } from "@/src/api/hooks";
 import { Button, Countdown, Icon, ProgressBar, T } from "@/src/components/ui";
 import { fmt, formatNumber, useI18n, type StringKey } from "@/src/i18n";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+
+type PillDto = Pick<PyramidDto, "state" | "faction"> & { owner: { tag: string | null } | null };
 
 const useStyles = makeStyles((c) => ({
   pill: { paddingHorizontal: 10, height: 24, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4 },
@@ -25,7 +27,14 @@ export function pyramidStateLabel(t: (k: StringKey) => string, state: PyramidDto
   return t(`pyrState_${state}` as StringKey);
 }
 
-export function PyramidStatePill({ dto, testID }: { dto: PyramidDto; testID?: string }) {
+/** Localised monument name: "La Piramide" (classic), "Grande Piramide", "Piccola Piramide · IT". */
+export function pyramidName(t: (k: StringKey) => string, p: Pick<PyramidSummary, "kind" | "region_code" | "name">): string {
+  if (p.kind === "GRAND") return t("gmCenterPyramid");
+  if (p.kind === "REGIONAL") return `${t("pyramidSmall")} · ${p.region_code ?? ""}`;
+  return p.name;
+}
+
+export function PyramidStatePill({ dto, testID }: { dto: PillDto; testID?: string }) {
   const s = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
@@ -71,24 +80,25 @@ export function PyramidPhase({ dto, testID }: { dto: PyramidDto; testID?: string
       </View>
     );
   }
-  const label = dto.state === "REWARD_LOCK" ? t("pyramidLockEnds") : dto.state === "DORMANT" ? t("pyramidNextOpen") : t("pyramidOpensIn");
+  const waiting = !dto.deadline && dto.config.manual_open; // Grande Piramide: opened by the administrator, no calendar
+  const label = dto.state === "REWARD_LOCK" ? t("pyramidLockEnds") : waiting ? t("gmGrandWaitsAdmin") : dto.state === "DORMANT" ? t("pyramidNextOpen") : t("pyramidOpensIn");
   return (
     <View style={s.phase} testID={testID}>
-      <Icon name={dto.state === "REWARD_LOCK" ? "trophy-outline" : "clock-outline"} size={14} color={colors.muted} />
+      <Icon name={dto.state === "REWARD_LOCK" ? "trophy-outline" : waiting ? "lock-outline" : "clock-outline"} size={14} color={colors.muted} />
       <T v="caption" style={{ flex: 1 }}>
         {label}
         {dto.state === "REWARD_LOCK" && dto.winner ? ` · [${dto.winner.tag}]` : ""}
       </T>
-      <Countdown endsAt={dto.deadline} style={{ color: colors.onSurface }} testID="pyramid-phase-countdown" />
+      {waiting ? null : <Countdown endsAt={dto.deadline} style={{ color: colors.onSurface }} testID="pyramid-phase-countdown" />}
     </View>
   );
 }
 
 export function pyramidDescription(t: (k: StringKey) => string, dto: PyramidDto): string {
   const c = dto.config;
-  if (dto.state === "DORMANT_INITIAL") return fmt(t("pyrDesc_DORMANT_INITIAL"), { day: c.first_open_day });
+  if (dto.state === "DORMANT_INITIAL" || (dto.state === "DORMANT" && c.manual_open)) return c.manual_open ? t("pyrDesc_GRAND_CLOSED") : fmt(t("pyrDesc_DORMANT_INITIAL"), { day: c.first_open_day });
   if (dto.state === "OPEN") return dto.owner ? fmt(t("pyrDesc_OPEN_HELD"), { tag: dto.owner.tag ?? "" }) : fmt(t("pyrDesc_OPEN_NEUTRAL"), { hours: c.hold_hours });
-  if (dto.state === "REWARD_LOCK") return fmt(t("pyrDesc_REWARD_LOCK"), { tag: dto.winner?.tag ?? "", cycle: dto.cycle_id, days: c.reward_days });
+  if (dto.state === "REWARD_LOCK") return fmt(t(c.reward_scope === "REGION" ? "pyrDesc_REWARD_LOCK_REGION" : "pyrDesc_REWARD_LOCK"), { tag: dto.winner?.tag ?? "", region: dto.winner?.region_code ?? "", cycle: dto.cycle_id, days: c.reward_days });
   return fmt(t("pyrDesc_DORMANT"), { days: c.dormant_days });
 }
 
@@ -131,6 +141,10 @@ export function PyramidActions({ dto, onDetails, onAttack, onReinforce, compact 
       {!me.eligible ? (
         <T v="caption" style={s.hint} testID="pyramid-not-eligible">
           {t("pyramidNotEligibleHint")}
+        </T>
+      ) : !me.in_region ? (
+        <T v="caption" style={s.hint} testID="pyramid-wrong-region">
+          {t("pyramidWrongRegionHint")}
         </T>
       ) : dto.state !== "OPEN" ? (
         <T v="caption" style={s.hint} testID="pyramid-not-open">

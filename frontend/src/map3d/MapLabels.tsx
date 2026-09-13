@@ -43,7 +43,7 @@ export const MapLabels = memo(function MapLabels({ labels }: { labels: MapLabel[
         if (l.kind === "PYRAMID") {
           const awake = l.status === "OPEN" || l.status === "REWARD_LOCK";
           return (
-            <View key={l.id} style={[styles.chip, styles.pyramid, { left: clampX(l.x, 70, 130), top: l.y, borderColor: awake ? accent : colors.borderStrong, backgroundColor: colors.glass }]} testID="map-label-pyramid">
+            <View key={l.id} style={[styles.chip, styles.pyramid, { left: clampX(l.x, 70, 130), top: l.y, borderColor: awake ? accent : colors.borderStrong, backgroundColor: colors.glass }]} testID={`map-label-${l.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}>
               <Icon name="pyramid" size={12} color={awake ? colors.brandPrimary : colors.muted} />
               <T numberOfLines={1} style={[styles.name, { color: colors.onSurface, fontWeight: "700" }]}>
                 {l.name}
