@@ -8,7 +8,7 @@ import type { ChunkDto, MarchDto, OverviewDto, PyramidDto } from "@/src/api/hook
 import { useTheme } from "@/src/theme";
 
 import { MapEngine, MapLabel, Selection, setEngineServerOffset } from "./engine";
-import type { FogBounds } from "./fog";
+import type { FogBounds, FogZones } from "./fog";
 import { MapLabels } from "./MapLabels";
 
 type Props = {
@@ -23,11 +23,13 @@ type Props = {
   onCameraChange?: (cam: { tx: number; tz: number; dist: number }) => void;
   refreshToken?: number;
   showLabels?: boolean;
-  /** Grande Mondo: region visible while the fog wall is up (null = whole realm, fog down) */
+  /** Grande Mondo: reachable area while the fog wall is up (null = whole realm) */
   viewBounds?: FogBounds | null;
+  /** Grande Mondo: fog geometry + reachable zones (null = fog down) */
+  fogZones?: FogZones | null;
 };
 
-export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true, viewBounds = null }: Props) {
+export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect, onEngine, onCameraChange, refreshToken, showLabels = true, viewBounds = null, fogZones = null }: Props) {
   const { colors } = useTheme();
   const engineRef = useRef<MapEngine | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
@@ -69,6 +71,7 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
         worldSize,
         pyramidXY: pyramid?.anchor ? [pyramid.anchor[0], pyramid.anchor[1]] : undefined,
         viewBounds,
+        fogZones,
       });
       engineRef.current = engine;
       if (home) {
@@ -103,9 +106,9 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramid, onSelect
     engineRef.current?.setPyramid(pyramid ?? null);
   }, [pyramid]);
 
-  const boundsKey = viewBounds ? `${viewBounds.x0}:${viewBounds.y0}:${viewBounds.x1}:${viewBounds.y1}` : "";
+  const boundsKey = (viewBounds ? `${viewBounds.x0}:${viewBounds.y0}:${viewBounds.x1}:${viewBounds.y1}` : "") + "|" + (fogZones ? `${fogZones.cx}:${fogZones.rIn}:${fogZones.n}:${[...fogZones.allowed].sort().join(",")}` : "");
   useEffect(() => {
-    engineRef.current?.setViewBounds(viewBounds ?? null);
+    engineRef.current?.setViewBounds(viewBounds ?? null, fogZones ?? null);
   }, [boundsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

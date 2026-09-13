@@ -929,3 +929,23 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Screenshots: login in francese con 8 pill lingua; card mondi in francese; osservatore vede la mappa senza nebbia (minimap intero mondo) e la Grande Piramide a 1617,1617; schermata teletrasporto con candidato e sheet di conferma."
+
+# ---- iteration 27 (main agent) — Grande Mondo layout a spicchi (sector/pie), guerre selettive con velocità custom, fix UI mappa ----
+backend:
+  - task: "worldgen/grande_mondo: NUOVO layout a spicchi — mondo 2176×2176, centro (1088,1088) disco r_in=130 con Grande Piramide footprint 41×41, 9 settori (mid_deg/half_deg, r_land 880, r_out 1030, canale mare 24 tile tra settori); region DTO ora ha index/mid_deg/half_deg/r_in/r_land/r_out/bbox/center/pyramid_anchor (NIENTE più x0/y0/size); zone_grid/allowed_zones/war_zones; admin: POST /worlds/{w}/grande-mondo/admin/war-config {regions:[codes]|null, speed_multiplier in (1,2,3,5)} (400 WAR_CONFIG_INVALID se <2 regioni o mult non valido), POST .../admin/phase {to: WAR|ISOLATION} (403 FORBIDDEN se non gm_admin); durante WAR le marce che escono dalla propria zona verso una zona in guerra usano speed_multiplier; regioni non in guerra restano isolate (my_fog_up true); GET /worlds/{w}/grande-mondo → phase, cycle, seconds_left, regions[], center{x,y,radius,pyramid_anchor}, war, next_war, speed_multipliers, my_region, view_all, is_admin. I vecchi test tests/test_iteration_25_grande_mondo.py e test_iteration_26_teleport.py hanno aspettative stantie (size 3232, anchor 1616, x0/y0, guerra 20 gg) → da aggiornare alla nuova geometria (war_days=30)."
+    implemented: true
+    working: "NA"
+    file: "backend/app/domain/grande_mondo.py, worldgen.py, worlds.py, pathfinding.py, marches.py, backend/app/api/routes_game.py, scripts/create_grande_mondo.py"
+    stuck_count: 0
+    priority: "high"
+frontend:
+  - task: "map.tsx: nuovo SettlementSwitcher (src/components/SettlementSwitcher.tsx) per chi ha più villaggi: chip scorrevoli + frecce prev/next (map-settlement-prev / map-settlement-next) che selezionano il villaggio e centrano la camera + pulsante lista (map-settlement-list) → Sheet con tutti i villaggi (map-settlement-item-<id>); minimap spostata a sinistra (i pulsanti +/- a destra non la toccano più); grande-mondo.tsx: freccia indietro (grande-mondo-back), pannello admin (gm-admin-region-<CODE>, gm-admin-region-ALL, gm-admin-speed-<n>, gm-admin-save, gm-admin-drop-fog / gm-admin-raise-fog, gm-admin-confirm-button); settings.tsx e teleport.tsx: freccia indietro (settings-back, teleport-back); fog.ts: muro di nebbia a settori (coltre sulle zone non raggiungibili)."
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/map.tsx, src/components/SettlementSwitcher.tsx, app/grande-mondo.tsx, app/settings.tsx, app/teleport.tsx, src/map3d/fog.ts, src/map3d/engine.ts, src/game/grandeMondo.ts"
+    stuck_count: 0
+    priority: "high"
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Screenshot osservatore: switcher con frecce e sheet 'Insediamenti · 3' OK; Grande Piramide a 1088,1088 (grande); minimap mostra il mondo circolare a 9 spicchi; /grande-mondo con freccia indietro e pannello admin (IT+FR ×5)."

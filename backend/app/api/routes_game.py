@@ -138,6 +138,38 @@ async def grande_mondo_status(c: Ctx = Depends(ctx)):
     return {**d, "server_time": clock.iso(clock.now())}
 
 
+class WarConfigIn(BaseModel):
+    regions: list[str] | None = None  # None / all codes = every region takes part
+    speed_multiplier: int = Field(default=1, ge=1, le=10)
+
+
+class PhaseIn(BaseModel):
+    to: str  # WAR | ISOLATION
+
+
+def _require_gm_admin(c: Ctx) -> None:
+    if not grande_mondo.is_grande_mondo(c.world):
+        raise ApiError("NOT_GRANDE_MONDO", "This realm is not a Grande Mondo", 404)
+    if not c.player.get("gm_admin"):
+        raise ApiError("FORBIDDEN", "Grande Mondo administrator only", 403)
+
+
+@router.post("/worlds/{world_id}/grande-mondo/admin/war-config")
+async def grande_mondo_war_config(body: WarConfigIn, c: Ctx = Depends(ctx)):
+    """Administrator (Bibbia GM: decided cycle by cycle): regions admitted to the next war + interregional march speed."""
+    _require_gm_admin(c)
+    w = await grande_mondo.set_war_config(c.world, body.regions, body.speed_multiplier, c.player["_id"])
+    return {**grande_mondo.dto(w, c.player), "server_time": clock.iso(clock.now())}
+
+
+@router.post("/worlds/{world_id}/grande-mondo/admin/phase")
+async def grande_mondo_force_phase(body: PhaseIn, c: Ctx = Depends(ctx)):
+    """Administrator: drop the fog now (WAR) or bring it back (ISOLATION) through the real transition."""
+    _require_gm_admin(c)
+    w = await grande_mondo.transition(c.world, body.to.upper(), reason=f"ADMIN:{c.player['_id']}")
+    return {**grande_mondo.dto(w, c.player), "server_time": clock.iso(clock.now())}
+
+
 @router.get("/worlds/{world_id}/me")
 async def me(c: Ctx = Depends(ctx)):
     cur = db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}).sort("founded_at", 1)
@@ -343,7 +375,7 @@ def overview_factor(size: int) -> int:
 
 async def _fog_zones(c: Ctx) -> set[int] | None:
     """Zones the viewer may observe while the Grande Mondo fog is up (None = no fog / classic realm)."""
-    if not grande_mondo.fog_up(c.world) or c.player.get("view_all_regions"):
+    if not grande_mondo.is_grande_mondo(c.world) or c.player.get("view_all_regions"):
         return None  # observers (QA fixture flag) see the whole Grande Mondo; the movement rules still apply to them
     xy = [(int(s["x"]), int(s["y"])) async for s in db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}, {"x": 1, "y": 1})]
     return grande_mondo.visible_zones(c.world, xy)

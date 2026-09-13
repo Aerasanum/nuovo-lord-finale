@@ -35,7 +35,7 @@ async def main() -> None:
         wid = w["_id"]
         print("deleting", wid)
         pids = [p["_id"] async for p in db().players.find({"world_id": wid}, {"_id": 1})]
-        for coll in ("map_chunks", "settlements", "territory_tiles", "sentinels", "marches", "battles", "inbox", "jobs", "scheduled_events", "chronicle", "pyramid", "missions"):
+        for coll in ("map_chunks", "settlements", "territory_tiles", "sentinels", "marches", "battles", "inbox", "jobs", "scheduled_events", "chronicle", "pyramid", "missions", "teleport_log"):
             await db()[coll].delete_many({"world_id": wid})
         await db().pyramid.delete_one({"_id": wid})
         await db().players.delete_many({"world_id": wid})
@@ -47,7 +47,7 @@ async def main() -> None:
     w = await worlds.create_grande_mondo(args.name, args.seed, None, background=False)
     d = grande_mondo.dto(w)
     print(f"created {w['_id']} '{w['name']}' {w['size']}x{w['size']} in {time.time() - t:.1f}s — status {w['status']}")
-    print("regions:", ", ".join(f"{r['code']}({r['x0']},{r['y0']})" for r in d["regions"]))
+    print("regions:", ", ".join(f"{r['code']}@{r['center']}" for r in d["regions"]))
     print("center:", w["center"], "phase:", d["phase"], "until", d["phase_until"])
     print("stats:", {k: v for k, v in (w.get("terrain_stats") or {}).items() if k != "regions"})
 

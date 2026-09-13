@@ -40,6 +40,47 @@ async def load_terrain(world_id: str) -> np.ndarray:
 
 def invalidate(world_id: str) -> None:
     _cache.pop(world_id, None)
+    _components.pop(world_id, None)
+
+
+_components: dict[str, np.ndarray] = {}
+
+
+def _label_land(grid: np.ndarray) -> np.ndarray:
+    """4-connected land component id per tile (-1 = water) — BFS on the flat grid."""
+    from collections import deque
+
+    n_y, n_x = grid.shape
+    land = (grid != 3).ravel()
+    labels = np.full(n_y * n_x, -1, dtype=np.int32)
+    lab = 0
+    for start in np.flatnonzero(land):
+        if labels[start] != -1:
+            continue
+        labels[start] = lab
+        dq = deque([int(start)])
+        while dq:
+            i = dq.popleft()
+            y, x = divmod(i, n_x)
+            for j in ((i - n_x) if y > 0 else -1, (i + n_x) if y < n_y - 1 else -1, (i - 1) if x > 0 else -1, (i + 1) if x < n_x - 1 else -1):
+                if j >= 0 and land[j] and labels[j] == -1:
+                    labels[j] = lab
+                    dq.append(j)
+        lab += 1
+    return labels.reshape(n_y, n_x)
+
+
+async def same_landmass(world_id: str, a: tuple[int, int], b: tuple[int, int]) -> bool:
+    """Cheap reject for land routes: two land tiles on different landmasses can never be joined by a land path
+    (a failing A* on a mega-realm otherwise explores every reachable tile). Computed once per world (~3 s) and cached."""
+    if world_id not in _components:
+        grid = await load_terrain(world_id)
+        _components[world_id] = await asyncio.get_running_loop().run_in_executor(None, _label_land, grid)
+    comp = _components[world_id]
+    la, lb = int(comp[a[1], a[0]]), int(comp[b[1], b[0]])
+    if la == -1 or lb == -1:
+        return True  # water tile involved: let A* decide
+    return la == lb
 
 
 def terrain_cost(code: int) -> float | None:

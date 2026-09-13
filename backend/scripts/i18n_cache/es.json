@@ -870,5 +870,20 @@
 "__err__TELEPORT_BUSY": "Hay marchas en viaje desde o hacia este castillo: espera a que terminen.",
 "__err__TELEPORT_SLOT_UNAVAILABLE": "Este castillo vacío ya no está disponible: elige otro.",
 "__err__TELEPORT_NOT_AVAILABLE": "El teletransporte solo existe en el Gran Mundo.",
-"__err__INSUFFICIENT_RUBIES": "Rubíes insuficientes."
+"__err__INSUFFICIENT_RUBIES": "Rubíes insuficientes.",
+"gmNotAtWar": "tu región no participa",
+"gmWarRegions": "Regiones en guerra",
+"gmWarAll": "Todas las regiones",
+"gmWarSpeed": "Velocidad de marchas entre regiones",
+"gmAdminTitle": "Administración del Gran Mundo",
+"gmAdminHint": "Decide cada vez qué regiones participan en la próxima Guerra de las Regiones y a qué velocidad viajan las marchas que salen de su región.",
+"gmNextWar": "Próxima guerra",
+"gmCurrentWar": "Guerra en curso",
+"gmSaveWar": "Guardar ajustes",
+"gmDropFog": "Haz caer la niebla ahora",
+"gmRaiseFog": "Traer de vuelta la niebla",
+"gmConfirmDropFog": "La niebla caerá de inmediato para las regiones elegidas y comenzará la Guerra de las Regiones. ¿Continuar?",
+"gmConfirmRaiseFog": "La niebla volverá de inmediato y las regiones volverán a quedar aisladas. ¿Continuar?",
+"gmSaved": "Ajustes guardados",
+"gmMinTwo": "Elige al menos dos regiones"
 }

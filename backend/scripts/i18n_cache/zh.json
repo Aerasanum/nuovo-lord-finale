@@ -870,5 +870,20 @@
 "__err__TELEPORT_BUSY": "有行军正前往或离开这座城堡：请等待完成。",
 "__err__TELEPORT_SLOT_UNAVAILABLE": "这座空城堡已不可用：请选择其他。",
 "__err__TELEPORT_NOT_AVAILABLE": "传送仅存在于大世界。",
-"__err__INSUFFICIENT_RUBIES": "红宝石不足。"
+"__err__INSUFFICIENT_RUBIES": "红宝石不足。",
+"gmNotAtWar": "你的大区未参战",
+"gmWarRegions": "参战大区",
+"gmWarAll": "所有大区",
+"gmWarSpeed": "大区间行军速度",
+"gmAdminTitle": "大世界管理",
+"gmAdminHint": "你可每次决定哪些大区参加下一次大区战争，以及离开本区的行军速度。",
+"gmNextWar": "下场战争",
+"gmCurrentWar": "当前战争",
+"gmSaveWar": "保存设置",
+"gmDropFog": "立即驱散迷雾",
+"gmRaiseFog": "恢复迷雾",
+"gmConfirmDropFog": "所选大区的迷雾将立即消散，大区战争将开始。继续？",
+"gmConfirmRaiseFog": "迷雾将立即回归，大区将再次隔离。继续？",
+"gmSaved": "设置已保存",
+"gmMinTwo": "请至少选择两个大区"
 }

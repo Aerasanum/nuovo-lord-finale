@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import math
 import logging
 import uuid
 
@@ -18,7 +19,7 @@ from app.domain import conquest, grande_mondo, house, notifications, territory
 from app.domain import formulas as F
 from app.domain.pathfinding import CHUNK, invalidate
 from app.domain.settlements import bootstrap_player_settlement, build_neutral_state, chunk_of, new_id
-from app.domain.worldgen import N, GenConfig, generate_grande_mondo, generate_world
+from app.domain.worldgen import N, GenConfig, SectorGeom, generate_grande_mondo, generate_world
 
 log = logging.getLogger("worlds")
 
@@ -164,25 +165,23 @@ async def _persist_settlements(world_id: str, anchors: list[tuple], terrain: np.
 
 
 async def create_grande_mondo(name: str | None = None, seed: int | None = None, params: dict | None = None, background: bool = False) -> dict:
-    """Bibbia GM: one mega-realm with `regions` full realms on a ring + neutral central land with the Grande Piramide.
-    Generation takes ~20 s (9 realms): with `background=True` the world is returned as GENERATING and completed by a task."""
+    """Bibbia GM: one mega-realm disc — neutral centre with the Grande Piramide + `regions` sectors, each a complete realm.
+    Generation takes ~1-2 min (9 sectors): with `background=True` the world is returned as GENERATING and completed by a task."""
     spec = get_spec()
     D = {**grande_mondo.DEFAULTS, **(params or {})}  # noqa: N806
     n = int(D["regions"])
     if not (2 <= n <= len(grande_mondo.REGION_CATALOG)):
         raise ApiError("INVALID_REGIONS", f"regions must be 2..{len(grande_mondo.REGION_CATALOG)}", 400)
-    lay = grande_mondo.layout(n, int(D["region_size"]), int(D["fog_gap"]), int(D["margin"]))
+    lay = grande_mondo.layout(n, int(D["r_out"]), int(D["margin"]))
     count = await db().worlds.count_documents({})
     world_id = f"gm_{await db().worlds.count_documents({'kind': grande_mondo.KIND}) + 1}"
     if seed is None:
         seed = int(hashlib.sha256(world_id.encode()).hexdigest(), 16) % 1_000_000
     now = clock.now()
     cx, cy = lay["center"]
-    regions = []
-    for r in lay["regions"]:
-        cat = grande_mondo.REGION_CATALOG[r["index"]]
-        regions.append({"index": r["index"], "code": cat["code"], "name": cat["name"], "lang": cat["lang"], "x0": r["x0"], "y0": r["y0"], "size": r["size"], "player_slots": int(D["max_players_per_region"]), "player_count": 0, "pyramid_anchor": [r["x0"] + r["size"] // 2, r["y0"] + r["size"] // 2]})
-    region_cfg = GenConfig.from_spec(spec, {"size": int(D["region_size"]), **D["region_gen"], "pyramid_anchor": [int(D["region_size"]) // 2, int(D["region_size"]) // 2]})
+    gm_config = {k: D[k] for k in ("regions", "max_players_per_region", "isolation_days", "war_days", "pyramid_hold_hours", "r_in", "r_land", "r_out", "channel_half", "margin")}
+    skeleton = {"gm_config": gm_config, "center": {"x": cx, "y": cy}, "regions": None}
+    regions = [grande_mondo.region_record(i, grande_mondo.REGION_CATALOG[i], skeleton) for i in range(n)]
     gm_state, _ = grande_mondo.initial_state(world_id, now, D)
     doc = {
         "_id": world_id,
@@ -191,15 +190,15 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         "status": "GENERATING",
         "seed": seed,
         "size": int(lay["world_size"]),
-        "gen_config": region_cfg.to_doc(),
-        "gm_config": {k: D[k] for k in ("regions", "region_size", "max_players_per_region", "isolation_days", "war_days", "pyramid_hold_hours", "fog_gap", "margin", "center_radius", "arm_width")},
+        "gen_config": GenConfig.from_spec(spec, {"size": 600, **D["region_gen"]}).to_doc(),
+        "gm_config": gm_config,
         "regions": regions,
-        "center": {"x": cx, "y": cy, "radius": int(D["center_radius"]), "pyramid_anchor": [cx, cy], "ring_radius": lay["ring_radius"]},
+        "center": {"x": cx, "y": cy, "radius": int(D["r_in"]), "pyramid_anchor": [cx, cy]},
         "player_slots": int(spec.world["player_slots"]) * n,
         "player_count": 0,
         "caravan_search_radius": CARAVAN_SEARCH_RADIUS,
         # Grande Piramide monument at the centre; the classic Alliance cycle stays dormant here (regional control comes with the GM Pyramid rules)
-        "pyramid_config": {"anchor": [cx, cy], "first_open_day": 1_000_000},
+        "pyramid_config": {"anchor": [cx, cy], "first_open_day": 1_000_000, "footprint": [41, 41]},
         "gm": gm_state,
         "spec_version": spec.version,
         "spec_hash": spec.computed_hash,
@@ -210,10 +209,11 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         await db().worlds.insert_one(doc)
     except DuplicateKeyError:
         raise ApiError("WORLD_EXISTS", "World already exists", 409)
+    sectors = [SectorGeom(r["index"], r["code"], float(cx), float(cy), math.radians(r["mid_deg"]), math.radians(r["half_deg"]), r["r_in"], r["r_land"], r["r_out"], int(D["channel_half"])) for r in regions]
 
     async def _finish() -> None:
         try:
-            gen = await asyncio.get_running_loop().run_in_executor(None, generate_grande_mondo, seed, spec, region_cfg, [{**r} for r in regions], int(lay["world_size"]), (cx, cy), int(D["center_radius"]), int(D["arm_width"]))
+            gen = await asyncio.get_running_loop().run_in_executor(None, generate_grande_mondo, seed, spec, D["region_gen"], sectors, int(lay["world_size"]), (cx, cy), int(D["r_in"]))
         except Exception as e:  # noqa: BLE001
             log.exception("grande mondo generation failed")
             await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "FAILED", "error": str(e)}})
@@ -225,7 +225,13 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         invalidate(world_id)
         opened = clock.now()
         state, key = grande_mondo.initial_state(world_id, opened, D)
-        await db().worlds.update_one({"_id": world_id}, {"$set": {"status": "OPEN", "opened_at": opened, "terrain_stats": gen.stats, "generation_seed": gen.seed, "gm": state}})
+        # regional Pyramid anchors as generated (mid angle, mid radius)
+        sets = {"status": "OPEN", "opened_at": opened, "terrain_stats": gen.stats, "generation_seed": gen.seed, "gm": state}
+        for r in regions:
+            pa = (gen.stats["regions"].get(r["code"]) or {}).get("pyramid_anchor")
+            if pa:
+                sets[f"regions.{r['index']}.pyramid_anchor"] = pa
+        await db().worlds.update_one({"_id": world_id}, {"$set": sets})
         await grande_mondo.ensure_schedule(await db().worlds.find_one({"_id": world_id}))
         log.info("grande mondo %s ready (%d regions, %dx%d)", world_id, n, lay["world_size"], lay["world_size"])
 

@@ -595,6 +595,10 @@ def generate_world(base_seed: int, spec: Spec | None = None, cfg: GenConfig | No
 
 
 # ============================================================================= Grande Mondo (Bibbia GM v0.2)
+# "Spicchi": the mega-realm is a disc. Nine annular sectors (40° each) fan out from the neutral central disc that carries
+# the Grande Piramide; each sector is a complete region (mainland touching the centre, 3 islands on the outer rim, 100
+# slots + 800 neutrals, regional Pyramid). Sectors are separated by narrow sea channels (the fog wall stands over them);
+# the only land link between regions is the centre — every War of the Regions converges on the Grande Piramide.
 @dataclass
 class GrandeMondoGen:
     seed: int
@@ -603,9 +607,163 @@ class GrandeMondoGen:
     stats: dict
 
 
+@dataclass(frozen=True)
+class SectorGeom:
+    """One region of the Grande Mondo in world coordinates (centre cx, cy; angles in radians, screen space y-down)."""
+
+    index: int
+    code: str
+    cx: float
+    cy: float
+    mid: float  # mid angle
+    half: float  # angular half-width (π / n)
+    r_in: int  # inner radius (edge of the central disc)
+    r_land: int  # outer coast of the mainland
+    r_out: int  # outer limit of the island band
+    channel_half: int  # half width of the sea channel between two sectors (tiles)
+
+    def bbox(self, pad: int = 8) -> tuple[int, int, int, int]:
+        pts = []
+        for r in (self.r_in, self.r_out):
+            for k in range(0, 41):
+                a = self.mid - self.half + (2 * self.half) * k / 40.0
+                pts.append((self.cx + r * math.cos(a), self.cy + r * math.sin(a)))
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        return int(math.floor(min(xs))) - pad, int(math.floor(min(ys))) - pad, int(math.ceil(max(xs))) + pad, int(math.ceil(max(ys))) + pad
+
+    def polar(self, x: float, y: float) -> tuple[float, float]:
+        return math.hypot(x - self.cx, y - self.cy), math.atan2(y - self.cy, x - self.cx)
+
+    def point(self, r: float, dtheta: float = 0.0) -> tuple[int, int]:
+        return int(round(self.cx + r * math.cos(self.mid + dtheta))), int(round(self.cy + r * math.sin(self.mid + dtheta)))
+
+
+def _wrap(a: np.ndarray | float) -> np.ndarray | float:
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def _sector_fields(g: SectorGeom, ox: int, oy: int, L: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:  # noqa: N803
+    """r, |Δθ| (from the mid angle) and the perpendicular distance to the nearest sector boundary ray, on an L×L canvas
+    whose origin is the world tile (ox, oy)."""
+    yy, xx = np.mgrid[0:L, 0:L].astype(np.float32)
+    wx = xx + ox - g.cx
+    wy = yy + oy - g.cy
+    r = np.sqrt(wx * wx + wy * wy)
+    dth = np.abs(_wrap(np.arctan2(wy, wx) - g.mid))
+    edge = r * np.sin(np.clip(g.half - dth, -math.pi / 2, math.pi / 2))  # signed distance to the nearest spoke (+ inside)
+    return r, dth, edge
+
+
+def _paint_biomes(rng: np.random.Generator, spec: Spec, terrain: np.ndarray, land: np.ndarray, mainland: np.ndarray, islands: list[np.ndarray], plateau: np.ndarray, area_tiles: int, S: float, n: int) -> tuple[float, float, float, int, int] | None:  # noqa: N803
+    """Mountain chains + massif halo and forest clusters (same rules as the classic generator) on an arbitrary land
+    mask; percentages are checked against `area_tiles` (the region's own area). Returns (mountain%, forest%, plain%,
+    chains, seeds) or None on a Bible constraint failure."""
+    gen = spec.generator
+    terr = spec.terrain
+    mountain_target = int(area_tiles * terr["mountain"]["target_pct"] / 100.0)
+    chain_mask = np.zeros((n, n), dtype=bool)
+    wmin, wmax = gen["mountain_width_tiles_range"]
+    n_chains = int(rng.integers(gen["mainland_mountain_chains_range"][0], gen["mainland_mountain_chains_range"][1] + 1))
+    ml_pts = np.argwhere(mainland & ~dilate_chebyshev(plateau, 6))
+    for _ in range(n_chains):
+        y, x = ml_pts[rng.integers(len(ml_pts))]
+        heading = rng.uniform(0, 2 * math.pi)
+        for _seg in range(int(rng.integers(6, 11))):
+            seg_len = rng.uniform(28, 48) * S
+            heading += rng.uniform(-0.6, 0.6)
+            nx, ny = x + math.cos(heading) * seg_len, y + math.sin(heading) * seg_len
+            half_w = rng.uniform(wmin, wmax) / 2.0
+            chain_mask |= _segment_mask_bbox(n, float(x), float(y), nx, ny, half_w, _band_bbox(n, float(x), float(y), nx, ny, half_w))
+            x, y = nx, ny
+    for isl in islands:
+        pts = np.argwhere(isl)
+        y, x = pts[rng.integers(len(pts))]
+        heading = rng.uniform(0, 2 * math.pi)
+        for _seg in range(int(rng.integers(3, 6))):
+            seg_len = rng.uniform(14, 26) * S
+            heading += rng.uniform(-0.5, 0.5)
+            nx, ny = x + math.cos(heading) * seg_len, y + math.sin(heading) * seg_len
+            half_w = rng.uniform(wmin, wmax) / 2.0
+            chain_mask |= _segment_mask_bbox(n, float(x), float(y), nx, ny, half_w, _band_bbox(n, float(x), float(y), nx, ny, half_w))
+            x, y = nx, ny
+    chain_mask &= land & ~plateau
+    mnoise = _coarse_fbm(n, rng, base_freq=10, factor=2)
+    halo = dilate_chebyshev(chain_mask, max(9, round(9 * S))) & land & ~plateau & ~chain_mask
+    need = mountain_target - int(chain_mask.sum())
+    mountain = chain_mask.copy()
+    if need > 0:
+        halo_field = mnoise - 0.02 * np.where(halo, 0, 1)
+        mountain |= _threshold_top_k(halo_field, halo, need)
+    for isl in islands:
+        if int((mountain & isl).sum()) < int(gen["island_min_mountain_ridges_each"]) * 20:
+            return None
+    terrain[mountain] = MOUNTAIN
+    mountain_pct = 100.0 * int(mountain.sum()) / area_tiles
+    if not (terr["mountain"]["range_pct"][0] <= mountain_pct <= terr["mountain"]["range_pct"][1]):
+        return None
+    # forests: best-first region growing on noise
+    import heapq
+
+    forest_target = int(area_tiles * terr["forest"]["target_pct"] / 100.0)
+    A = area_tiles / (BASE_N * BASE_N)  # noqa: N806
+    n_seeds = int(round(int(rng.integers(gen["forest_cluster_seed_range"][0], gen["forest_cluster_seed_range"][1] + 1)) * A))
+    fnoise = _coarse_fbm(n, rng, base_freq=12, factor=2)
+    growable = (terrain == PLAIN) & ~plateau
+    weights = rng.uniform(0.5, 1.5, size=n_seeds)
+    sizes_f = (weights / weights.sum() * forest_target).astype(int)
+    grow_pts = np.argwhere(growable)
+    forest = np.zeros((n, n), dtype=bool)
+    for si in range(n_seeds):
+        y0, x0 = grow_pts[rng.integers(len(grow_pts))]
+        if forest[y0, x0]:
+            continue
+        target = int(sizes_f[si])
+        heap = [(-float(fnoise[y0, x0]), int(y0), int(x0))]
+        seen = {(int(y0), int(x0))}
+        grown = 0
+        while heap and grown < target:
+            _, y, x = heapq.heappop(heap)
+            if forest[y, x] or not growable[y, x]:
+                continue
+            forest[y, x] = True
+            grown += 1
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < n and 0 <= nx < n and (ny, nx) not in seen and growable[ny, nx] and not forest[ny, nx]:
+                    seen.add((ny, nx))
+                    heapq.heappush(heap, (-float(fnoise[ny, nx]), ny, nx))
+    deficit = forest_target - int(forest.sum())
+    if deficit > 0:
+        heap = []
+        seen = set()
+        fy, fx = np.nonzero(forest)
+        for y, x in zip(fy.tolist(), fx.tolist()):
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < n and 0 <= nx < n and growable[ny, nx] and not forest[ny, nx] and (ny, nx) not in seen:
+                    seen.add((ny, nx))
+                    heapq.heappush(heap, (-float(fnoise[ny, nx]), ny, nx))
+        while heap and deficit > 0:
+            _, y, x = heapq.heappop(heap)
+            if forest[y, x]:
+                continue
+            forest[y, x] = True
+            deficit -= 1
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < n and 0 <= nx < n and growable[ny, nx] and not forest[ny, nx] and (ny, nx) not in seen:
+                    seen.add((ny, nx))
+                    heapq.heappush(heap, (-float(fnoise[ny, nx]), ny, nx))
+    terrain[forest] = FOREST
+    forest_pct = 100.0 * int(forest.sum()) / area_tiles
+    if not (terr["forest"]["range_pct"][0] <= forest_pct <= terr["forest"]["range_pct"][1]):
+        return None
+    plain_pct = 100.0 * int((terrain == PLAIN).sum()) / area_tiles
+    if not (terr["plain"]["range_pct"][0] <= plain_pct <= terr["plain"]["range_pct"][1]):
+        return None
+    return mountain_pct, forest_pct, plain_pct, n_chains, n_seeds
+
+
 def _coarse_fbm(n: int, rng: np.random.Generator, base_freq: int, factor: int = 4) -> np.ndarray:
-    """fbm on an n/factor grid upsampled by nearest neighbour (float32) — the mega-realm is ~10M tiles, a full-res
-    noise stack would cost hundreds of MB."""
+    """fbm on an n/factor grid upsampled by nearest neighbour (float32) — mega-realm canvases are large."""
     m = (n + factor - 1) // factor
     small = fbm((m, m), rng, octaves=4, base_freq=base_freq).astype(np.float32)
     return np.repeat(np.repeat(small, factor, axis=0), factor, axis=1)[:n, :n]
@@ -620,8 +778,11 @@ def _band_bbox(n: int, x1: float, y1: float, x2: float, y2: float, half_w: float
 
 
 def _segment_mask_bbox(n: int, x1: float, y1: float, x2: float, y2: float, half_w: np.ndarray | float, bbox: tuple[int, int, int, int]) -> np.ndarray:
-    """Segment band restricted to a bounding box (returns a full-size bool mask, work done on the slice only)."""
+    """Segment band restricted to a bounding box (full-size bool mask, work done on the slice only)."""
     x0, y0, xe, ye = bbox
+    out = np.zeros((n, n), dtype=bool)
+    if xe <= x0 or ye <= y0:
+        return out
     yy, xx = np.mgrid[y0:ye, x0:xe].astype(np.float32)
     dx, dy = x2 - x1, y2 - y1
     seg_len2 = dx * dx + dy * dy
@@ -629,109 +790,165 @@ def _segment_mask_bbox(n: int, x1: float, y1: float, x2: float, y2: float, half_
     px, py = x1 + t * dx, y1 + t * dy
     dist = np.sqrt((xx - px) ** 2 + (yy - py) ** 2)
     hw = half_w[y0:ye, x0:xe] if isinstance(half_w, np.ndarray) else half_w
-    out = np.zeros((n, n), dtype=bool)
     out[y0:ye, x0:xe] = dist <= hw
     return out
 
 
-def generate_grande_mondo(base_seed: int, spec: Spec, region_cfg: GenConfig, placements: list[dict], world_size: int, center: tuple[int, int], center_radius: int, arm_width: int) -> GrandeMondoGen:
-    """Composite generator: one validated realm per region (same Bible constraints, counts and quotas as a classic
-    realm) pasted on the ring, plus the neutral central land with the Grande Piramide plateau and one land arm per
-    region. Arms are cost-compensated (a mountain pass on the shorter ones) so every region pays the same path cost
-    from its coast to the Grande Piramide (Bibbia GM: distanze equivalenti o compensate)."""
+def _try_generate_sector(seed: int, spec: Spec, cfg: GenConfig, g: SectorGeom) -> tuple[np.ndarray, np.ndarray, list[Anchor], dict, tuple[int, int]] | None:
+    """One region as an annular sector on a local square canvas. Returns (terrain, in_sector mask, anchors in LOCAL
+    coordinates, stats, (ox, oy) canvas origin) or None when a Bible constraint fails (seed rejected)."""
+    rng = np.random.default_rng(seed)
+    gen = spec.generator
+    terr = spec.terrain
+    x0, y0, x1, y1 = g.bbox()
+    L = int(max(x1 - x0, y1 - y0))  # noqa: N806
+    L = ((L + 31) // 32) * 32  # noqa: N806
+    ox, oy = x0, y0
+    r, dth, edge = _sector_fields(g, ox, oy, L)
+    S = 600.0 / BASE_N  # noqa: N806 — landmass features scaled like a 600×600 realm (owner decision: Regno 2 feel)
+    A_eq = S * S  # noqa: N806
+    in_sector_full = (dth <= g.half) & (r >= g.r_in) & (r <= g.r_out)  # the region's own tiles (channel included)
+    in_sector = in_sector_full & (edge >= g.channel_half)  # land may exist here (outside the sea channels)
+    area_tiles = int(in_sector_full.sum())
+    land_target = int(area_tiles * (1 - terr["water"]["target_pct"] / 100.0))
+    isl_lo, isl_hi = int(gen["island_land_tiles_range"][0] * A_eq), int(gen["island_land_tiles_range"][1] * A_eq)
+    island_sep = int(gen["island_min_water_separation_tiles"])
+
+    # ---- islands on the outer rim (three, spread across the sector) ----
+    r_isl = (g.r_land + g.r_out) / 2.0 + 6
+    islands: list[np.ndarray] = []
+    for k, dt in enumerate((-math.radians(12.5), 0.0, math.radians(12.5))):
+        icx, icy = g.point(r_isl + rng.uniform(-8, 8), dt + math.radians(rng.uniform(-1.5, 1.5)))
+        icx, icy = icx - ox, icy - oy
+        target = int(rng.integers(isl_lo + int(500 * A_eq), isl_hi - int(500 * A_eq)))
+        noise = _coarse_fbm(L, rng, base_freq=8, factor=2)
+        fld = 1.0 - _ellipse_field(L, icx, icy, 82.0, 70.0) + 0.45 * (noise - 0.5)
+        window = (_ellipse_field(L, icx, icy, 82.0 * 1.35, 70.0 * 1.35) <= 1.0) & in_sector & (r > g.r_land + island_sep)
+        mask = _threshold_top_k(fld, window, target)
+        labels, sizes = label_components(mask)
+        if not sizes:
+            return _reject("GM island: empty")
+        mask = labels == int(np.argmax(sizes))
+        cnt = int(mask.sum())
+        if not (isl_lo <= cnt <= isl_hi):
+            return _reject(f"GM island size {cnt}")
+        islands.append(mask)
+    for i in range(3):
+        for j in range(i + 1, 3):
+            if (dilate_chebyshev(islands[i], island_sep) & islands[j]).any():
+                return _reject("GM islands too close")
+    islands_all = islands[0] | islands[1] | islands[2]
+    forbidden = dilate_chebyshev(islands_all, island_sep)
+
+    # ---- mainland: the sector body eroded by noise along the outer coast and the channels; solid at the centre ----
+    noise = _coarse_fbm(L, rng, base_freq=6, factor=2)
+    coast_d = np.minimum(g.r_land - r, edge - g.channel_half)  # distance to the outer coast / channel shores (+ inside)
+    land_field = np.clip(coast_d / 70.0, -1.0, 1.0) + 0.9 * (noise - 0.5)
+    land_field = np.where(r <= g.r_in + 45, 5.0, land_field)  # the inner arc always touches the central disc
+    pxl, pyl = cfg.pyramid_anchor
+    plateau = np.zeros((L, L), dtype=bool)
+    plateau[pyl - 12 : pyl + 13, pxl - 12 : pxl + 13] = True
+    land_field[plateau] = 10.0
+    allowed = in_sector & (r <= g.r_land) & ~forbidden
+    mainland_target = land_target - int(islands_all.sum())
+    mainland = _threshold_top_k(land_field, allowed, mainland_target)
+    ax, ay = g.point(g.r_in + 20)
+    ax, ay = ax - ox, ay - oy
+    labels, sizes = label_components(mainland)
+    if not sizes or labels[ay, ax] == -1 or labels[pyl, pxl] == -1:
+        return _reject("GM mainland: centre/plateau not on the main component")
+    mainland = labels == int(labels[ay, ax])
+    for _ in range(6):
+        cnt = int(mainland.sum())
+        if abs(cnt - mainland_target) <= 600 * A_eq:
+            break
+        mainland_target_adj = mainland_target + (mainland_target - cnt)
+        cand = _threshold_top_k(land_field, allowed, max(1000, mainland_target_adj))
+        labels, sizes = label_components(cand)
+        if labels[ay, ax] == -1:
+            return _reject("GM mainland: centre lost")
+        mainland = labels == int(labels[ay, ax])
+        mainland_target = mainland_target_adj
+    if labels[pyl, pxl] == -1 or not mainland[pyl, pxl]:
+        return _reject("GM mainland: plateau lost")
+    land = mainland | islands_all
+    water_pct = 100.0 * (area_tiles - int(land.sum())) / area_tiles
+    if not (terr["water"]["range_pct"][0] <= water_pct <= terr["water"]["range_pct"][1]):
+        return _reject(f"GM water% {water_pct:.1f}")
+
+    region = np.full((L, L), 255, dtype=np.uint8)
+    region[mainland] = 0
+    for i, isl in enumerate(islands):
+        region[isl] = i + 1
+    terrain = np.full((L, L), WATER, dtype=np.uint8)
+    terrain[land] = PLAIN
+    biomes = _paint_biomes(rng, spec, terrain, land, mainland, islands, plateau, area_tiles, S, L)
+    if biomes is None:
+        return _reject("GM biomes")
+    mountain_pct, forest_pct, plain_pct, n_chains, n_seeds = biomes
+    anchors = _place_anchors(rng, spec, cfg, terrain, region)
+    if anchors is None:
+        return _reject("GM anchors")
+    stats = {
+        "plain_pct": round(plain_pct, 2),
+        "forest_pct": round(forest_pct, 2),
+        "mountain_pct": round(mountain_pct, 2),
+        "water_pct": round(water_pct, 2),
+        "island_sizes": [int(i.sum()) for i in islands],
+        "mainland_size": int(mainland.sum()),
+        "area_tiles": area_tiles,
+        "mountain_chains": n_chains,
+        "forest_seeds": n_seeds,
+    }
+    return terrain, in_sector_full, anchors, stats, (ox, oy)
+
+
+def generate_sector(base_seed: int, spec: Spec, cfg: GenConfig, g: SectorGeom) -> tuple[np.ndarray, np.ndarray, list[Anchor], dict, tuple[int, int]]:
+    max_attempts = int(spec.generator["max_seed_attempts"])
+    for attempt in range(max_attempts):
+        try:
+            res = _try_generate_sector(base_seed * 1000 + attempt, spec, cfg, g)
+        except MapGenerationError:
+            res = None
+        if res is not None:
+            res[3]["attempt"] = attempt
+            res[3]["seed"] = base_seed * 1000 + attempt
+            return res
+    raise MapGenerationError(f"MAP_GENERATION_CONSTRAINT_FAILED (sector {g.code}): {LAST_REJECT[-5:]}")
+
+
+def generate_grande_mondo(base_seed: int, spec: Spec, region_cfg_overrides: dict, sectors: list[SectorGeom], world_size: int, center: tuple[int, int], r_in: int) -> GrandeMondoGen:
+    """Whole mega-realm: central disc (Grande Piramide plateau 41×41, forest patches) + one generated sector per region."""
     N = int(world_size)  # noqa: N806
     cx, cy = center
     terrain = np.full((N, N), WATER, dtype=np.uint8)
     anchors: list[tuple[Anchor, str]] = []
-    protected = np.zeros((N, N), dtype=bool)  # cardinal water next to port-eligible anchors stays water
-    mainland_masks: list[np.ndarray] = []
-    inside_regions = np.zeros((N, N), dtype=bool)
-    region_stats = {}
-    for i, p in enumerate(placements):
-        g = generate_world(base_seed * 100 + i, spec, region_cfg)
-        s = region_cfg.size
-        x0, y0 = p["x0"], p["y0"]
-        terrain[y0 : y0 + s, x0 : x0 + s] = g.terrain
-        inside_regions[y0 : y0 + s, x0 : x0 + s] = True
-        ml = np.zeros((N, N), dtype=bool)
-        ml[y0 : y0 + s, x0 : x0 + s] = g.region == 0
-        mainland_masks.append(ml)
-        for a in g.anchors:
-            wa = Anchor(a.kind, a.x + x0, a.y + y0, a.terrain, a.region, a.port_eligible, a.level)
-            anchors.append((wa, p["code"]))
-            if a.port_eligible:
-                for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
-                    protected[wa.y + dy, wa.x + dx] = True
-        region_stats[p["code"]] = {**g.stats, "seed": g.seed}
-
+    stats_regions = {}
+    for i, g in enumerate(sectors):
+        # regional Pyramid: mid angle, mid-way between the centre and the outer coast (local coordinates for the sector canvas)
+        x0, y0, _, _ = g.bbox()
+        px, py = g.point((g.r_in + g.r_land) / 2.0)
+        cfg = GenConfig.from_spec(spec, {"size": 600, **region_cfg_overrides, "pyramid_anchor": [px - x0, py - y0]})
+        t, mask, anc, st, (ox, oy) = generate_sector(base_seed * 100 + i, spec, cfg, g)
+        L = t.shape[0]  # noqa: N806
+        # paste the sector's own tiles into the world grid (clipped to the world)
+        wy0, wx0 = max(0, oy), max(0, ox)
+        wy1, wx1 = min(N, oy + L), min(N, ox + L)
+        sub = mask[wy0 - oy : wy1 - oy, wx0 - ox : wx1 - ox]
+        dst = terrain[wy0:wy1, wx0:wx1]
+        dst[sub] = t[wy0 - oy : wy1 - oy, wx0 - ox : wx1 - ox][sub]
+        for a in anc:
+            anchors.append((Anchor(a.kind, a.x + ox, a.y + oy, a.terrain, a.region, a.port_eligible, a.level), g.code))
+        stats_regions[g.code] = {**st, "pyramid_anchor": [px, py]}
+    # ---- central disc: neutral plain with forest patches and the Grande Piramide plateau ----
     rng = np.random.default_rng(base_seed * 7 + 13)
-    noise = _coarse_fbm(N, rng, base_freq=16)
-    # ---- central land: noisy disc around the Grande Piramide ----
-    cb = (max(0, cx - center_radius - 80), max(0, cy - center_radius - 80), min(N, cx + center_radius + 81), min(N, cy + center_radius + 81))
-    central = np.zeros((N, N), dtype=bool)
+    cb = (max(0, cx - r_in - 4), max(0, cy - r_in - 4), min(N, cx + r_in + 5), min(N, cy + r_in + 5))
     yy, xx = np.mgrid[cb[1] : cb[3], cb[0] : cb[2]].astype(np.float32)
-    dist_c = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
-    central[cb[1] : cb[3], cb[0] : cb[2]] = dist_c <= center_radius * (1.0 + 0.20 * (noise[cb[1] : cb[3], cb[0] : cb[2]] - 0.5))
-    del yy, xx, dist_c
-    # ---- arms: from the centre to the closest point of each region, then on until the region mainland ----
-    arm_len: list[float] = []
-    arm_masks: list[np.ndarray] = []
-    arm_dirs: list[tuple[float, float, float, float]] = []
-    half_w = (arm_width / 2.0 + 6.0 * (noise - 0.5)).astype(np.float32)
-    for i, p in enumerate(placements):
-        s = p["size"]
-        px = float(min(max(cx, p["x0"]), p["x0"] + s - 1))
-        py = float(min(max(cy, p["y0"]), p["y0"] + s - 1))
-        d = math.hypot(px - cx, py - cy)
-        ux, uy = (px - cx) / d, (py - cy) / d
-        ex, ey = px, py
-        for step in range(400):  # extend into the square until the first mainland tile on the ray
-            tx, ty = int(round(px + ux * step)), int(round(py + uy * step))
-            if not (0 <= tx < N and 0 <= ty < N):
-                break
-            ex, ey = float(tx), float(ty)
-            if mainland_masks[i][ty, tx]:
-                break
-        bbox = _band_bbox(N, cx, cy, ex, ey, arm_width / 2.0 + 6)
-        arm_masks.append(_segment_mask_bbox(N, cx, cy, ex, ey, half_w, bbox))
-        arm_len.append(d)
-        arm_dirs.append((px, py, ux, uy))
-    arms = np.zeros((N, N), dtype=bool)
-    for b in arm_masks:
-        arms |= b
-    new_land = (central | arms) & (terrain == WATER) & ~protected
-    terrain[new_land] = PLAIN
-    # forest patches on the central land (not on the arms: the Via della Piramide stays open ground)
-    fnoise = _coarse_fbm(N, rng, base_freq=24)
-    forest = central & ~arms & ~inside_regions & (terrain == PLAIN) & (fnoise > 0.60)
-    terrain[forest] = FOREST
-    # Grande Piramide plateau (flat plain) — the monument itself is rendered by the client at the anchor
-    terrain[cy - 16 : cy + 17, cx - 16 : cx + 17] = PLAIN
-    # ---- cost compensation: mountain pass (cost 2.0 vs 1.0) of length d_max - d_k across the shorter arms ----
-    d_max = max(arm_len)
-    passes: list[int] = []
-    for i, p in enumerate(placements):
-        extra = int(round(d_max - arm_len[i]))
-        if extra <= 0:
-            passes.append(0)
-            continue
-        px, py, ux, uy = arm_dirs[i]
-        d = arm_len[i]
-        r0 = center_radius + (d - center_radius - extra) / 2.0
-        r1 = r0 + extra
-        bbox = _band_bbox(N, cx + ux * r0, cy + uy * r0, cx + ux * r1, cy + uy * r1, arm_width / 2.0 + 8)
-        x0, y0, xe, ye = bbox
-        yy, xx = np.mgrid[y0:ye, x0:xe].astype(np.float32)
-        along = (xx - cx) * ux + (yy - cy) * uy
-        sl = arm_masks[i][y0:ye, x0:xe] & (along >= r0) & (along <= r1) & ~inside_regions[y0:ye, x0:xe] & (terrain[y0:ye, x0:xe] == PLAIN)
-        terrain[y0:ye, x0:xe][sl] = MOUNTAIN
-        passes.append(extra)
-    stats = {
-        "regions": region_stats,
-        "central_land": int(central.sum()),
-        "arm_lengths": [round(v, 1) for v in arm_len],
-        "mountain_pass_tiles": passes,
-        "world_size": N,
-        "water_pct": round(100.0 * float((terrain == WATER).sum()) / (N * N), 2),
-    }
+    disc = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2) <= r_in
+    sl = terrain[cb[1] : cb[3], cb[0] : cb[2]]
+    sl[disc] = PLAIN
+    fn = fbm(disc.shape, rng, octaves=4, base_freq=6)
+    sl[disc & (fn > 0.62)] = FOREST
+    terrain[cy - 20 : cy + 21, cx - 20 : cx + 21] = PLAIN  # Grande Piramide plateau (monument drawn by the client)
+    stats = {"regions": stats_regions, "world_size": N, "r_in": r_in, "water_pct": round(100.0 * float((terrain == WATER).sum()) / (N * N), 2)}
     return GrandeMondoGen(seed=base_seed, terrain=terrain, anchors=anchors, stats=stats)

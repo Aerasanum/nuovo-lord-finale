@@ -11,7 +11,7 @@ from app.core.errors import ApiError
 from app.core.spec import get_spec
 from app.domain import alliances, combat, conquest, grande_mondo, progress, economy, intel, navy, notifications, scheduler, sentinels, territory
 from app.domain import formulas as F
-from app.domain.pathfinding import astar_async, load_terrain
+from app.domain.pathfinding import astar_async, load_terrain, same_landmass
 from app.domain.settlements import catch_up_neutral, new_id
 
 ACTIVE = ("OUTBOUND", "RESOLVING", "RETURNING")
@@ -127,6 +127,8 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
     research = origin.get("research", {})
     naval = False
     grande_mondo.check_target(world, (origin["x"], origin["y"]), (target["x"], target["y"]))  # fog wall (Bibbia GM)
+    if not await same_landmass(world["_id"], (origin["x"], origin["y"]), (target["x"], target["y"])):
+        raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
     grid = await load_terrain(world["_id"])
     own_tiles = await territory.player_tiles(world["_id"], player["_id"])
     result = await astar_async(grid, (origin["x"], origin["y"]), (target["x"], target["y"]), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=grande_mondo.movement_mask(world, (origin["x"], origin["y"])))
@@ -134,12 +136,15 @@ async def preview(world: dict, origin: dict, target: dict, units: dict[str, int]
         raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
     path, cost = result
     speed = F.formation_speed_tph(units, research, spec) if units else 0.0
+    mult = grande_mondo.speed_multiplier(world, (origin["x"], origin["y"]), path)  # War of the Regions: interregional boost
+    speed *= mult
     eta = F.march_eta_seconds(cost, speed, spec) if units else None
     wh = int(origin["buildings"].get("Sala di Guerra", 0))
     return {
         "path": [[x, y] for x, y in path],
         "path_cost": round(cost, 4),
         "speed_tph": round(speed, 4),
+        "speed_multiplier": mult,
         "eta_seconds": eta,
         "naval": naval,
         "march_capacity": F.war_hall_cap(wh, research, mission, spec),
@@ -256,12 +261,16 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         path = [(origin["x"], origin["y"])] + path + [(tx, ty)]
         speed = navy.fleet_speed_tph(research)
     else:
+        if not await same_landmass(world["_id"], (origin["x"], origin["y"]), (tx, ty)):
+            raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
         own_tiles = await territory.player_tiles(world["_id"], player["_id"], await alliances.ally_player_ids(player))
         result = await astar_async(grid, (origin["x"], origin["y"]), (tx, ty), naval=False, territory=own_tiles, factor=float(spec.marches["own_or_ally_territory_path_cost_factor"]), allowed=allowed)
         if result is None:
             raise ApiError("NO_LAND_PATH", "No terrestrial path to target (islands require Port-to-Port navigation)", 409)
         path, cost = result
         speed = F.formation_speed_tph(units, research, spec)
+    mult = grande_mondo.speed_multiplier(world, (origin["x"], origin["y"]), path)  # War of the Regions: interregional boost
+    speed *= mult
     eta = F.march_eta_seconds(cost, speed, spec)
 
     # ---- cap20 reservation for CONQUEST ----
@@ -314,6 +323,7 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "path": [[x, y] for x, y in path],
         "path_cost": cost,
         "speed_tph": speed,
+        "speed_multiplier": mult,
         "eta_seconds": eta,
         "departed_at": now,
         "arrival_at": arrival,

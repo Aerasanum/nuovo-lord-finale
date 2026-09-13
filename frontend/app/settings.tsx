@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
+import { BackButton } from "@/src/components/alliance/common";
 import { Button, Chip, Icon, Panel, Row, T } from "@/src/components/ui";
 import { LANGS, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -42,7 +43,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen title={t("settings")} testID="settings-screen">
+    <Screen title={t("settings")} left={<BackButton testID="settings-back" />} testID="settings-screen">
       <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }}>
         <Panel testID="settings-account">
           <Row style={{ gap: spacing.md }}>

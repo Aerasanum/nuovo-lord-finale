@@ -870,5 +870,20 @@
 "__err__TELEPORT_BUSY": "Há marchas em viagem de ou para este castelo: espera que terminem.",
 "__err__TELEPORT_SLOT_UNAVAILABLE": "Este castelo vazio já não está disponível: escolhe outro.",
 "__err__TELEPORT_NOT_AVAILABLE": "O teletransporte só existe no Grande Mundo.",
-"__err__INSUFFICIENT_RUBIES": "Rubis insuficientes."
+"__err__INSUFFICIENT_RUBIES": "Rubis insuficientes.",
+"gmNotAtWar": "a tua região não participa",
+"gmWarRegions": "Regiões em guerra",
+"gmWarAll": "Todas as regiões",
+"gmWarSpeed": "Velocidade das marchas entre regiões",
+"gmAdminTitle": "Administração do Grande Mundo",
+"gmAdminHint": "Decide de cada vez quem participa na próxima Guerra das Regiões e quão depressa viajam as marchas que saem da sua região.",
+"gmNextWar": "Próxima guerra",
+"gmCurrentWar": "Guerra em curso",
+"gmSaveWar": "Guardar definições",
+"gmDropFog": "Faz cair a névoa agora",
+"gmRaiseFog": "Trazer a névoa de volta",
+"gmConfirmDropFog": "A névoa cairá já para as regiões escolhidas e a Guerra das Regiões começará. Continuar?",
+"gmConfirmRaiseFog": "A névoa voltará já e as regiões ficarão isoladas de novo. Continuar?",
+"gmSaved": "Definições guardadas",
+"gmMinTwo": "Escolhe pelo menos duas regiões"
 }

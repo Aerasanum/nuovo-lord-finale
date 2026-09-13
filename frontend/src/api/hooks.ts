@@ -333,7 +333,8 @@ export const qk = {
   catalog: ["catalog"] as const,
 };
 
-export type GmRegion = { index: number; code: string; name: string; lang: string; x0: number; y0: number; size: number; center: [number, number]; pyramid_anchor: [number, number] | null; player_slots: number; player_count: number; free: number; full: boolean };
+export type GmRegion = { index: number; code: string; name: string; lang: string; mid_deg: number; half_deg: number; r_in: number; r_land: number; r_out: number; bbox: [number, number, number, number]; center: [number, number]; pyramid_anchor: [number, number] | null; player_slots: number; player_count: number; free: number; full: boolean; at_war: boolean };
+export type GmWarConfig = { regions: string[] | null; speed_multiplier: number; opened_at?: string | null };
 export type GrandeMondoDto = {
   phase: "ISOLATION" | "WAR";
   cycle: number;
@@ -341,14 +342,31 @@ export type GrandeMondoDto = {
   phase_until: string | null;
   seconds_left: number | null;
   fog_up: boolean;
+  my_fog_up: boolean;
   isolation_days: number;
   war_days: number;
   pyramid_hold_hours: number;
   regions: GmRegion[];
   center: { x: number; y: number; radius: number; pyramid_anchor: [number, number] } | null;
+  war: GmWarConfig | null;
+  next_war: GmWarConfig;
+  speed_multipliers: number[];
   my_region: string | null;
   view_all: boolean;
+  is_admin: boolean;
 };
+
+export function useGrandeMondoAdmin(worldId: string) {
+  const qc = useQueryClient();
+  const done = () => {
+    qc.invalidateQueries({ queryKey: ["grande-mondo", worldId] });
+    qc.invalidateQueries({ queryKey: qk.me(worldId) });
+    qc.invalidateQueries({ queryKey: qk.worlds });
+  };
+  const warConfig = useMutation({ mutationFn: (body: { regions: string[] | null; speed_multiplier: number }) => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/war-config`, body), onSuccess: done });
+  const phase = useMutation({ mutationFn: (to: "WAR" | "ISOLATION") => post<GrandeMondoDto>(`/worlds/${worldId}/grande-mondo/admin/phase`, { to }), onSuccess: done });
+  return { warConfig, phase };
+}
 export type WorldDto = { world_id: string; name: string; kind: "REALM" | "GRANDE_MONDO"; status: string; size: number; player_count: number; player_slots: number; age_days: number; spec_version: string; spec_hash: string; grande_mondo: GrandeMondoDto | null; joined?: boolean; house_name?: string | null; house_crest?: any };
 
 export type TeleportCandidate = { slot_id: string; x: number; y: number; terrain: string | null; landmass: string | null; port_eligible: boolean; distance_from_mother: number };

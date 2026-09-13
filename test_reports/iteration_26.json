@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 27 GREEN — Grande Mondo pie-sector layout (2176/1088, bbox/center) + admin selective war + march speed multiplier + fog UI back-buttons. Backend pytest 25 passed / 4 skipped (was 10 failed on stale expectations before update). Rewrote tests/test_iteration_25_grande_mondo.py to the new geometry (size 2176; center {x:1088,y:1088,radius:130,pyramid_anchor:[1088,1088]}; 9 regions with new fields index/code/mid_deg/half_deg/r_in(130)/r_land(880)/r_out(1030)/bbox/center/pyramid_anchor/player_slots/player_count/free/full/at_war and NO more x0/y0/size) and updated tests/test_iteration_26_teleport.py to use IT bbox and FR center coords instead of x0/y0/size. Backend confirmed: /api/worlds/gm_1/grande-mondo (obs) → phase ISOLATION, war_days 30, isolation_days 120, speed_multipliers [1,2,3,5], view_all=true, is_admin=true, next_war {FR,IT}×5; overview size 272 factor 8. Admin war-config: {regions:[IT]}→400 WAR_CONFIG_INVALID, {IT,FR,mult:4}→400 WAR_CONFIG_INVALID, {IT,FR,mult:3}→200, demo→403 FORBIDDEN, restore FR+IT×5→200. Selective war: admin/phase to WAR → war.regions=[FR,IT] speed_multiplier=5, IT/FR at_war=true, ES at_war=false. Preview obs (IT home 1067,337) → FR neutral (1337,600) = 200 with speed_multiplier=5.0; → ES neutral (1484,900) = 409 FOG_WALL. Back to ISOLATION → cycle incremented, preview to FR now 409 FOG_WALL. Fog chunk: demo(FR) IT chunk (33,10) fogged=true settlements=[]; obs (view_all) same chunk fogged=null with 4 settlements. Frontend (390×844, osservatore): world-enter-gm_1 → map with 3 map-settlement-chip-* (mother marked ★, list sheet map-settlement-sheet shows 3 map-settlement-item-* with L30/L14/L10 and coords); map-settlement-next/-prev move camera (coords 1068,338 → 1074,327 → back). Zoom map-zoom-in/-out changes ×N from ×30→×42 without moving map-camera-coords position. map-center-pyramid-button centers observer on Grande Piramide → coords 1089,1089 (±1 rounding; label 'Piramide DORMIENTE' visible). Minimap now visible bottom-left. map-gm-chip → /grande-mondo has grande-mondo-back visible; gm-admin panel visible with gm-admin-region-IT/FR selected + gm-admin-speed-5 selected; gm-war-summary 'Prossima guerra: 🇫🇷 🇮🇹 · ×5'; toggle gm-admin-region-ES + gm-admin-save → toast 'Impostazioni salvate' and gm-war-summary updates to '🇪🇸 🇫🇷 🇮🇹 · ×5'; gm-admin-drop-fog → gm-admin-confirm-button → gm-phase-title 'Guerra delle Regioni' and gm-war-summary 'Guerra in corso: 🇪🇸 🇫🇷 🇮🇹 · ×5'; gm-admin-raise-fog → confirm → gm-phase-title 'Muro di nebbia'. grande-mondo-back navigates back to map with map-settlement-switcher visible. /settings has settings-back visible; /teleport?sid=<non-mother> has teleport-back visible (candidates empty in current IT state as region is populated). Demo user (FR): map-gm-chip-text 'Nebbia · 119g 23h · 🇫🇷 FR' correct. Final backend state restored to phase=ISOLATION, next_war={FR,IT}×5 as required.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "grande-mondo.tsx (war summary)", "issue": "During WAR the gm-war-summary text says 'la tua regione non partecipa' for observer even though the observer's my_region=IT IS in war.regions=[FR,IT]. Text likely evaluated against war.regions before persistence completed, or against an out-of-date my_region. Reproducible: from ISOLATION press gm-admin-drop-fog while regions include IT — WAR summary shows 'Guerra in corso: … · ×5 · la tua regione non partecipa'. Reference: /app/frontend/app/grande-mondo.tsx (gm-war-summary block around L125).", "testID": "gm-war-summary", "priority": "LOW"},
+      {"component": "map center-pyramid-button (demo/FR)", "issue": "Cliccando map-center-pyramid-button dal demo (FR) subito dopo l'ingresso in mondo, la camera è finita a 1808,437 invece che al pyramid_anchor FR 1413,701 (schermata mostrava ancora l'intro overlay 'Le Casate rivali innalzarono muri e stemmi…' con pulsante 'Salta' che copre la mappa). Sospetto: il pulsante è cliccabile mentre l'overlay dell'intro è ancora sopra il canvas 3D — o il centraggio parte dalla camera corrente invece che dal pyramid_anchor regionale. Riprodurre: login demo, entra in gm_1, tap map-center-pyramid-button prima di 'Salta'. Reference: /app/frontend/app/(tabs)/map.tsx L201.", "testID": "map-center-pyramid-button", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_25_grande_mondo.py",
+    "/app/backend/tests/test_iteration_26_teleport.py",
+    "/app/test_reports/pytest/iter27.xml",
+    "/app/test_reports/screens/iter27_map_obs.jpg",
+    "/app/test_reports/screens/iter27_gm_admin.jpg",
+    "/app/test_reports/screens/iter27_settings_teleport.jpg",
+    "/app/test_reports/screens/iter27_demo_map.jpg"
+  ],
+  "action_items": [
+    "gm-war-summary: correggere il testo 'la tua regione non partecipa' quando my_region ∈ war.regions (bug UI, non backend — /grande-mondo API restituisce regions:[FR,IT] at_war=true e is_observer con my_region IT).",
+    "map-center-pyramid-button per demo (FR): verificare che punti al pyramid_anchor regionale (1413,701) e non alla camera corrente; assicurarsi che l'intro overlay 'Salta' non lasci passare click al layer mappa.",
+    "(design intent) verificare che la ricomparsa dello slot vuoto dopo teleport mantenga o rigeneri il slot_id — issue già segnalata in iteration_25.json (perpetual swap-back)."
+  ],
+  "critical_code_review_comments": [
+    "app/domain/grande_mondo.py: la nuova geometria a spicchi (center {x,y,radius:130,pyramid_anchor}, regions con index/mid_deg/half_deg/r_in/r_land/r_out/bbox/center/pyramid_anchor) è coerente e i campi player_slots/player_count/free/full/at_war restano stabili. speed_multiplier è persistito in world.gm.war.speed_multiplier ed è correttamente riflesso in march preview (verificato: 5.0).",
+    "app/api/routes_game.py L157-170: war-config + admin/phase esposti su /worlds/{id}/grande-mondo/admin/*. _require_gm_admin verifica c.player.get('gm_admin') → osservatore autorizzato, demo 403 FORBIDDEN come da contract.",
+    "SettlementSwitcher.tsx: implementazione pulita (chevron-left/right + list sheet), scrollTo per tenere in vista il chip attivo. testID map-settlement-chip-<sid> / -prev / -next / -list / -sheet / -item-<sid> ok.",
+    "map.tsx: minimap posizionata a bottom-left, pulsanti zoom top-right — layout corretto rispetto alla richiesta di non sovrapporre più i due controlli."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration_25_grande_mondo.py",
+    "/app/backend/tests/test_iteration_26_teleport.py",
+    "/app/test_reports/pytest/iter27.xml"
+  ],
+  "success_rate": {"backend": "25/25 executed pass (4 conditional skips) — 100%", "frontend": "10/11 flows verified"},
+  "seed_data_creation": "Nessuno nuovo. Modifiche transitorie a gm_1: transizioni WAR↔ISOLATION cicli 6 e 7, next_war lasciato a {FR,IT}×5 (fase ISOLATION) come richiesto. Osservatore ha subito una toggle ES per verificare il salvataggio, poi ripristinato FR+IT.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL https://empire-lords-dragon.preview.emergentagent.com. gm_1 nuova geometria: size=2176, center {x:1088,y:1088,radius:130,pyramid_anchor:[1088,1088]}. Regioni NON hanno più x0/y0/size — usare bbox=[x0,y0,x1,y1] e center=[cx,cy]. IT bbox [735,58,1441,966] center [1088,583]; FR bbox [1132,120,1981,1023] center [1413,701]; ES bbox [1200,573,2118,1267] center [1585,1000]. Admin war-config: POST /api/worlds/gm_1/grande-mondo/admin/war-config {regions:[...], speed_multiplier:1|2|3|5}; solo osservatore@ ha gm_admin. Admin phase: POST /api/worlds/gm_1/grande-mondo/admin/phase {to:'WAR'|'ISOLATION'}. Marches preview endpoint è /api/worlds/{wid}/marches/preview (NON /settlements/{sid}/marches/preview). Osservatore ha ~3 castelli in IT — IT è pieno di PLAYER_SLOT presi, quindi teleport candidates lista può essere vuota (skip test invece di fail). Overview: size 272 factor 8. UI: map-settlement-switcher completo, zoom senza pan, minimap bottom-left. Back arrow presente in grande-mondo/settings/teleport."
+}

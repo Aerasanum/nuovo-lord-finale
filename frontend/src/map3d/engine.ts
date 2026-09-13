@@ -26,7 +26,7 @@ import { createTerrainMaterial } from "./terrainMaterial";
 import { buildTerritory, createTerritoryMaterials, type TerritoryMaterials } from "./territory";
 import { makeDetailTexture, makeRoofTexture, makeStoneTexture } from "./textures";
 import { createWater } from "./water";
-import { type FogBounds, FogWall } from "./fog";
+import { type FogBounds, FogWall, type FogZones } from "./fog";
 
 export const CHUNK = 32;
 const DEFAULT_WORLD = 400; // spec.world.map_size_x — each realm carries its own size (world DTO)
@@ -56,8 +56,10 @@ type EngineOpts = {
   worldSize?: number;
   /** pyramid anchor (pyramid DTO `anchor`); defaults to the centre of the realm */
   pyramidXY?: [number, number];
-  /** Grande Mondo: visible region while the fog wall is up (camera clamp, minimap, fog); null = whole realm */
+  /** Grande Mondo: reachable area while the fog wall is up (camera clamp, minimap); null = whole realm */
   viewBounds?: FogBounds | null;
+  /** Grande Mondo: fog geometry + reachable zones (null = no fog) */
+  fogZones?: FogZones | null;
 };
 
 type ChunkNode = {
@@ -285,7 +287,7 @@ export class MapEngine {
     // Grande Mondo fog wall (visuals only — the server rejects every interregional order while it stands)
     this.fog = new FogWall(this.palette.snow.clone().lerp(this.palette.horizon, 0.3).offsetHSL(0, -0.35, -0.08));
     this.scene.add(this.fog.group);
-    if (opts.viewBounds) this.fog.setBounds(opts.viewBounds, this.world);
+    if (opts.fogZones) this.fog.setZones(opts.fogZones, this.world);
 
     this.scene.add(this.marchGroup);
     this.minimap = this.createMinimap();
@@ -371,12 +373,15 @@ export class MapEngine {
    * Grande Mondo: restrict the camera / minimap / far LOD to the player's region and raise the fog wall on its border
    * (fog up), or open the whole realm (null, fog down).
    */
-  setViewBounds(bounds: FogBounds | null) {
+  setViewBounds(bounds: FogBounds | null, fog: FogZones | null = null) {
     const next = bounds ?? { x0: -10, y0: -10, x1: this.world + 10, y1: this.world + 10 };
-    const same = next.x0 === this.bounds.x0 && next.y0 === this.bounds.y0 && next.x1 === this.bounds.x1 && next.y1 === this.bounds.y1 && !!bounds === this.fog.active;
-    if (same) return;
+    this.fog.setZones(fog, this.world);
+    const same = next.x0 === this.bounds.x0 && next.y0 === this.bounds.y0 && next.x1 === this.bounds.x1 && next.y1 === this.bounds.y1;
+    if (same) {
+      this.dirty = true;
+      return;
+    }
     this.bounds = next;
-    this.fog.setBounds(bounds, this.world);
     this.clampTarget();
     this.updateCamera();
     this.layoutMinimap();
@@ -509,6 +514,9 @@ export class MapEngine {
       this.placePyramid();
     }
     this.pyramid.setLook({ state: dto?.state ?? "DORMANT_INITIAL", faction: dto?.faction ?? "NEUTRAL" });
+    // Grande Piramide (Grande Mondo): the monument scales with its footprint (classic Pyramid = 15×15)
+    const scale = dto?.footprint?.[0] ? Math.max(1, dto.footprint[0] / 15) : 1;
+    this.pyramid.group.scale.setScalar(scale);
     if (this.selected?.pyramid && dto) this.select({ ...this.selected, pyramid: dto });
     this.dirty = true;
     this.labelsDirty = true;

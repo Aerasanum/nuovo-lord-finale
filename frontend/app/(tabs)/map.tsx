@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import Animated, { FadeInUp, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -10,12 +10,13 @@ import { Crest } from "@/src/components/Crest";
 import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
 import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
+import { SettlementSwitcher } from "@/src/components/SettlementSwitcher";
 import { Button, CostRow, Icon, type IconName, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
-import { formatCountdown, regionAt, regionBounds, regionByCode, regionFlag, secondsLeft } from "@/src/game/grandeMondo";
+import { allowedZones, fogZonesFor, formatCountdown, regionAt, regionByCode, regionFlag, secondsLeft, zoneAt, zonesBounds } from "@/src/game/grandeMondo";
 import { MapView3D } from "@/src/map3d/MapView";
 import { MiniMapFrame } from "@/src/map3d/MiniMap";
 import { useAuth } from "@/src/state/AuthContext";
@@ -41,9 +42,6 @@ const useStyles = makeStyles((c) => ({
   legend: { gap: 4 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   swatch: { width: 12, height: 12, borderRadius: 3 },
-  chipRow: { flexDirection: "row", gap: spacing.xs },
-  settChip: { paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.border, justifyContent: "center" },
-  settChipActive: { borderColor: c.brandPrimary, backgroundColor: c.brandTertiary },
   gmChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: spacing.xs, paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: c.glass, borderWidth: 1, borderColor: c.borderStrong },
   gmChipWar: { borderColor: c.factionEnemy },
 }));
@@ -83,16 +81,23 @@ export default function MapScreen() {
   // Grande Mondo: while the fog wall is up the map is confined to the active settlement's region (Bibbia GM)
   const gm = world?.grande_mondo ?? null;
   const myRegion = useMemo(() => (active ? regionAt(gm, active.x, active.y) : null) ?? regionByCode(gm, gm?.my_region), [gm, active?.x, active?.y]); // eslint-disable-line react-hooks/exhaustive-deps
-  const fogView = !!gm?.fog_up && !gm?.view_all; // observers (QA) see the whole Grande Mondo
-  const viewBounds = useMemo(() => (fogView && myRegion ? regionBounds(myRegion) : null), [fogView, myRegion]);
+  // reachable zones from the active settlement (mirrors the server); observers (QA) see the whole Grande Mondo
+  const reach = useMemo(() => {
+    if (!gm || gm.view_all) return null;
+    const z = active ? zoneAt(gm, active.x, active.y) : myRegion ? myRegion.index + 1 : null;
+    return z == null ? null : allowedZones(gm, z);
+  }, [gm, active?.x, active?.y, myRegion]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fogView = !!reach;
+  const viewBounds = useMemo(() => (gm && reach ? zonesBounds(gm, reach) : null), [gm, reach]);
+  const fogZones = useMemo(() => (gm && reach ? fogZonesFor(gm, reach) : null), [gm, reach]);
   const gmLeft = secondsLeft(gm, realmNow);
   // fog fell / returned: foreign castles become visible / hidden → refetch chunks and the far LOD
   const phaseRef = useRef<string | null>(null);
+  const warKey = `${gm?.phase ?? ""}|${(gm?.war?.regions ?? []).join(",")}`;
   useEffect(() => {
-    const phase = gm?.phase ?? null;
-    if (phaseRef.current && phase && phaseRef.current !== phase) engineRef.current?.invalidateChunks();
-    phaseRef.current = phase;
-  }, [gm?.phase]);
+    if (phaseRef.current && gm && phaseRef.current !== warKey) engineRef.current?.invalidateChunks();
+    phaseRef.current = warKey;
+  }, [warKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const onSelect = useCallback((v: Selection | null) => setSel(v), []);
   // deep link from "Carovane nei dintorni": /map?fx=..&fy=..&ft=<nonce> → centre the camera on that tile once
   useEffect(() => {
@@ -129,7 +134,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} /> : null}
+      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramid={pyramid.data ?? null} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} fogZones={fogZones} /> : null}
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -148,25 +153,24 @@ export default function MapScreen() {
         </Panel>
         {gm ? (
           <Pressable style={[s.gmChip, gm.phase === "WAR" && s.gmChipWar]} onPress={() => router.push("/grande-mondo")} testID="map-gm-chip" accessibilityLabel={t("gmTitle")}>
-            <Icon name={gm.phase === "WAR" ? "sword-cross" : "weather-fog"} size={16} color={gm.phase === "WAR" ? colors.factionEnemy : colors.brandPrimary} />
+            <Icon name={gm.phase === "WAR" && !gm.my_fog_up ? "sword-cross" : "weather-fog"} size={16} color={gm.phase === "WAR" ? colors.factionEnemy : colors.brandPrimary} />
             <T v="caption" testID="map-gm-chip-text">
-              {gm.phase === "WAR" ? t("gmWarChip") : t("gmFogChip")} · {formatCountdown(gmLeft)}
+              {gm.phase === "WAR" ? (gm.my_fog_up ? `${t("gmWarChip")} · ${t("gmNotAtWar")}` : `${t("gmWarChip")}${gm.war?.speed_multiplier && gm.war.speed_multiplier > 1 ? ` ×${gm.war.speed_multiplier}` : ""}`) : t("gmFogChip")} · {formatCountdown(gmLeft)}
               {myRegion ? ` · ${regionFlag(myRegion.code)} ${myRegion.code}` : ""}
             </T>
           </Pressable>
         ) : null}
         <PyramidAlertBanner dto={pyramid.data} onPress={() => router.push("/pyramid")} style={{ marginTop: spacing.xs }} />
         {settlements.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chipRow, { paddingHorizontal: spacing.xs, paddingTop: spacing.xs }]}>
-            {settlements.map((st: any) => (
-              <Pressable key={st.settlement_id} style={[s.settChip, st.settlement_id === settlementId && s.settChipActive]} onPress={() => selectSettlement(st.settlement_id)} testID={`map-settlement-chip-${st.settlement_id}`}>
-                <T v="caption" style={st.settlement_id === settlementId ? { color: colors.onBrandTertiary } : undefined}>
-                  {st.is_mother ? "★ " : ""}
-                  {st.name} L{st.level}
-                </T>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <SettlementSwitcher
+            settlements={settlements}
+            activeId={settlementId}
+            onSelect={(id) => {
+              void selectSettlement(id);
+              const st = settlements.find((x: any) => x.settlement_id === id);
+              if (st) engineRef.current?.centerOn(st.x, st.y, 30);
+            }}
+          />
         ) : null}
       </View>
 
@@ -248,7 +252,7 @@ export default function MapScreen() {
       ) : null}
 
       {/* minimap (hidden while a selection card or the legend occupies the bottom) */}
-      {!sel && !legend ? <MiniMapFrame engine={engineRef} style={{ right: spacing.sm, bottom: spacing.md + 26 }} /> : null}
+      {!sel && !legend ? <MiniMapFrame engine={engineRef} style={{ left: spacing.sm, bottom: spacing.md + 26 }} /> : null}
 
       {/* selection card */}
       {sel && selM ? (

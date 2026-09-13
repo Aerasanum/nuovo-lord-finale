@@ -870,5 +870,20 @@
 "__err__TELEPORT_BUSY": "Es sind Märsche zu oder von dieser Burg unterwegs: Warte, bis sie enden.",
 "__err__TELEPORT_SLOT_UNAVAILABLE": "Diese leere Burg ist nicht mehr verfügbar: Wähle eine andere.",
 "__err__TELEPORT_NOT_AVAILABLE": "Teleport gibt es nur in der Großen Welt.",
-"__err__INSUFFICIENT_RUBIES": "Nicht genug Rubine."
+"__err__INSUFFICIENT_RUBIES": "Nicht genug Rubine.",
+"gmNotAtWar": "deine Region nimmt nicht teil",
+"gmWarRegions": "Regionen im Krieg",
+"gmWarAll": "Alle Regionen",
+"gmWarSpeed": "Marschgeschwindigkeit zwischen Regionen",
+"gmAdminTitle": "Verwaltung der Großen Welt",
+"gmAdminHint": "Entscheide jedes Mal, welche Regionen am nächsten Krieg der Regionen teilnehmen und wie schnell die Märsche aus ihrer Region reisen.",
+"gmNextWar": "Nächster Krieg",
+"gmCurrentWar": "Laufender Krieg",
+"gmSaveWar": "Einstellungen speichern",
+"gmDropFog": "Lass den Nebel jetzt fallen",
+"gmRaiseFog": "Bringe den Nebel zurück",
+"gmConfirmDropFog": "Der Nebel wird für die gewählten Regionen sofort fallen und der Krieg der Regionen beginnt. Fortfahren?",
+"gmConfirmRaiseFog": "Der Nebel kehrt sofort zurück und die Regionen sind wieder isoliert. Fortfahren?",
+"gmSaved": "Einstellungen gespeichert",
+"gmMinTwo": "Wähle mindestens zwei Regionen"
 }

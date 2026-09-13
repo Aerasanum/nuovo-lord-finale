@@ -870,5 +870,20 @@
 "__err__TELEPORT_BUSY": "Des marches sont en route vers ou depuis ce château : attendez qu’elles se terminent.",
 "__err__TELEPORT_SLOT_UNAVAILABLE": "Ce château vide n’est plus disponible : choisissez-en un autre.",
 "__err__TELEPORT_NOT_AVAILABLE": "La téléportation existe seulement dans le Grand Monde.",
-"__err__INSUFFICIENT_RUBIES": "Rubis insuffisants."
+"__err__INSUFFICIENT_RUBIES": "Rubis insuffisants.",
+"gmNotAtWar": "ta région ne participe pas",
+"gmWarRegions": "Régions en guerre",
+"gmWarAll": "Toutes les régions",
+"gmWarSpeed": "Vitesse des marches entre régions",
+"gmAdminTitle": "Administration du Grand Monde",
+"gmAdminHint": "Décide à chaque fois quelles régions participent à la prochaine Guerre des Régions et à quelle vitesse voyagent les marches quittant leur région.",
+"gmNextWar": "Prochaine guerre",
+"gmCurrentWar": "Guerre en cours",
+"gmSaveWar": "Enregistrer les paramètres",
+"gmDropFog": "Faire tomber le brouillard maintenant",
+"gmRaiseFog": "Ramener le brouillard",
+"gmConfirmDropFog": "Le brouillard tombera immédiatement pour les régions choisies et la Guerre des Régions commencera. Continuer ?",
+"gmConfirmRaiseFog": "Le brouillard reviendra immédiatement et les régions seront de nouveau isolées. Continuer ?",
+"gmSaved": "Paramètres enregistrés",
+"gmMinTwo": "Choisis au moins deux régions"
 }

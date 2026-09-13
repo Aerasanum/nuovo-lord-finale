@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type TeleportCandidate, useTeleportCandidates, useTeleportMutation } from "@/src/api/hooks";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
+import { BackButton } from "@/src/components/alliance/common";
 import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -49,7 +50,7 @@ export default function TeleportScreen() {
   const showOnMap = (x: number, y: number) => router.push({ pathname: "/(tabs)/map", params: { fx: String(x), fy: String(y), ft: String(Date.now()) } });
 
   return (
-    <Screen title={t("tpTitle")} testID="teleport-screen">
+    <Screen title={t("tpTitle")} left={<BackButton testID="teleport-back" />} testID="teleport-screen">
       {!d ? (
         <Loading />
       ) : isMother ? (
