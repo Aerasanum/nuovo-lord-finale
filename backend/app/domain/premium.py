@@ -15,6 +15,8 @@ import math
 import uuid
 from datetime import timedelta
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
@@ -61,26 +63,63 @@ async def _existing(account_id: str, key: str | None) -> dict | None:
     return await db().ruby_transactions.find_one({"account_id": account_id, "idempotency_key": key})
 
 
+async def _move(account_id: str, amount: int, kind: str, effect: dict, key: str | None, world_id: str | None) -> dict:
+    """Move Rubies exactly once per (account_id, idempotency_key).
+
+    MongoDB gives us no multi-document transaction here, so the ledger row itself is the lock: it is written first
+    (the unique partial index rejects any concurrent duplicate) and only the caller that flips it from PENDING to
+    APPLIED touches the balance. A negative `amount` is a spend and carries a balance guard.
+    """
+    if key and (ex := await _existing(account_id, key)):
+        return await _settle(ex["_id"], amount)
+    tx = {
+        "_id": f"rtx_{uuid.uuid4().hex[:12]}", "account_id": account_id, "world_id": world_id, "kind": kind,
+        "amount": int(amount), "effect": effect, "idempotency_key": key, "status": "PENDING",
+        "policy_version": get_spec().version, "at": clock.now(),
+    }
+    try:
+        await db().ruby_transactions.insert_one(tx)
+    except DuplicateKeyError:
+        ex = await _existing(account_id, key)
+        return await _settle(ex["_id"], amount)
+    return await _settle(tx["_id"], amount)
+
+
+async def _settle(tx_id: str, amount: int) -> dict:
+    """Apply a PENDING ledger row's balance movement. The status transition is what makes it exactly-once."""
+    row = await db().ruby_transactions.find_one_and_update({"_id": tx_id, "status": "PENDING"}, {"$set": {"status": "APPLIED"}}, return_document=True)
+    if row is None:  # another caller already applied this row — replay its result
+        done = await db().ruby_transactions.find_one({"_id": tx_id})
+        if done is not None and "balance_after" not in done:
+            done = {**done, "balance_after": await balance(done["account_id"])}
+        return done
+    account_id, delta = row["account_id"], int(row["amount"])
+    flt: dict = {"_id": account_id}
+    if delta < 0:
+        flt["rubies"] = {"$gte": -delta}
+    acc = await db().accounts.find_one_and_update(flt, {"$inc": {"rubies": delta}}, return_document=True)
+    if acc is None:
+        await db().ruby_transactions.delete_one({"_id": tx_id})  # nothing moved: drop the claim so a retry can work
+        if await db().accounts.count_documents({"_id": account_id}, limit=1) == 0:
+            raise ApiError("ACCOUNT_NOT_FOUND", "Account not found", 404)
+        raise ApiError("INSUFFICIENT_RUBIES", "Not enough Rubies", 409, {"price_rubies": -delta, "rubies": await balance(account_id)})
+    await db().ruby_transactions.update_one({"_id": tx_id}, {"$set": {"balance_after": int(acc["rubies"])}})
+    return {**row, "balance_after": int(acc["rubies"])}
+
+
 async def _debit(account_id: str, amount: int, kind: str, effect: dict, key: str | None, world_id: str | None) -> dict:
     """Atomic spend: balance guard + ledger row (Bible §23: no double spend, idempotent per key)."""
-    acc = await db().accounts.find_one_and_update({"_id": account_id, "rubies": {"$gte": int(amount)}}, {"$inc": {"rubies": -int(amount)}}, return_document=True)
-    if not acc:
-        raise ApiError("INSUFFICIENT_RUBIES", "Not enough Rubies", 409, {"price_rubies": int(amount), "rubies": await balance(account_id)})
-    tx = {"_id": f"rtx_{uuid.uuid4().hex[:12]}", "account_id": account_id, "world_id": world_id, "kind": kind, "amount": -int(amount), "balance_after": int(acc["rubies"]), "effect": effect, "idempotency_key": key, "policy_version": get_spec().version, "at": clock.now()}
-    await db().ruby_transactions.insert_one(tx)
-    return tx
+    return await _move(account_id, -int(amount), kind, effect, key, world_id)
+
+
+async def refund(account_id: str, amount: int, kind: str, effect: dict, key: str | None = None) -> dict:
+    """Give Rubies back when the effect a debit paid for could not be applied. Idempotent on `key`."""
+    return await grant(account_id, int(amount), kind, effect, key)
 
 
 async def grant(account_id: str, amount: int, kind: str, effect: dict, key: str | None = None) -> dict:
     """Credit path (QA grants now; validated store purchases later — spec: production grant requires catalog match)."""
-    if key and (ex := await _existing(account_id, key)):
-        return ex
-    acc = await db().accounts.find_one_and_update({"_id": account_id}, {"$inc": {"rubies": int(amount)}}, return_document=True)
-    if not acc:
-        raise ApiError("ACCOUNT_NOT_FOUND", "Account not found", 404)
-    tx = {"_id": f"rtx_{uuid.uuid4().hex[:12]}", "account_id": account_id, "world_id": None, "kind": kind, "amount": int(amount), "balance_after": int(acc["rubies"]), "effect": effect, "idempotency_key": key, "policy_version": get_spec().version, "at": clock.now()}
-    await db().ruby_transactions.insert_one(tx)
-    return tx
+    return await _move(account_id, int(amount), kind, effect, key, None)
 
 
 # ------------------------------------------------------------------------------------------------ instant completion

@@ -33,12 +33,15 @@ async def ensure_indexes() -> None:
     await d.refresh_sessions.create_index("expires_at", expireAfterSeconds=0)
     await d.user_sessions.create_index("session_token", unique=True)
     await d.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await d.rate_limits.create_index("expires_at", expireAfterSeconds=0)
 
     await d.worlds.create_index("status")
     await d.map_chunks.create_index([("world_id", ASCENDING), ("cx", ASCENDING), ("cy", ASCENDING)], unique=True)
 
     await d.players.create_index([("world_id", ASCENDING), ("account_id", ASCENDING)], unique=True)
     await d.players.create_index([("world_id", ASCENDING), ("house_name_lc", ASCENDING)], unique=True)
+    # inactivity sweep scans every world by last activity (domain/inactivity.py)
+    await d.players.create_index([("world_id", ASCENDING), ("status", ASCENDING), ("last_active_at", ASCENDING)])
 
     await d.settlements.create_index([("world_id", ASCENDING), ("x", ASCENDING), ("y", ASCENDING)], unique=True)
     await d.settlements.create_index([("world_id", ASCENDING), ("owner_player_id", ASCENDING)])
@@ -60,6 +63,18 @@ async def ensure_indexes() -> None:
     # Negozio: one grant per store transaction (RevenueCat retries webhooks)
     await d.store_purchases.create_index("transaction_id", unique=True)
     await d.store_purchases.create_index([("account_id", ASCENDING), ("at", ASCENDING)])
+
+    # Ruby wallet (Bible §23): the unique key is what makes a grant/debit idempotent under concurrency — without it
+    # two webhook deliveries carrying the same key can both pass the "already granted?" read and credit twice.
+    await d.ruby_transactions.create_index(
+        [("account_id", ASCENDING), ("idempotency_key", ASCENDING)],
+        unique=True,
+        partialFilterExpression={"idempotency_key": {"$type": "string"}},
+    )
+    await d.ruby_transactions.create_index([("account_id", ASCENDING), ("at", DESCENDING)])
+
+    await d.chat_messages.create_index([("channel", ASCENDING), ("at", DESCENDING)])
+    await d.chat_messages.create_index([("world_id", ASCENDING), ("channel", ASCENDING), ("at", DESCENDING)])
     await d.marches.create_index([("world_id", ASCENDING), ("status", ASCENDING)])
     await d.marches.create_index(
         [("world_id", ASCENDING), ("player_id", ASCENDING), ("idempotency_key", ASCENDING)],

@@ -95,7 +95,11 @@ async def buy_skin(account_id: str, skin_id: str, idempotency_key: str | None, w
     if skin_id in owned_skins(acc):
         raise ApiError("SKIN_ALREADY_OWNED", "You already own this castle skin", 409, {"skin": skin_id})
     tx = await premium._debit(account_id, int(skin["tier"]), "CASTLE_SKIN_PURCHASE", {"skin": skin_id, "tier": skin["tier"]}, idempotency_key, world_id)
-    await db().accounts.update_one({"_id": account_id}, {"$addToSet": {"castle_skins": skin_id}})
+    try:
+        await db().accounts.update_one({"_id": account_id}, {"$addToSet": {"castle_skins": skin_id}})
+    except Exception:
+        await premium.refund(account_id, int(skin["tier"]), "CASTLE_SKIN_PURCHASE_REFUND", {"skin": skin_id, "reversed_tx": tx["_id"]}, f"{tx['_id']}:refund")
+        raise
     await db().audit.insert_one({"type": "store_skin", "account_id": account_id, "skin": skin_id, "price_rubies": int(skin["tier"]), "tx": tx["_id"], "at": clock.now()})
     return {**(await overview(account_id)), "bought": skin_id, "price_rubies": int(skin["tier"]), "replayed": False}
 

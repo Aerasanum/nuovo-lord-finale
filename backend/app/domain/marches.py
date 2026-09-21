@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from datetime import timedelta
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError
@@ -110,6 +112,16 @@ async def _hostile_public_dto(m: dict, defender_player_id: str, tiles: set[tuple
         }
     )
     return d
+
+
+async def _release_launch(origin_id: str, units: dict[str, int], ships: int) -> None:
+    """Undo the atomic launch reserve (outgoing slot + troops + ships) when the march row never reached the database."""
+    inc: dict = {"outgoing_active": -1}
+    for u, c in units.items():
+        inc[f"army.{u}"] = int(c)
+    if ships:
+        inc["ships"] = int(ships)
+    await db().settlements.update_one({"_id": origin_id}, {"$inc": inc})
 
 
 def _weighted_count(units: dict[str, int], research: dict[str, int]) -> int:
@@ -380,7 +392,22 @@ async def launch(world: dict, player: dict, origin: dict, mission: str, units: d
         "idempotency_key": idempotency_key,
         "spec_version": spec.version,
     }
-    await db().marches.insert_one(march)
+    try:
+        await db().marches.insert_one(march)
+    except Exception as exc:
+        # The troops already left the origin document: put them back rather than losing an army to a failed insert.
+        await _release_launch(origin["_id"], units, ships if naval else 0)
+        if reserved:
+            await conquest.release_slot(player["_id"])
+        if bridge:
+            from app.domain import mythic
+
+            await mythic.release_bridge(player["_id"], march_id)
+        if isinstance(exc, DuplicateKeyError) and idempotency_key:
+            existing = await db().marches.find_one({"world_id": world["_id"], "player_id": player["_id"], "idempotency_key": idempotency_key})
+            if existing:
+                return existing
+        raise
     await scheduler.schedule(world["_id"], "BATTLE_OR_FLEET_ARRIVAL", arrival, march["_id"], f"march_arrival:{march['_id']}", {"march_id": march["_id"]})
     if target_pyramid and mission == "ATTACK":
         from app.domain import pyramid

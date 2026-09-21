@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core import clock
 from app.core.db import db
 from app.core.errors import ApiError, insufficient_resources, queue_full
@@ -19,6 +21,15 @@ async def _existing_by_idempotency(world_id: str, player_id: str, key: str | Non
     if not key:
         return None
     return await db().jobs.find_one({"world_id": world_id, "player_id": player_id, "idempotency_key": key})
+
+
+async def _release_reservation(settlement_id: str, cost: dict, target: str) -> None:
+    """Undo the atomic reserve (resources + queue slot + busy target) when the job row never made it to the database."""
+    inc = {"construction_active": -1}
+    for r, v in cost.items():
+        if v > 0:
+            inc[f"resources.{r}"] = int(v)
+    await db().settlements.update_one({"_id": settlement_id}, {"$inc": inc, "$pull": {"busy_targets": target}})
 
 
 async def _start_construction_job(doc: dict, player: dict, kind: str, target: str, target_level: int, quote: dict, idempotency_key: str | None, extra: dict | None = None) -> dict:
@@ -70,7 +81,19 @@ async def _start_construction_job(doc: dict, player: dict, kind: str, target: st
         "idempotency_key": idempotency_key,
         **(extra or {}),
     }
-    await db().jobs.insert_one(job)
+    try:
+        await db().jobs.insert_one(job)
+    except DuplicateKeyError:
+        # Concurrent call with the same idempotency key won the race: give the resources back and replay its job.
+        await _release_reservation(doc["_id"], cost, target)
+        existing = await _existing_by_idempotency(doc["world_id"], player["_id"], idempotency_key)
+        if existing:
+            return existing
+        raise
+    except Exception:
+        # Never leave the Player charged for a job that does not exist (no multi-document transactions here).
+        await _release_reservation(doc["_id"], cost, target)
+        raise
     await scheduler.schedule(doc["world_id"], "BUILD_RESEARCH_RECRUIT_COMPLETE", ends, doc["_id"], f"job_complete:{job_id}", {"job_id": job_id})
     await notifications.notify(
         doc["world_id"], player["_id"], "BUILD_JOB_STATE" if kind != "SETTLEMENT_UPGRADE" else "SETTLEMENT_UPGRADE_STATE",
