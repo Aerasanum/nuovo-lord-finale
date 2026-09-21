@@ -1009,6 +1009,15 @@ export const de: Record<StringKey, string> = {
   evt_STORE_REWARD_DELIVERED: "Belohnung geliefert",
   txSTORE_PACK: "Rubinpaket",
   txCASTLE_SKIN_PURCHASE: "Burghaut",
+  senInnerRing: "Innerer Ring · 4 Wächter mit Radius 3: Jeder besitzt ein Segment des 7×7-Quadrats um die Burg.",
+  senNoWalls: "Keine TP, keine Mauern. Ohne Besatzung: 24 Std. Schonfrist, dann Entfernung.",
+  senOuterRing: "Äußerer Ring · 8 Wächter mit Radius 5 (Band 4–5, bis 11×11).",
+  senOuterLocked: "Äußerer Ring · 8 Wächter mit Radius 5 (Band 4–5, bis 11×11) — erfordert die Forschung Perimetro Avanzato.",
+  senNaturalTitle: "Natürliche Grenze",
+  senNaturalBody: "Wo der Turm im Wasser (oder außerhalb der Karte) stünde, braucht es keinen Wächter: Dieser Sektor gehört dir ohne Bauwerk, ohne Besatzung und ohne Ablauf. Ein Berg ist nie eine natürliche Grenze.",
+  senNaturalTag: "natürliche Grenze",
+  senNotActive: "noch nicht aktiv",
+  senRequiresCommand: "Erfordert Comando Sentinelle (Siedlung St. 3).",
 };
 
 export const deErrors: Record<string, string> = {

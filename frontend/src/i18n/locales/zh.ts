@@ -1009,6 +1009,15 @@ export const zh: Record<StringKey, string> = {
   evt_STORE_REWARD_DELIVERED: "奖励已送达",
   txSTORE_PACK: "红宝石礼包",
   txCASTLE_SKIN_PURCHASE: "城堡皮肤",
+  senInnerRing: "内环 · 半径 3 的 4 座哨塔：每座占据城堡周围 7×7 方格中的一块扇区。",
+  senNoWalls: "没有生命值，也没有城墙。无驻军时：24 小时宽限期，随后移除。",
+  senOuterRing: "外环 · 半径 5 的 8 座哨塔（4–5 带，最大 11×11）。",
+  senOuterLocked: "外环 · 半径 5 的 8 座哨塔（4–5 带，最大 11×11）——需要研究 Perimetro Avanzato。",
+  senNaturalTitle: "天然边界",
+  senNaturalBody: "若塔楼会落在水中（或地图之外），则无需哨塔：该扇区无需建造即归你所有，无需驻军，也不会失效。山脉不算天然边界。",
+  senNaturalTag: "天然边界",
+  senNotActive: "尚未生效",
+  senRequiresCommand: "需要 Comando Sentinelle（定居点 3 级）。",
 };
 
 export const zhErrors: Record<string, string> = {

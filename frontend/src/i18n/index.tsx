@@ -453,6 +453,15 @@ const it = {
   loyaltyChangedLine: "Lealtà dell'insediamento scesa a {loyalty} (−{reduction})",
   sentinelState_REMOVED: "rimossa",
   sentinelState_GRACE: "periodo di grazia",
+  senInnerRing: "Anello interno · 4 Sentinelle a raggio 3: ognuna possiede uno spicchio del quadrato 7×7 intorno al castello.",
+  senNoWalls: "Nessun HP, nessuna mura. Senza presidio: grazia 24h poi rimozione.",
+  senOuterRing: "Anello esterno · 8 Sentinelle a raggio 5 (fascia 4–5, fino a 11×11).",
+  senOuterLocked: "Anello esterno · 8 Sentinelle a raggio 5 (fascia 4–5, fino a 11×11) — richiede la ricerca Perimetro Avanzato.",
+  senNaturalTitle: "Confine naturale",
+  senNaturalBody: "Dove la torre cadrebbe in acqua (o fuori mappa) la Sentinella non serve: quel settore è tuo senza costruire nulla, non ha presidio e non scade. La montagna non è un confine naturale.",
+  senNaturalTag: "confine naturale",
+  senNotActive: "non ancora attivo",
+  senRequiresCommand: "Richiede Comando Sentinelle (insediamento L3).",
   contractResult_SUCCESS: "riuscito",
   contractResult_FAILED: "fallito",
   contractResult_CANCELLED: "annullato",
@@ -1474,6 +1483,15 @@ const en: typeof it = {
   loyaltyChangedLine: "Settlement loyalty dropped to {loyalty} (−{reduction})",
   sentinelState_REMOVED: "removed",
   sentinelState_GRACE: "grace period",
+  senInnerRing: "Inner ring · 4 Sentinels at radius 3: each owns a wedge of the 7×7 square around the castle.",
+  senNoWalls: "No HP, no walls. Unguarded: 24h grace, then removal.",
+  senOuterRing: "Outer ring · 8 Sentinels at radius 5 (band 4–5, up to 11×11).",
+  senOuterLocked: "Outer ring · 8 Sentinels at radius 5 (band 4–5, up to 11×11) — requires the Perimetro Avanzato research.",
+  senNaturalTitle: "Natural boundary",
+  senNaturalBody: "Where the tower would stand on water (or off the map) no Sentinel is needed: that sector is yours with nothing to build, no garrison and no expiry. Mountains are never a natural boundary.",
+  senNaturalTag: "natural boundary",
+  senNotActive: "not yet active",
+  senRequiresCommand: "Requires Comando Sentinelle (settlement L3).",
   contractResult_SUCCESS: "succeeded",
   contractResult_FAILED: "failed",
   contractResult_CANCELLED: "cancelled",
@@ -2186,10 +2204,16 @@ const I18nContext = createContext<Ctx>({ lang: "it", t: (k) => it[k], setLang: (
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("it");
+  // activeLang is set before the state, so the re-render already formats in the new language.
   useEffect(() => {
-    storage.getItem<string>("eld.lang", "it").then((v) => setLangState(v && LANGS.some((l) => l.code === v) ? (v as Lang) : "it"));
+    storage.getItem<string>("eld.lang", "it").then((v) => {
+      const next = v && LANGS.some((l) => l.code === v) ? (v as Lang) : "it";
+      activeLang = next;
+      setLangState(next);
+    });
   }, []);
   const setLang = useCallback((l: Lang) => {
+    activeLang = l;
     setLangState(l);
     storage.setItem("eld.lang", l);
   }, []);
@@ -2232,19 +2256,37 @@ export const RESOURCE_LABELS: Record<Lang, Record<string, string>> = {
   pt: ptResources,
 };
 
+// Countdowns and resource counts are formatted from dozens of render paths that call these as plain functions.
+// Threading the language through every one of them would touch most of the app, so the provider publishes the
+// active language here instead and the formatters read it.
+let activeLang: Lang = "it";
+
+const DURATION_UNITS: Record<Lang, { d: string; h: string; m: string }> = {
+  it: { d: "g", h: "h", m: "m" },
+  en: { d: "d", h: "h", m: "m" },
+  fr: { d: "j", h: "h", m: "m" },
+  es: { d: "d", h: "h", m: "m" },
+  de: { d: "T", h: "h", m: "m" },
+  ru: { d: "д", h: "ч", m: "м" },
+  zh: { d: "天", h: "时", m: "分" },
+  pt: { d: "d", h: "h", m: "m" },
+};
+
 export function formatDuration(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (d > 0) return `${d}g ${h}h`;
-  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  const u = DURATION_UNITS[activeLang];
+  if (d > 0) return `${d}${u.d} ${h}${u.h}`;
+  if (h > 0) return `${h}${u.h} ${String(m).padStart(2, "0")}${u.m}`;
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 export function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 10_000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`;
-  return Math.floor(n).toLocaleString("it-IT");
+  const locale = localeOf(activeLang);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString(locale, { maximumFractionDigits: n >= 10_000_000 ? 0 : 1 })}M`;
+  if (n >= 10_000) return `${(n / 1000).toLocaleString(locale, { maximumFractionDigits: n >= 100_000 ? 0 : 1 })}k`;
+  return Math.floor(n).toLocaleString(locale);
 }

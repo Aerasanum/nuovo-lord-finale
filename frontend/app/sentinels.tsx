@@ -24,7 +24,7 @@ const OUTER = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 export default function SentinelsScreen() {
   const s = useStyles();
   const { colors } = useTheme();
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { worldId, settlementId, settlement } = useGame();
@@ -33,7 +33,6 @@ export default function SentinelsScreen() {
   const { showError, show } = useToast();
   if (!worldId || !settlementId) return null;
   const cmd = settlement.data?.buildings?.["Comando Sentinelle"] ?? 0;
-  const it = lang === "it";
   const taken = new Set((q.data?.sentinels ?? []).map((x) => `${x.ring}:${x.direction}`));
   const natural = new Map((q.data?.natural ?? []).map((n) => [`${n.ring}:${n.direction}`, n]));
   const outerUnlocked = !!q.data?.outer_unlocked;
@@ -53,7 +52,7 @@ export default function SentinelsScreen() {
             <Icon name={nat ? "waves" : "tower-fire"} size={18} color={nat ? colors.info : colors.brandPrimary} />
             <T v="body">
               {dir} · {ring === "INNER" ? "r3" : "r5"}
-              {nat ? (it ? " · confine naturale" : " · natural boundary") : taken.has(key) ? " ✓" : ""}
+              {nat ? ` · ${t("senNaturalTag")}` : taken.has(key) ? " ✓" : ""}
             </T>
           </Pressable>
         );
@@ -79,32 +78,28 @@ export default function SentinelsScreen() {
             <T v="body">
               Comando Sentinelle L{cmd} · {t("garrison")} cap {formatNumber(q.data?.garrison_cap ?? 0)} · 210/330/300/180/24 · 18 min
             </T>
-            <T v="caption">{lang === "it" ? "Nessun HP, nessuna mura. Senza presidio: grazia 24h poi rimozione." : "No HP, no walls. Unguarded: 24h grace, then removal."}</T>
+            <T v="caption">{t("senNoWalls")}</T>
           </Panel>
           <T v="heading">{t("buildSentinel")}</T>
-          <T v="caption">{it ? "Anello interno · 4 Sentinelle a raggio 3: ognuna possiede uno spicchio del quadrato 7×7 intorno al castello." : "Inner ring · 4 Sentinels at radius 3: each owns a wedge of the 7×7 square around the castle."}</T>
+          <T v="caption">{t("senInnerRing")}</T>
           {slotGrid(INNER, "INNER", false)}
-          <T v="caption">{it ? `Anello esterno · 8 Sentinelle a raggio 5 (fascia 4–5, fino a 11×11)${outerUnlocked ? "" : " — richiede la ricerca Perimetro Avanzato"}.` : `Outer ring · 8 Sentinels at radius 5 (band 4–5, up to 11×11)${outerUnlocked ? "" : " — requires the Perimetro Avanzato research"}.`}</T>
+          <T v="caption">{t(outerUnlocked ? "senOuterRing" : "senOuterLocked")}</T>
           {slotGrid(OUTER, "OUTER", !outerUnlocked)}
           {natural.size > 0 ? (
             <Panel testID="sentinels-natural-panel">
               <Row style={{ gap: 6 }}>
                 <Icon name="waves" size={18} color={colors.info} />
-                <T v="body">{it ? "Confine naturale" : "Natural boundary"}</T>
+                <T v="body">{t("senNaturalTitle")}</T>
               </Row>
+              <T v="caption">{t("senNaturalBody")}</T>
               <T v="caption">
-                {it
-                  ? "Dove la torre cadrebbe in acqua (o fuori mappa) la Sentinella non serve: quel settore è tuo senza costruire nulla, non ha presidio e non scade. La montagna non è un confine naturale."
-                  : "Where the tower would stand on water (or off the map) no Sentinel is needed: that sector is yours with nothing to build, no garrison and no expiry. Mountains are never a natural boundary."}
-              </T>
-              <T v="caption">
-                {[...natural.values()].map((n) => `${n.direction} (${n.ring === "INNER" ? "r3" : "r5"})${n.eligible ? "" : it ? " · non ancora attivo" : " · not yet active"}`).join(" · ")}
+                {[...natural.values()].map((n) => `${n.direction} (${n.ring === "INNER" ? "r3" : "r5"})${n.eligible ? "" : ` · ${t("senNotActive")}`}`).join(" · ")}
               </T>
             </Panel>
           ) : null}
           {cmd < 1 ? (
             <T v="caption" style={{ color: colors.warning }}>
-              {it ? "Richiede Comando Sentinelle (insediamento L3)." : "Requires Comando Sentinelle (settlement L3)."}
+              {t("senRequiresCommand")}
             </T>
           ) : null}
           <T v="heading">{t("state")}</T>

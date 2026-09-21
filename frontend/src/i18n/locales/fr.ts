@@ -1009,6 +1009,15 @@ export const fr: Record<StringKey, string> = {
   evt_STORE_REWARD_DELIVERED: "Récompense livrée",
   txSTORE_PACK: "Pack de Rubis",
   txCASTLE_SKIN_PURCHASE: "Skin château",
+  senInnerRing: "Anneau intérieur · 4 Sentinelles à rayon 3 : chacune possède une part du carré 7×7 autour du château.",
+  senNoWalls: "Ni PV ni murs. Sans garnison : 24 h de grâce, puis retrait.",
+  senOuterRing: "Anneau extérieur · 8 Sentinelles à rayon 5 (bande 4–5, jusqu’à 11×11).",
+  senOuterLocked: "Anneau extérieur · 8 Sentinelles à rayon 5 (bande 4–5, jusqu’à 11×11) — requiert la recherche Perimetro Avanzato.",
+  senNaturalTitle: "Frontière naturelle",
+  senNaturalBody: "Là où la tour tomberait dans l’eau (ou hors carte), la Sentinelle est inutile : ce secteur est à vous sans rien construire, sans garnison et sans expiration. La montagne n’est jamais une frontière naturelle.",
+  senNaturalTag: "frontière naturelle",
+  senNotActive: "pas encore actif",
+  senRequiresCommand: "Requiert Comando Sentinelle (colonie N3).",
 };
 
 export const frErrors: Record<string, string> = {

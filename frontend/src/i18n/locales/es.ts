@@ -1009,6 +1009,15 @@ export const es: Record<StringKey, string> = {
   evt_STORE_REWARD_DELIVERED: "Recompensa entregada",
   txSTORE_PACK: "Pack de Rubíes",
   txCASTLE_SKIN_PURCHASE: "Skin de castillo",
+  senInnerRing: "Anillo interior · 4 Centinelas a radio 3: cada uno posee una porción del cuadrado 7×7 alrededor del castillo.",
+  senNoWalls: "Sin PV ni murallas. Sin guarnición: 24 h de gracia y luego retirada.",
+  senOuterRing: "Anillo exterior · 8 Centinelas a radio 5 (franja 4–5, hasta 11×11).",
+  senOuterLocked: "Anillo exterior · 8 Centinelas a radio 5 (franja 4–5, hasta 11×11) — requiere la investigación Perimetro Avanzato.",
+  senNaturalTitle: "Frontera natural",
+  senNaturalBody: "Donde la torre caería en el agua (o fuera del mapa) el Centinela no hace falta: ese sector es tuyo sin construir nada, sin guarnición y sin caducidad. La montaña nunca es una frontera natural.",
+  senNaturalTag: "frontera natural",
+  senNotActive: "aún no activo",
+  senRequiresCommand: "Requiere Comando Sentinelle (asentamiento N3).",
 };
 
 export const esErrors: Record<string, string> = {

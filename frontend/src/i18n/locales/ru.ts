@@ -1009,6 +1009,15 @@ export const ru: Record<StringKey, string> = {
   evt_STORE_REWARD_DELIVERED: "Награда доставлена",
   txSTORE_PACK: "Пакет Рубинов",
   txCASTLE_SKIN_PURCHASE: "Скин замка",
+  senInnerRing: "Внутреннее кольцо · 4 Дозорных на радиусе 3: каждый владеет сектором квадрата 7×7 вокруг замка.",
+  senNoWalls: "Ни HP, ни стен. Без гарнизона: 24 ч отсрочки, затем снос.",
+  senOuterRing: "Внешнее кольцо · 8 Дозорных на радиусе 5 (полоса 4–5, до 11×11).",
+  senOuterLocked: "Внешнее кольцо · 8 Дозорных на радиусе 5 (полоса 4–5, до 11×11) — требуется исследование Perimetro Avanzato.",
+  senNaturalTitle: "Естественная граница",
+  senNaturalBody: "Там, где башня оказалась бы в воде (или за краем карты), Дозорный не нужен: сектор ваш без построек, без гарнизона и без срока. Гора естественной границей не считается.",
+  senNaturalTag: "естественная граница",
+  senNotActive: "ещё не активен",
+  senRequiresCommand: "Требуется Comando Sentinelle (поселение ур. 3).",
 };
 
 export const ruErrors: Record<string, string> = {
