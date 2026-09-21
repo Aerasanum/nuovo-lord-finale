@@ -14,9 +14,9 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 WORLD = "qa_1"
-DEMO = ("demo@empirelords.com", "Demo12345!", None, None)
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD, None, None)
 RIVAL = ("rival@empirelords.com", "Rival12345!", "RivalLord", "Casa Rivale")
 ALLY = ("ally@empirelords.com", "Ally12345!", "AllyLord", "Casa Alleata")
 THIRD = ("third@empirelords.com", "Third12345!", "ThirdLord", "Casa Terza")

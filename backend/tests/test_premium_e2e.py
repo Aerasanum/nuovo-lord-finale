@@ -11,11 +11,11 @@ import uuid
 
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, track_player  # QA backend only
 ADMIN = ADMIN_HEADERS
 WORLD = "qa_1"
 HOME = None  # resolved from /me at runtime
-DEMO = ("demo@empirelords.com", "Demo12345!")
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD)
 
 
 def url(p: str) -> str:
@@ -139,6 +139,7 @@ class TestInstantFinish:
         hp = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
         assert requests.post(url(f"/worlds/{WORLD}/join"), json={"house_name": f"Casa Povera {uuid.uuid4().hex[:4]}"}, headers=hp, timeout=60).status_code in (200, 201)
         me = requests.get(url(f"/worlds/{WORLD}/me"), headers=hp, timeout=30).json()
+        track_player(me["player"]["player_id"])
         sid = me["settlements"][0]["settlement_id"]
         requests.post(url("/qa/grant"), json={"settlement_id": sid, "resources": {"grain": 5000, "wood": 5000, "clay": 5000, "iron": 5000, "gold": 500}}, headers=ADMIN, timeout=30)
         started = None

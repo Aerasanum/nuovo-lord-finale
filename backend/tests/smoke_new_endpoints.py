@@ -5,8 +5,10 @@ import sys
 
 import requests
 
-from tests.e2e_base import API as BASE  # QA backend only
-EMAIL, PW = sys.argv[1] if len(sys.argv) > 1 else "demo@empirelords.com", sys.argv[2] if len(sys.argv) > 2 else "Demo12345!"
+from tests.e2e_base import API as BASE, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
+
+EMAIL = sys.argv[1] if len(sys.argv) > 1 else DEMO_EMAIL
+PW = sys.argv[2] if len(sys.argv) > 2 else DEMO_PASSWORD
 
 r = requests.post(f"{BASE}/auth/login", json={"email": EMAIL, "password": PW}, timeout=20)
 r.raise_for_status()

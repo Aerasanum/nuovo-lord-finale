@@ -15,8 +15,8 @@ import requests
 
 pytestmark = pytest.mark.skip(reason="legacy Regno 1 fixture (hard-coded rival/demo settlement ids and routes) removed — Grande Mondo only since June 2026")
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
-DEMO = ("demo@empirelords.com", "Demo12345!")
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD)
 RIVAL = ("rival@empirelords.com", "Rival12345!", "RivalLord", "Casa Rivale")
 WORLD = "qa_1"
 DEMO_HOME = "stl_0484bd7cfcbd40dd"  # 6,188

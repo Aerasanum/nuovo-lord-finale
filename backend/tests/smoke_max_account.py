@@ -4,8 +4,8 @@ import os
 
 import requests
 
-from tests.e2e_base import API as BASE  # QA backend only
-r = requests.post(f"{BASE}/auth/login", json={"email": "max@empirelords.com", "password": "Max12345!"}, timeout=20)
+from tests.e2e_base import API as BASE, MAX_EMAIL, MAX_PASSWORD  # QA backend only
+r = requests.post(f"{BASE}/auth/login", json={"email": MAX_EMAIL, "password": MAX_PASSWORD}, timeout=20)
 r.raise_for_status()
 H = {"Authorization": f"Bearer {r.json()['access_token']}"}
 me = requests.get(f"{BASE}/worlds/qa_1/me", headers=H, timeout=20)

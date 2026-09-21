@@ -12,13 +12,13 @@ from dotenv import load_dotenv
 from tests.paths import FRONTEND_ENV
 
 load_dotenv(FRONTEND_ENV)
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, OBSERVER_EMAIL, OBSERVER_PASSWORD  # QA backend only
 WORLD = "gm_1"
 GRAND = WORLD
 IT = f"{WORLD}:IT"
 FR = f"{WORLD}:FR"
-OBS = ("osservatore@empirelords.com", "Demo12345!")
-DEMO = ("demo@empirelords.com", "Demo12345!")
+OBS = (OBSERVER_EMAIL, OBSERVER_PASSWORD)
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD)
 
 
 def _url(p): return f"{BASE_URL}/api{p}"

@@ -13,11 +13,11 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 
 
 def api(p: str) -> str:

@@ -20,11 +20,11 @@ import os
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, OBSERVER_PASSWORD  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 
 
 @pytest.fixture(scope="module")
@@ -58,7 +58,7 @@ def test_worlds_list_contains_two_worlds(demo_headers):
 @pytest.fixture(scope="module")
 def obs_headers():
     """Osservatore sees every Grande Mondo region (no fog) — used for the gm_1 map assertions."""
-    r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": "osservatore@empirelords.com", "password": "Demo12345!"}, timeout=20)
+    r = requests.post(f"{BASE_URL}/api/auth/login", json={"email": "osservatore@empirelords.com", "password": OBSERVER_PASSWORD}, timeout=20)
     assert r.status_code == 200, r.text
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 

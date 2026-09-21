@@ -8,10 +8,10 @@ import os
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE# QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD# QA backend only
 
 WORLD_ID = "qa_1"
-DEMO = {"email": "demo@empirelords.com", "password": "Demo12345!"}
+DEMO = {"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
 
 EXPECTED_MULTS = {1, 1.25, 1.5, 1.75, 2, 2.5, 4}
 

@@ -11,11 +11,11 @@ import time
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, track_player  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 
 
 def api_url(path: str) -> str:
@@ -129,6 +129,7 @@ class TestWorlds:
         me = session.get(api_url("/api/worlds/qa_1/me"), headers=new_account["headers"], timeout=15)
         assert me.status_code == 200
         d = me.json()
+        track_player(d["player"]["player_id"])
         assert len(d["settlements"]) == 1
         st = d["settlements"][0]
         assert "resources" in st and "settlement_id" in st

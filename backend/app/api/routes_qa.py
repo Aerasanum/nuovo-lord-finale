@@ -296,6 +296,36 @@ async def qa_inactivity_sweep(body: InactivitySweepIn):
     return {"world_id": body.world_id, "rule": inactivity.rule(world), "eliminated": eliminated}
 
 
+class PurgePlayersIn(BaseModel):
+    player_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+@router.post("/players/purge")
+async def qa_purge_players(body: PurgePlayersIn):
+    """Test teardown: remove throwaway Players and hand their spawn slots straight back.
+
+    A realm has a fixed number of seats (100 on the QA realm). Without this the e2e suite leaks one seat per run
+    until every join answers WORLD_FULL and the whole suite starts failing on state no test created. Runs the same
+    code path as the inactivity removal, so no slot bookkeeping can drift.
+    """
+    _gate()
+    from app.domain import inactivity
+
+    out = []
+    for pid in body.player_ids:
+        player = await db().players.find_one({"_id": pid})
+        if not player:
+            out.append({"player_id": pid, "removed": False, "reason": "PLAYER_NOT_FOUND"})
+            continue
+        world = await db().worlds.find_one({"_id": player["world_id"]})
+        if not world:
+            out.append({"player_id": pid, "removed": False, "reason": "WORLD_NOT_FOUND"})
+            continue
+        result = await inactivity.eliminate(world, player, "REMOVE")
+        out.append({"player_id": pid, "removed": result is not None, **(result or {})})
+    return {"purged": out}
+
+
 # --------------------------------------------------------------------------- Santuario Mitico / Unicorno (Bible §12)
 class MythicIn(BaseModel):
     player_id: str

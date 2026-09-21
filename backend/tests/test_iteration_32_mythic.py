@@ -15,9 +15,9 @@ from dotenv import load_dotenv
 from tests.paths import FRONTEND_ENV
 
 load_dotenv(FRONTEND_ENV)
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, LORD_EMAIL, LORD_PASSWORD, track_player  # QA backend only
 WORLD = "qa_1"
-LORD = ("lord@empirelords.com", "Lord12345!")
+LORD = (LORD_EMAIL, LORD_PASSWORD)
 
 
 def url(p: str) -> str:
@@ -64,6 +64,7 @@ def fresh_target():
     h = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
     post(h, f"/worlds/{WORLD}/join", {"house_name": f"Casa Ponte {tag}"})
     me = get(h, f"/worlds/{WORLD}/me")
+    track_player(me["player"]["player_id"])
     return {"h": h, "player_id": me["player"]["player_id"], "mother": me["player"]["mother_settlement_id"]}
 
 

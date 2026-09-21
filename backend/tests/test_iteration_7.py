@@ -13,11 +13,11 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 DEMO_SETTLEMENT = None  # resolved from /me at runtime (fixture ids change with every world reset)
 
 
@@ -61,13 +61,21 @@ class TestSkins:
             assert x["unlocked"] == (d["level"] >= x["min_level"])
 
     def test_skin_put_locked_returns_409_with_required_level(self, s, demo):
-        # demo is level 3 → royal (min 10) must be locked
-        r = s.put(api(f"/api/worlds/qa_1/settlements/{DEMO_SETTLEMENT}/skin"), json={"skin": "royal"}, headers=demo["headers"], timeout=15)
-        assert r.status_code == 409, r.text
-        body = r.json()
-        assert body.get("code") == "SKIN_LOCKED", body
-        details = body.get("details") or {}
-        assert details.get("required_level") == 10, body
+        """royal needs level 10. Earlier modules upgrade the demo settlement past it, so the level is pinned here
+        and put back afterwards — the assertion is about the lock, not about how far the shared fixture has grown."""
+        skins_url = api(f"/api/worlds/qa_1/settlements/{DEMO_SETTLEMENT}/skins")
+        original_level = s.get(skins_url, headers=demo["headers"], timeout=15).json()["level"]
+        grant = {"settlement_id": DEMO_SETTLEMENT, "level": 5}
+        assert s.post(api("/api/qa/grant"), json=grant, headers=ADMIN_HEADERS, timeout=15).status_code == 200
+        try:
+            r = s.put(api(f"/api/worlds/qa_1/settlements/{DEMO_SETTLEMENT}/skin"), json={"skin": "royal"}, headers=demo["headers"], timeout=15)
+            assert r.status_code == 409, r.text
+            body = r.json()
+            assert body.get("code") == "SKIN_LOCKED", body
+            details = body.get("details") or {}
+            assert details.get("required_level") == 10, body
+        finally:
+            s.post(api("/api/qa/grant"), json={"settlement_id": DEMO_SETTLEMENT, "level": original_level}, headers=ADMIN_HEADERS, timeout=15)
 
     def test_skin_put_invalid_returns_400(self, s, demo):
         r = s.put(api(f"/api/worlds/qa_1/settlements/{DEMO_SETTLEMENT}/skin"), json={"skin": "zzz"}, headers=demo["headers"], timeout=15)

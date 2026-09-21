@@ -15,9 +15,9 @@ import time
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 WORLD = "qa_1"
-DEMO = ("demo@empirelords.com", "Demo12345!")
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD)
 ALLY = ("ally@empirelords.com", "Ally12345!")
 RIVAL = ("rival@empirelords.com", "Rival12345!")
 THIRD = ("third@empirelords.com", "Third12345!")

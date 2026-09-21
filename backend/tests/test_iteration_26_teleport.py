@@ -11,13 +11,13 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL as BASE# QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD# QA backend only
 API = f"{BASE}/api"
 ADMIN_KEY = ADMIN_KEY_ENV
 
 OBS_EMAIL = "osservatore@empirelords.com"
-DEMO_EMAIL = "demo@empirelords.com"
-PW = "Demo12345!"
+
+PW = DEMO_PASSWORD
 
 
 def _login(email: str, password: str = PW) -> dict:

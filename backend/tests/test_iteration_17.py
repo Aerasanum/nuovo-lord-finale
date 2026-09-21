@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
+import uuid
 
 import pytest
 import requests
 
-from tests.e2e_base import API as BASE  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, API as BASE, DEMO_EMAIL, DEMO_PASSWORD, track_player  # QA backend only
 
 
 def _login(email: str, password: str) -> str:
@@ -18,7 +19,25 @@ def _login(email: str, password: str) -> str:
 
 @pytest.fixture(scope="module")
 def demo_headers() -> dict:
-    return {"Authorization": f"Bearer {_login('demo@empirelords.com', 'Demo12345!')}"}
+    return {"Authorization": f"Bearer {_login(DEMO_EMAIL, DEMO_PASSWORD)}"}
+
+
+@pytest.fixture(scope="module")
+def rookie() -> dict:
+    """A Player with no Prestige yet: march-skin locks are asserted against a known state, not against how much
+    Prestige the shared demo fixture happens to have accumulated over previous suite runs."""
+    tag = uuid.uuid4().hex[:8]
+    r = requests.post(f"{BASE}/auth/register", json={"email": f"qa-skin17-{tag}@example.com", "password": "Qa12345!x", "display_name": f"QA {tag}"}, timeout=30)
+    assert r.status_code in (200, 201), r.text
+    h = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
+    assert requests.post(f"{BASE}/worlds/qa_1/join", json={"house_name": f"Casa Skin17 {tag}"}, headers=h, timeout=60).status_code in (200, 201)
+    me = requests.get(f"{BASE}/worlds/qa_1/me", headers=h, timeout=30).json()
+    return {"h": h, "player_id": track_player(me["player"]["player_id"])}
+
+
+def _award_prestige(player_id: str, points: int) -> None:
+    r = requests.post(f"{BASE}/qa/prestige", json={"player_id": player_id, "points": points}, headers=ADMIN_HEADERS, timeout=30)
+    assert r.status_code == 200, r.text
 
 
 @pytest.fixture(scope="module")
@@ -29,17 +48,14 @@ def ally_headers() -> dict:
 # --- House / march skins --------------------------------------------------
 
 class TestMarchSkins:
-    def test_get_house_reveals_skin_and_unlocks(self, demo_headers):
-        r = requests.get(f"{BASE}/worlds/qa_1/house", headers=demo_headers, timeout=15)
+    def test_get_house_reveals_skin_and_unlocks(self, rookie):
+        r = requests.get(f"{BASE}/worlds/qa_1/house", headers=rookie["h"], timeout=15)
         assert r.status_code == 200, r.text
         body = r.json()
         assert "march_skin" in body["house"], body
         unlocks = body.get("march_skin_unlocks")
         assert isinstance(unlocks, dict), body
-        assert unlocks.get("classic") is True
-        assert unlocks.get("dragon") is True
-        assert unlocks.get("falcon") is True
-        assert unlocks.get("elephant") is False
+        assert unlocks == {"classic": True, "dragon": False, "elephant": False, "falcon": False}, body
         # catalog
         catalog = body.get("catalog") or {}
         skins = catalog.get("march_skins")
@@ -49,18 +65,20 @@ class TestMarchSkins:
         for s in skins:
             assert "requires_unit" in s
 
-    def test_put_falcon_ok(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "falcon"}, timeout=15)
+    def test_put_falcon_ok(self, rookie):
+        _award_prestige(rookie["player_id"], 500)  # falcon threshold
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=rookie["h"], json={"march_skin": "falcon"}, timeout=15)
         assert r.status_code == 200, r.text
         assert r.json()["house"]["march_skin"] == "falcon"
 
-    def test_put_elephant_locked(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "elephant"}, timeout=15)
+    def test_put_elephant_locked(self, rookie):
+        """500 Prestige from the previous test is below the elephant threshold (2000)."""
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=rookie["h"], json={"march_skin": "elephant"}, timeout=15)
         assert r.status_code == 409, r.text
         assert r.json().get("code") == "MARCH_SKIN_LOCKED"
 
-    def test_put_invalid_skin(self, demo_headers):
-        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=demo_headers, json={"march_skin": "unicorn"}, timeout=15)
+    def test_put_invalid_skin(self, rookie):
+        r = requests.put(f"{BASE}/worlds/qa_1/house", headers=rookie["h"], json={"march_skin": "unicorn"}, timeout=15)
         assert r.status_code == 400, r.text
         assert r.json().get("code") == "INVALID_MARCH_SKIN"
 

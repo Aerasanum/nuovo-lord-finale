@@ -10,11 +10,11 @@ import requests
 
 pytestmark = pytest.mark.skip(reason="legacy Regno 1 fixture (hard-coded demo settlement/sentinel coordinates) removed — Grande Mondo only since June 2026; sentinels covered by test_iteration_21/32 and unit tests")
 
-from tests.e2e_base import BASE_URL  # QA backend only
+from tests.e2e_base import BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 API = f"{BASE_URL}/api"
 
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 WORLD_ID = "qa_1"
 SETTLEMENT_ID = "stl_0484bd7cfcbd40dd"
 

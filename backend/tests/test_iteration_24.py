@@ -17,14 +17,12 @@ import requests
 
 pytestmark = pytest.mark.skip(reason="legacy Regno 2 fixture (hard-coded Lord settlement ids) removed — Grande Mondo only since June 2026; caravans covered by test_iteration_34/scripts")
 
-from tests.e2e_base import BASE_URL  # QA backend only
+from tests.e2e_base import BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, LORD_EMAIL, LORD_PASSWORD  # QA backend only
 API = f"{BASE_URL}/api"
 
 WORLD_ID = "world_2"
-LORD_EMAIL = "lord@empirelords.com"
-LORD_PASSWORD = "Lord12345!"
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 
 LORD_HOME = "stl_aaf827bc3a0340cc"
 LORD_VILLAGE_L14 = "stl_0de020b9adfa4fd7"  # 500,533

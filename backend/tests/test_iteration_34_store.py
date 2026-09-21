@@ -14,7 +14,7 @@ from tests.paths import BACKEND_ENV, FRONTEND_ENV
 
 load_dotenv(FRONTEND_ENV)
 load_dotenv(BACKEND_ENV)
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, track_player  # QA backend only
 RC_AUTH = {"Authorization": f"Bearer {os.environ['RC_WEBHOOK_AUTH']}", "Content-Type": "application/json"}
 WORLD = "qa_1"
 
@@ -49,6 +49,7 @@ def fresh_account():
     h = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
     post(h, f"/worlds/{WORLD}/join", {"house_name": f"Casa Store {tag}"})
     me = get(h, f"/worlds/{WORLD}/me")
+    track_player(me["player"]["player_id"])
     return {"h": h, "email": email, "account_id": r.json()["account"]["account_id"], "player_id": me["player"]["player_id"], "mother": me["player"]["mother_settlement_id"]}
 
 

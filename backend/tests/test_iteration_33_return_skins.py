@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from tests.paths import FRONTEND_DIR, FRONTEND_ENV
 
 load_dotenv(FRONTEND_ENV)
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, track_player  # QA backend only
 WORLD = "qa_1"
 
 
@@ -46,6 +46,7 @@ def fresh_account():
     h = {"Authorization": f"Bearer {r.json()['access_token']}", "Content-Type": "application/json"}
     post(h, f"/worlds/{WORLD}/join", {"house_name": f"Casa Skin {tag}"})
     me = get(h, f"/worlds/{WORLD}/me")
+    track_player(me["player"]["player_id"])
     return {"h": h, "player_id": me["player"]["player_id"], "mother": me["player"]["mother_settlement_id"], "me": me}
 
 

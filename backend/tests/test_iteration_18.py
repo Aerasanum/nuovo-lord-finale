@@ -14,12 +14,12 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE# QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD, MAX_EMAIL, MAX_PASSWORD# QA backend only
 
 WORLD_ID = "qa_1"
 
-DEMO = {"email": "demo@empirelords.com", "password": "Demo12345!"}
-MAX = {"email": "max@empirelords.com", "password": "Max12345!"}
+DEMO = {"email": DEMO_EMAIL, "password": DEMO_PASSWORD}
+MAX = {"email": MAX_EMAIL, "password": MAX_PASSWORD}
 RIVAL = {"email": "rival@empirelords.com", "password": "Rival12345!"}
 
 

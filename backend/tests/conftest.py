@@ -26,6 +26,19 @@ from app.domain import scheduler, worlds  # noqa: E402
 ADMIN = {"X-Admin-Key": config.ADMIN_API_KEY}
 
 
+@pytest.fixture(scope="session", autouse=True)
+def release_throwaway_player_slots():
+    """Hand back the spawn slots the live-server suite consumed (no-op for the in-process suite, which drops its DB).
+
+    A realm has a fixed number of seats. Without this every e2e run eats a few until joins answer WORLD_FULL and
+    modules start failing on state they never created.
+    """
+    yield
+    from tests.e2e_base import purge_tracked_players
+
+    purge_tracked_players()
+
+
 @pytest_asyncio.fixture(scope="session")
 async def world():
     MongoClient(config.MONGO_URL).drop_database(config.DB_NAME)

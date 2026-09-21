@@ -8,11 +8,11 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, track_player  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
-DEMO_EMAIL = "demo@empirelords.com"
-DEMO_PASSWORD = "Demo12345!"
+
+
 
 
 def api(path: str) -> str:
@@ -144,6 +144,7 @@ class TestHostileIntel:
                 me = s.get(api("/api/worlds/qa_1/me"), headers=who["headers"], timeout=15).json()
                 who["settlement"] = me["settlements"][0]
                 who["settlement_id"] = who["settlement"]["settlement_id"]
+                track_player(me["player"]["player_id"])
             # end shields + army so preview succeeds
             grant_base = {"resources": {"grain": 500000, "wood": 500000, "clay": 500000, "iron": 500000, "gold": 50000}, "end_pvp_shield": True}
             s.post(api("/api/qa/grant"), json={**grant_base, "settlement_id": atk["settlement_id"], "army": {"Fanteria": 500}}, headers=ADMIN_HEADERS, timeout=15)

@@ -15,12 +15,12 @@ from dotenv import load_dotenv
 from tests.paths import FRONTEND_ENV
 
 load_dotenv(FRONTEND_ENV)
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, OBSERVER_EMAIL, OBSERVER_PASSWORD  # QA backend only
 WORLD = "gm_1"
 GRAND = WORLD
 IT = f"{WORLD}:IT"
-OBS = ("osservatore@empirelords.com", "Demo12345!")
-DEMO = ("demo@empirelords.com", "Demo12345!")
+OBS = (OBSERVER_EMAIL, OBSERVER_PASSWORD)
+DEMO = (DEMO_EMAIL, DEMO_PASSWORD)
 FAST = {"first_open_day": 0, "hold_hours": 0.03, "reward_days": 0.01, "dormant_days": 0.01, "guardian": {"min_power": 3000, "max_power": 3000}}
 
 
