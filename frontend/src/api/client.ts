@@ -1,6 +1,21 @@
 import { storage } from "@/src/utils/storage";
 
-export const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+/**
+ * Expo inlines EXPO_PUBLIC_* at build time. When frontend/.env is missing — or when the bundler reused a cache built
+ * before it existed — the value is `undefined` and every request silently goes to "undefined/api/...". Failing here,
+ * with the fix in the message, beats debugging a screen full of network errors.
+ */
+function backendUrl(): string {
+  const url = process.env.EXPO_PUBLIC_BACKEND_URL;
+  if (!url) {
+    throw new Error(
+      "EXPO_PUBLIC_BACKEND_URL is not set. Copy frontend/.env.example to frontend/.env and restart the bundler with --clear (Expo bakes this value into the bundle).",
+    );
+  }
+  return url.replace(/\/+$/, "");
+}
+
+export const BACKEND_URL = backendUrl();
 export const API = `${BACKEND_URL}/api`;
 
 export class ApiError extends Error {
