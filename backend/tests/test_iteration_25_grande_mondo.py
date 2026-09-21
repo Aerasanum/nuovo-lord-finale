@@ -57,6 +57,13 @@ class TestGrandeMondoShape:
     def test_01_logins(self, s):
         STATE["demo"] = _login(s, DEMO_EMAIL)["access_token"]
         STATE["obs"] = _login(s, OBS_EMAIL)["access_token"]
+        # Earlier modules jump the QA clock by weeks, which is enough for the fog to fall on its own. This module
+        # drives the cycle itself and restores ISOLATION when it is done, so it also starts from ISOLATION instead
+        # of asserting on whatever phase it inherited.
+        d = s.get(f"{API}/worlds/gm_1/grande-mondo", headers=_bearer(STATE["obs"]), timeout=30).json()
+        if d.get("phase") != "ISOLATION":
+            r = s.post(f"{API}/worlds/gm_1/grande-mondo/admin/phase", headers=_bearer(STATE["obs"]), json={"to": "ISOLATION"}, timeout=60)
+            assert r.status_code == 200, r.text
 
     def test_02_worlds_new_geometry(self, s):
         r = s.get(f"{API}/worlds", headers=_bearer(STATE["obs"]), timeout=30)
