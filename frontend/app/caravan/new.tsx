@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { idem, useArmy, useCaravanInfo, useCaravanMutations, useMarches } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Chip, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { Button, Chip, Icon, LoadState, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -50,7 +50,7 @@ export default function NewCaravanScreen() {
   const escortUnits = Object.fromEntries(Object.entries(escort).filter(([, n]) => n > 0));
 
   if (!worldId || !settlementId) return null;
-  if (!info.data) return <Loading />;
+  if (!info.data) return <LoadState query={info} />;
   const d = info.data;
   const avail = (r: string) => Math.floor((d.resources as any)[r] ?? 0);
   const setRes = (r: string, n: number) => {

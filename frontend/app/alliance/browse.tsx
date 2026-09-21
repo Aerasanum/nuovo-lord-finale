@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type AlliancePublic, useAlliances, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, KindBadge, TagChip } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
-import { Empty, Icon, Loading, Row, T } from "@/src/components/ui";
+import { Empty, Icon, LoadState, Row, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -58,7 +58,7 @@ export default function BrowseAlliancesScreen() {
   return (
     <Screen title={t("allianceDirectory")} testID="alliance-browse-screen" left={<BackButton testID="alliance-browse-back" />}>
       {!q.data ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <FlatList
           data={q.data.alliances}

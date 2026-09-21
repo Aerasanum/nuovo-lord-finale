@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePublicSettlement } from "@/src/api/hooks";
 import { Screen } from "@/src/components/overlay";
-import { Button, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { Button, Icon, LoadState, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -43,7 +43,7 @@ export default function TargetDetail() {
       }
     >
       {!d ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Panel testID="target-summary">

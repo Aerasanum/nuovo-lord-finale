@@ -8,7 +8,7 @@ import { useResearch, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { branchIcon, ResearchTree, unlockOf } from "@/src/components/ResearchTree";
-import { Button, Chip, chipRowStyles, CostRow, Countdown, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
+import { Button, Chip, chipRowStyles, CostRow, Countdown, Icon, LoadState, Row, StatePill, T } from "@/src/components/ui";
 import { Hint } from "@/src/components/Hint";
 import { formatDuration, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -89,8 +89,8 @@ export default function ResearchScreen() {
           ))}
         </ScrollView>
       </View>
-      {research.isLoading ? (
-        <Loading />
+      {research.isLoading || research.isError ? (
+        <LoadState query={research} />
       ) : branch !== "ALL" ? (
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.lg }} testID="research-branch-view">
           <View style={s.branchHead}>

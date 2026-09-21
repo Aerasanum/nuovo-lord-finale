@@ -8,7 +8,7 @@ import { post } from "@/src/api/client";
 import { type GmRegion, qk, useWorlds, type WorldDto } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
-import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Empty, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatCountdown, langKey, regionFlag } from "@/src/game/grandeMondo";
 import { fmt, LANGS, normalizeLang, tDyn, useI18n } from "@/src/i18n";
 import { queryClient } from "@/src/query-client";
@@ -91,10 +91,8 @@ export default function WorldsScreen() {
         </Pressable>
       }
     >
-      {worlds.isLoading ? (
-        <Loading />
-      ) : worlds.isError ? (
-        <Empty icon="cloud-off-outline" title={t("error")} subtitle={String((worlds.error as Error).message)} />
+      {worlds.isLoading || worlds.isError ? (
+        <LoadState query={worlds} />
       ) : (
         <FlatList
           data={worlds.data?.worlds ?? []}

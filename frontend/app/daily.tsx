@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type DailyGrant, type DailyReward, useDaily, useDailyMutations } from "@/src/api/hooks";
 import { ChestGL } from "@/src/components/daily/ChestGL";
 import { useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, type IconName, Loading, RES_ICONS, resourceColor, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, type IconName, LoadState, RES_ICONS, resourceColor, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
 import { setMapRenderHold } from "@/src/map3d/engine";
 import { useGame } from "@/src/state/useGame";
@@ -124,7 +124,7 @@ export default function DailyScreen() {
         <View style={{ height: Math.max(120, chestBaseY + 28 - headerH - spacing.md) }} />
 
         {!d ? (
-          <Loading />
+          <LoadState query={q} />
         ) : (
           <>
             {/* 7-day strip */}

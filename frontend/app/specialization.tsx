@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePremiumMutations, useSpecialization } from "@/src/api/hooks";
 import { BackButton } from "@/src/components/alliance/common";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -27,7 +27,7 @@ export default function SpecializationScreen() {
   const mm = usePremiumMutations(worldId ?? "");
   const { show, showError } = useToast();
   const d = q.data;
-  if (!d) return <Loading />;
+  if (!d) return <LoadState query={q} />;
   const blocked = d.blocked.length > 0;
 
   return (

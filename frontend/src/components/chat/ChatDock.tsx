@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type ChatMessage, type NegoRoom, type RealmChatMessage, useAllianceChat, useAllianceMutations, useChatSummary, useMyAlliance, useNegotiation, useRealmChatMutations, useWorldChat } from "@/src/api/hooks";
 import { useToast } from "@/src/components/overlay";
-import { Chip, Empty, Icon, Loading, T } from "@/src/components/ui";
+import { Chip, Empty, Icon, LoadState, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -132,7 +132,8 @@ function ChatPanel({ target, onClose, rooms }: { target: ChatTarget; onClose: ()
     () => (tab.kind === "world" ? (worldQ.data?.messages ?? []) : tab.kind === "alliance" ? (allianceQ.data?.messages ?? []) : (negoQ.data?.messages ?? [])),
     [tab.kind, worldQ.data, allianceQ.data, negoQ.data],
   );
-  const loading = tab.kind === "world" ? !worldQ.data : tab.kind === "alliance" ? inAlliance && !allianceQ.data : !negoQ.data;
+  const activeQ = tab.kind === "world" ? worldQ : tab.kind === "alliance" ? allianceQ : negoQ;
+  const loading = tab.kind === "alliance" ? inAlliance && !allianceQ.data : !activeQ.data;
   const channel = tab.kind === "world" ? `world:${worldId}` : tab.kind === "alliance" ? `alliance:${mine.data?.alliance?.alliance_id}` : (negoQ.data?.channel ?? "");
   useEffect(() => {
     if (messages.length && channel) lastRead.set(channel, messages[messages.length - 1].at);
@@ -202,7 +203,7 @@ function ChatPanel({ target, onClose, rooms }: { target: ChatTarget; onClose: ()
           {tab.kind === "alliance" && !inAlliance ? (
             <Empty icon="shield-off-outline" title={t("chatNoAlliance")} testID="chat-no-alliance" />
           ) : loading ? (
-            <Loading />
+            <LoadState query={activeQ} />
           ) : (
             <FlatList
               ref={listRef}

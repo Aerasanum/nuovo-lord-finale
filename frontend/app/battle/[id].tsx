@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBattle } from "@/src/api/hooks";
 import { type CinematicSpec, useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen } from "@/src/components/overlay";
-import { Button, CostRow, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, CostRow, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { UNIT_ICON } from "@/src/game/units";
 import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -135,7 +135,7 @@ export default function BattleReport() {
       }
     >
       {!b || !r ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]}>
           <View style={[s.banner, { backgroundColor: won ? colors.success : colors.error, borderColor: colors.brandPrimary }]} testID="battle-outcome">

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type RelationDto, type VoteDto, useAllianceMutations, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, KindBadge, TagChip } from "@/src/components/alliance/common";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Empty, Icon, LoadState, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { relationLabel } from "@/src/game/alliances";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -31,7 +31,7 @@ export default function AllianceDiplomacyScreen() {
   const mm = useAllianceMutations(worldId ?? "");
   const { show, showError } = useToast();
   const a = q.data?.alliance;
-  if (!q.data) return <Loading />;
+  if (!q.data) return <LoadState query={q} />;
   if (!a) {
     router.back();
     return null;

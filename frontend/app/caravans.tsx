@@ -8,7 +8,7 @@ import { useCaravanInfo, useCaravanSearch, useMarches } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { MarchListCard } from "@/src/components/MarchCard";
 import { Screen } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { isLogistics } from "@/src/game/caravans";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -56,7 +56,7 @@ export default function CaravansScreen() {
       }
     >
       {!d ? (
-        <Loading />
+        <LoadState query={info} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.xl }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.brandPrimary} />}>
           <Panel testID="caravans-info">
@@ -132,8 +132,8 @@ export default function CaravansScreen() {
                 {t("interceptLocked")}
               </T>
             ) : null}
-            {search.isLoading ? (
-              <Loading />
+            {search.isLoading || search.isError ? (
+              <LoadState query={search} />
             ) : detected.length === 0 ? (
               <T v="caption" style={{ marginTop: spacing.sm }} testID="caravans-detected-empty">
                 {t("noDetectedCaravans")}

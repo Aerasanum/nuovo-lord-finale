@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSentinels, useSettlementMutations } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -71,8 +71,8 @@ export default function SentinelsScreen() {
         </Pressable>
       }
     >
-      {q.isLoading ? (
-        <Loading />
+      {q.isLoading || q.isError ? (
+        <LoadState query={q} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Panel>

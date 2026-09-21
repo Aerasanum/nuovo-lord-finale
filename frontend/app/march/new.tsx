@@ -9,7 +9,7 @@ import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen, useToast } from "@/src/components/overlay";
 import { pyramidName } from "@/src/components/PyramidCard";
 import { UnitStepper } from "@/src/components/UnitStepper";
-import { Button, Chip, chipRowStyles, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Chip, chipRowStyles, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { Hint } from "@/src/components/Hint";
 import { fmt, formatDuration, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -138,7 +138,7 @@ export default function MarchComposer() {
               {formatNumber(totalUnits)} / {formatNumber(cap)}
             </T>
           </Row>
-          {army.isLoading ? <Loading /> : null}
+          {army.isLoading || army.isError ? <LoadState query={army} /> : null}
           {Object.keys(available).length === 0 && !army.isLoading ? <T v="caption">—</T> : null}
           <View style={{ gap: spacing.sm }}>
             {Object.entries(available).map(([u, have]) => (

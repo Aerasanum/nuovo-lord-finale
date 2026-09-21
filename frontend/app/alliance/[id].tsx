@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type DiplomacyAction, useAllianceMutations, useAlliancePublic, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, KindBadge, RoleBadge, TagChip } from "@/src/components/alliance/common";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { relationLabel } from "@/src/game/alliances";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -34,7 +34,7 @@ export default function AlliancePublicScreen() {
   const { show, showError } = useToast();
   const a = q.data;
   const mine = mineQ.data?.alliance ?? null;
-  if (!a) return <Loading />;
+  if (!a) return <LoadState query={q} />;
   const isMine = mine?.alliance_id === a.alliance_id;
   const rel = mine?.relations.find((r) => r.alliance_id === a.alliance_id) ?? null;
   const state = rel?.state ?? "NEUTRAL";

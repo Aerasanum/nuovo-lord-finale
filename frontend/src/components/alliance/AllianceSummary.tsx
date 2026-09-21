@@ -6,7 +6,7 @@ import { useAllianceMutations, useMyAlliance, usePyramid } from "@/src/api/hooks
 import { KindBadge, RoleBadge, TagChip } from "@/src/components/alliance/common";
 import { useToast } from "@/src/components/overlay";
 import { PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription } from "@/src/components/PyramidCard";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -33,7 +33,7 @@ export function AllianceSummary() {
   const mm = useAllianceMutations(worldId ?? "");
   const pyramid = usePyramid(worldId);
   const { show, showError } = useToast();
-  if (!q.data) return <Loading />;
+  if (!q.data) return <LoadState query={q} />;
   const { alliance: a, invites, join_cooldown_until } = q.data;
 
   if (!a) {

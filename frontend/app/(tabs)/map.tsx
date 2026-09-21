@@ -11,7 +11,7 @@ import { BattleHistory, MarchCard } from "@/src/components/MarchCard";
 import { useToast } from "@/src/components/overlay";
 import { PyramidActions, PyramidAlertBanner, PyramidPhase, PyramidStatePill, pyramidDescription, pyramidName } from "@/src/components/PyramidCard";
 import { SettlementSwitcher } from "@/src/components/SettlementSwitcher";
-import { Button, CostRow, Icon, type IconName, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Icon, type IconName, LoadState, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
@@ -301,7 +301,7 @@ export default function MapScreen() {
                 <PyramidActions dto={selP} compact onDetails={() => router.push({ pathname: "/pyramid", params: { id: selP.id } })} onAttack={() => router.push({ pathname: "/march/new", params: { pyramid: selP.id, mission: "ATTACK" } })} onReinforce={() => router.push({ pathname: "/march/new", params: { pyramid: selP.id, mission: "REINFORCE" } })} />
               </>
             ) : (
-              <Loading />
+              <LoadState query={selPyr} />
             )}
           </Panel>
         </Animated.View>

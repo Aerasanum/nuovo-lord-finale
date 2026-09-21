@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type StorePack, type StoreSkin, useHouse, useSetSkin, useStore, useStoreMutations } from "@/src/api/hooks";
 import { BackButton } from "@/src/components/alliance/common";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
-import { Button, Chip, Icon, type IconName, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Chip, Icon, type IconName, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { CASTLE_SKINS } from "@/src/map3d/castle";
 import { CastlePreview } from "@/src/map3d/CastlePreview";
@@ -121,7 +121,7 @@ export default function StoreScreen() {
       }
     >
       {!d ? (
-        <Loading />
+        <LoadState query={store} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md, paddingBottom: insets.bottom + spacing.xl }}>
           <Panel testID="store-balance">

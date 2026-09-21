@@ -2,7 +2,7 @@ import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleProp, Text, TextStyle, View, ViewStyle } from "react-native";
 
-import { secondsUntil } from "@/src/api/client";
+import { ApiError, secondsUntil } from "@/src/api/client";
 import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -237,6 +237,29 @@ export function Empty({ icon, title, subtitle, testID }: { icon: IconName; title
     </View>
   );
 }
+/**
+ * Placeholder for a screen whose data is not there yet. A failed fetch used to look exactly like a slow one — the
+ * spinner never went away and nothing told the player to try again — so pass the query and a failure turns into a
+ * message with a retry button.
+ */
+export function LoadState({ query, label, testID }: { query: QueryState; label?: string; testID?: string }) {
+  const s = useMiscStyles();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  if (!query.isError) return <Loading label={label} />;
+  const message = (query.error as ApiError | null)?.code === "NETWORK_ERROR" ? t("offline") : (query.error as Error | null)?.message;
+  return (
+    <View style={s.center} testID={testID ?? "load-error"}>
+      <Icon name="cloud-off-outline" size={40} color={colors.muted} />
+      <T v="heading">{t("error")}</T>
+      {message ? <T v="caption">{message}</T> : null}
+      <Button title={t("retry")} icon="refresh" variant="secondary" loading={query.isFetching} onPress={() => query.refetch()} testID="load-error-retry" />
+    </View>
+  );
+}
+/** The slice of a React Query result LoadState needs; keeps callers from having to widen their query types. */
+export type QueryState = { isError: boolean; error: unknown; isFetching: boolean; refetch: () => unknown };
+
 export function Row({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   const s = useMiscStyles();
   return <View style={[s.row, style]}>{children}</View>;

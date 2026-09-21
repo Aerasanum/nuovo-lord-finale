@@ -7,7 +7,7 @@ import { usePyramid, usePyramids } from "@/src/api/hooks";
 import { BackButton } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
 import { PyramidActions, PyramidPhase, PyramidStatePill, pyramidDescription, pyramidName } from "@/src/components/PyramidCard";
-import { Chip, Countdown, Divider, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Chip, Countdown, Divider, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -56,7 +56,7 @@ export default function PyramidScreen() {
   return (
     <Screen title={t("pyramidTitle")} left={<BackButton testID="pyramid-back" />} testID="pyramid-screen">
       {!d ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.xl }]}>
           {options.length > 1 ? (

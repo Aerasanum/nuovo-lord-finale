@@ -7,7 +7,7 @@ import { type AllianceMember, type AllianceRole, useAllianceMutations, useMyAlli
 import { BackButton, KindBadge, RoleBadge, TagChip, useAllianceStyles } from "@/src/components/alliance/common";
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Chip, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Chip, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { ROLE_ORDER, roleLabel } from "@/src/game/alliances";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -38,7 +38,7 @@ export default function AllianceMembersScreen() {
   const [editing, setEditing] = useState<string | null>(null);
   const [confirmDissolve, setConfirmDissolve] = useState(false);
   const a = q.data?.alliance;
-  if (!q.data) return <Loading />;
+  if (!q.data) return <LoadState query={q} />;
   if (!a) {
     router.back();
     return null;

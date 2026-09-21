@@ -7,7 +7,7 @@ import { useBuildings, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
 import { MythicPanel } from "@/src/components/MythicPanel";
-import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Countdown, Icon, LoadState, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
 import { buildingIcon, currentBenefits } from "@/src/game/buildings";
 import { formatDuration, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -64,7 +64,7 @@ export default function BuildingDetail() {
       }
     >
       {!b ? (
-        <Loading />
+        <LoadState query={buildings} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Panel>

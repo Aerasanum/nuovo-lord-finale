@@ -9,7 +9,7 @@ import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
 import { hasMissionArt, MissionBanner } from "@/src/components/MissionArt";
 import { Screen } from "@/src/components/overlay";
-import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T, type IconName, useNow } from "@/src/components/ui";
+import { Button, Chip, Countdown, Empty, Icon, LoadState, Panel, ProgressBar, Row, T, type IconName, useNow } from "@/src/components/ui";
 import { missionDesc, missionName, requirementLines, rewardItems } from "@/src/game/missions";
 import { fmt, formatNumber, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -61,7 +61,7 @@ export default function MissionsScreen() {
   };
 
   const renderMissions = () => {
-    if (!data) return <Loading />;
+    if (!data) return <LoadState query={q} />;
     return (
       <View style={s.content}>
         <Panel testID="missions-active-panel">
@@ -190,7 +190,7 @@ export default function MissionsScreen() {
   };
 
   const renderHouse = () => {
-    if (!data) return <Loading />;
+    if (!data) return <LoadState query={q} />;
     const p = data.progress;
     return (
       <View style={s.content}>
@@ -253,7 +253,7 @@ export default function MissionsScreen() {
   };
 
   const renderChronicle = () => {
-    if (!chr.data) return <Loading />;
+    if (!chr.data) return <LoadState query={chr} />;
     const names = chr.data.house_names;
     const nm = (id?: string | null) => (id ? names[id] ?? id : "—");
     const line = (e: ChronicleEntry) => {

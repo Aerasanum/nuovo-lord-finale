@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type TeleportCandidate, useTeleportCandidates, useTeleportMutation } from "@/src/api/hooks";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
-import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Empty, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -53,11 +53,11 @@ export default function TeleportScreen() {
   return (
     <Screen title={t("tpTitle")} left={<BackButton testID="teleport-back" />} testID="teleport-screen">
       {!d ? (
-        <Loading />
+        <LoadState query={settlement} />
       ) : isMother ? (
         <Empty icon="castle" title={t("tpTitle")} subtitle={t("tpMotherHint")} testID="teleport-mother" />
-      ) : q.isLoading ? (
-        <Loading />
+      ) : q.isLoading || q.isError ? (
+        <LoadState query={q} />
       ) : !q.data ? (
         <Empty icon="alert" title={t("tpTitle")} subtitle={t("error")} />
       ) : (

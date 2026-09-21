@@ -7,7 +7,7 @@ import { idem, useArmy, useMissions, useStartMission } from "@/src/api/hooks";
 import { MissionBanner } from "@/src/components/MissionArt";
 import { Screen, useToast } from "@/src/components/overlay";
 import { UnitStepper } from "@/src/components/UnitStepper";
-import { Button, Icon, Loading, Panel, Row, T, useNow } from "@/src/components/ui";
+import { Button, Icon, LoadState, Panel, Row, T, useNow } from "@/src/components/ui";
 import { eligibleUnits, localBlocker, missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -36,7 +36,8 @@ export default function NewMissionScreen() {
   const entry = overview.data?.catalog.find((m) => m.key === key);
   const eligible = useMemo(() => (entry ? eligibleUnits(entry, army.data?.army ?? {}) : {}), [entry, army.data]);
   if (!worldId || !settlementId) return null;
-  if (!entry || !army.data) return <Loading />;
+  if (!army.data) return <LoadState query={army} />;
+  if (!entry) return <LoadState query={overview} />;
 
   const setUnit = (u: string, n: number) => setUnits((prev) => ({ ...prev, [u]: Math.max(0, Math.min(eligible[u] ?? 0, Math.floor(n) || 0)) }));
   const chosen = Object.fromEntries(Object.entries(units).filter(([, n]) => n > 0));

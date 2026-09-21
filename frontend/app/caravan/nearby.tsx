@@ -7,7 +7,7 @@ import type { DetectedCaravan } from "@/src/api/hooks";
 import { useCaravanSearch } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T, useNow } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T, useNow } from "@/src/components/ui";
 import { fmt, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -62,7 +62,7 @@ export default function NearbyCaravansScreen() {
             {t("interceptLocked")}
           </T>
         ) : null}
-        {q.isLoading ? <Loading /> : null}
+        {q.isLoading || q.isError ? <LoadState query={q} /> : null}
         {!q.isLoading && !list.length ? (
           <Panel>
             <View style={s.empty}>

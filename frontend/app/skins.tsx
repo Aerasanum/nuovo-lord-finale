@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { type SkinCatalog, useHouse, useSetSkin, useSettlementSkins } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { CASTLE_SKINS } from "@/src/map3d/castle";
 import { CastlePreview } from "@/src/map3d/CastlePreview";
@@ -60,7 +60,7 @@ export default function SkinsScreen() {
       }
     >
       {!cat ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: insets.bottom + spacing.xl }}>
           <CastlePreview skin={sel} level={level} crest={house.data?.house.crest ?? null} testID="skins-preview" />

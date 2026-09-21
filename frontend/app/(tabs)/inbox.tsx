@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BattleDto, InboxItem } from "@/src/api/hooks";
 import { useBattles, useInbox, useInboxMutations } from "@/src/api/hooks";
 import { Screen } from "@/src/components/overlay";
-import { Button, Chip, chipRowStyles, Empty, Icon, Loading, Row, T, type IconName } from "@/src/components/ui";
+import { Button, Chip, chipRowStyles, Empty, Icon, LoadState, Row, T, type IconName } from "@/src/components/ui";
 import { diplomacyStateLabel } from "@/src/game/alliances";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
 import { missionName } from "@/src/game/missions";
@@ -217,8 +217,8 @@ export default function InboxScreen() {
         </ScrollView>
       ) : null}
       {tab === "inbox" ? (
-        inbox.isLoading ? (
-          <Loading />
+        inbox.isLoading || inbox.isError ? (
+          <LoadState query={inbox} />
         ) : (
           <FlatList
             data={items}
@@ -246,8 +246,8 @@ export default function InboxScreen() {
             )}
           />
         )
-      ) : battles.isLoading ? (
-        <Loading />
+      ) : battles.isLoading || battles.isError ? (
+        <LoadState query={battles} />
       ) : (
         <FlatList
           data={battles.data?.battles ?? []}

@@ -7,7 +7,7 @@ import type { UnitEntry } from "@/src/api/hooks";
 import { useArmy, useSettlementMutations } from "@/src/api/hooks";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
-import { Button, CostRow, Countdown, Icon, Loading, Panel, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Countdown, Icon, LoadState, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { UNIT_ICON } from "@/src/game/units";
 import { formatDuration, formatNumber, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -67,7 +67,7 @@ export default function ArmyScreen() {
   return (
     <Screen title={t("army")} testID="army-screen" right={<T v="caption">{settlement.data?.name}</T>}>
       {!d ? (
-        <Loading />
+        <LoadState query={army} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]} refreshControl={<RefreshControl refreshing={army.isRefetching} onRefresh={() => army.refetch()} tintColor={colors.brandPrimary} />}>
           <Panel testID="army-garrison">

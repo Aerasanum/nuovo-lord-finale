@@ -8,7 +8,7 @@ import { type GmRegion, type PyramidSummary, useGrandeMondo, useGrandeMondoAdmin
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
 import { PyramidStatePill, pyramidName } from "@/src/components/PyramidCard";
-import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { Button, Chip, Countdown, Empty, Icon, LoadState, Panel, ProgressBar, Row, T } from "@/src/components/ui";
 import { formatCountdown, langKey, regionFlag, secondsLeft } from "@/src/game/grandeMondo";
 import { fmt, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -146,8 +146,8 @@ export default function GrandeMondoScreen() {
 
   return (
     <Screen title={t("gmTitle")} left={<BackButton testID="grande-mondo-back" />} testID="grande-mondo-screen">
-      {gm.isLoading ? (
-        <Loading />
+      {gm.isLoading || gm.isError ? (
+        <LoadState query={gm} />
       ) : !d ? (
         <Empty icon="earth-off" title={t("gmTitle")} subtitle={t("error")} />
       ) : (

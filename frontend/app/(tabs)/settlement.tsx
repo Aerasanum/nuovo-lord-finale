@@ -10,7 +10,7 @@ import { useVillageInput } from "@/src/city/useVillageInput";
 import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T, useNow } from "@/src/components/ui";
+import { Button, CostRow, Countdown, Icon, LoadState, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T, useNow } from "@/src/components/ui";
 import { buildingIcon } from "@/src/game/buildings";
 import { formatDuration, formatNumber, RESOURCE_LABELS, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -110,7 +110,7 @@ export default function SettlementScreen() {
       }
     >
       {!d ? (
-        <Loading />
+        <LoadState query={settlement} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]} refreshControl={<RefreshControl refreshing={settlement.isRefetching} onRefresh={() => settlement.refetch()} tintColor={colors.brandPrimary} />}>
           {/* living 3D village */}
@@ -245,8 +245,8 @@ export default function SettlementScreen() {
             <T v="heading" style={{ marginBottom: spacing.sm }}>
               {t("buildings")} ({Object.keys(d.buildings).length}/21)
             </T>
-            {buildings.isLoading ? (
-              <Loading />
+            {buildings.isLoading || buildings.isError ? (
+              <LoadState query={buildings} />
             ) : (
               <View style={s.grid}>
                 {(buildings.data?.buildings ?? []).map((b: BuildingEntry) => (

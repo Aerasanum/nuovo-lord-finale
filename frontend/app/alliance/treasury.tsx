@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type TreasuryDto, useAllianceTreasury, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, TagChip } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
-import { Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Empty, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -68,11 +68,11 @@ export default function AllianceTreasuryScreen() {
   return (
     <Screen title={t("treasury")} testID="alliance-treasury-screen" left={<BackButton testID="alliance-treasury-back" />}>
       {!a ? (
-        <Loading />
+        <LoadState query={mine} />
       ) : !allowed ? (
         <Empty icon="lock" title={t("treasuryPrivate")} testID="alliance-treasury-private" />
       ) : !q.data ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <FlatList
           data={q.data.entries}

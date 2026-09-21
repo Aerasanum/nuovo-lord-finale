@@ -8,7 +8,7 @@ import { type CrestDto, type MarchSkin, useHouse, useHouseMutations, usePremiumM
 import { Crest } from "@/src/components/Crest";
 import { SpecializationCard } from "@/src/components/SpecializationCard";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Chip, Icon, type IconName, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Chip, Icon, type IconName, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { fmt, formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { MarchSkinPreview } from "@/src/map3d/MarchSkinPreview";
 import { useGame } from "@/src/state/useGame";
@@ -97,7 +97,7 @@ export default function HouseScreen() {
       }
     >
       {!q.data || !crest ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <KeyboardAwareScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: insets.bottom + spacing.xl }} bottomOffset={24} keyboardShouldPersistTaps="handled">
           <Panel>

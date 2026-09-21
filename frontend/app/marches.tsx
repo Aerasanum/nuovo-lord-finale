@@ -8,7 +8,7 @@ import { useMarches } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { MarchListCard } from "@/src/components/MarchCard";
 import { Screen } from "@/src/components/overlay";
-import { Countdown, Empty, Icon, Loading, Row, StatePill, T } from "@/src/components/ui";
+import { Countdown, Empty, Icon, LoadState, Row, StatePill, T } from "@/src/components/ui";
 import { Hint } from "@/src/components/Hint";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -70,8 +70,8 @@ export default function MarchesScreen() {
         </Pressable>
       }
     >
-      {q.isLoading ? (
-        <Loading />
+      {q.isLoading || q.isError ? (
+        <LoadState query={q} />
       ) : (
         <FlatList
           data={q.data?.marches ?? []}

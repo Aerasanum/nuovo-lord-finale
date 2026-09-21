@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { idem, useArmy, useCaravanMutations, useCaravanSearch } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -37,7 +37,8 @@ export default function InterceptScreen() {
   const caravan = search.data?.caravans.find((c) => c.caravan_id === caravanId);
   const eligible = useMemo(() => (army.data?.units ?? []).filter((u) => u.count > 0 && u.stats.atk > 0), [army.data]);
   if (!worldId || !settlementId) return null;
-  if (!search.data || !army.data) return <Loading />;
+  if (!search.data) return <LoadState query={search} />;
+  if (!army.data) return <LoadState query={army} />;
   const chosen = Object.fromEntries(Object.entries(units).filter(([, n]) => n > 0));
   const total = Object.values(chosen).reduce((a, b) => a + b, 0);
   const setUnit = (u: string, n: number) => setUnits((p) => ({ ...p, [u]: Math.max(0, Math.min(army.data?.army[u] ?? 0, Math.floor(n) || 0)) }));

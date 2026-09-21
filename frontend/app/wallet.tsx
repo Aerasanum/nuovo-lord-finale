@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type RubyTx, useWallet } from "@/src/api/hooks";
 import { BackButton } from "@/src/components/alliance/common";
 import { Screen } from "@/src/components/overlay";
-import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Empty, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { CASTLE_SKINS } from "@/src/map3d/castle";
 import { useGame } from "@/src/state/useGame";
@@ -67,7 +67,7 @@ export default function WalletScreen() {
   return (
     <Screen title={t("wallet")} testID="wallet-screen" left={<BackButton testID="wallet-back" />}>
       {!q.data ? (
-        <Loading />
+        <LoadState query={q} />
       ) : (
         <FlatList
           data={q.data.transactions}

@@ -8,7 +8,7 @@ import { type ContractDto, useAllianceMutations, useAlliances, useMercenaryDirec
 import { BackButton, KindBadge, TagChip, useAllianceStyles } from "@/src/components/alliance/common";
 import { openChat } from "@/src/components/chat/ChatDock";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Chip, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Chip, Countdown, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { contractStatusLabel } from "@/src/game/alliances";
 import { formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -47,7 +47,7 @@ export default function MercenaryMarketScreen() {
     router.back();
     return null;
   }
-  if (!a || !q.data) return <Loading />;
+  if (!a || !q.data) return <LoadState query={q} />;
   const m = q.data;
   const can = a.permissions.includes("mercenary");
   const isMerc = a.kind === "MERCENARY";

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSettlementMutations } from "@/src/api/hooks";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Empty, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, spacing, useTheme } from "@/src/theme";
@@ -44,7 +44,7 @@ export default function QueuesScreen() {
       }
     >
       {!d ? (
-        <Loading />
+        <LoadState query={settlement} />
       ) : d.jobs.length === 0 ? (
         <Empty icon="timer-sand-empty" title="—" subtitle={t("serverAuthority")} testID="queues-empty" />
       ) : (

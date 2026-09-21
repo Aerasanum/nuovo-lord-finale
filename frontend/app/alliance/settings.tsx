@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAllianceMutations, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, KindBadge, TagChip, useAllianceStyles } from "@/src/components/alliance/common";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { spacing, useTheme } from "@/src/theme";
@@ -32,7 +32,7 @@ export default function AllianceSettingsScreen() {
     setName(a.name);
     setDescription(a.description ?? "");
   }
-  if (!q.data) return <Loading />;
+  if (!q.data) return <LoadState query={q} />;
   if (!a || !a.permissions.includes("alliance_settings")) {
     router.back();
     return null;

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type ChatMessage, useAllianceChat, useAllianceMutations, useMyAlliance } from "@/src/api/hooks";
 import { BackButton, RoleBadge, TagChip } from "@/src/components/alliance/common";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Empty, Icon, Loading, T } from "@/src/components/ui";
+import { Empty, Icon, LoadState, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -84,7 +84,7 @@ export default function AllianceChatScreen() {
     <Screen title={`${t("chat")}${a ? ` · [${a.tag}]` : ""}`} testID="alliance-chat-screen" left={<BackButton testID="alliance-chat-back" />} right={a ? <TagChip tag={a.tag} /> : undefined}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "translate-with-padding"} keyboardVerticalOffset={16}>
         {!q.data ? (
-          <Loading />
+          <LoadState query={q} />
         ) : (
           <FlatList
             ref={listRef}
