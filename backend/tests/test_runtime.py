@@ -370,7 +370,9 @@ async def test_fleet_assault_ships_return_empty(client, world):
     await db().settlements.update_one({"_id": sid}, {"$set": {"ships": 2}})
     r = None
     async for cand in db().settlements.find({"world_id": wid, "kind": "NEUTRAL", "region": other_region, "port_eligible": True}).limit(40):
-        await db().settlements.update_one({"_id": cand["_id"]}, {"$set": {"buildings.Porto": 1, "army": {"Fanteria": 100000}}})
+        # L15: a growth tick during the voyage rebuilds a neutral from its level template, and only L15+ grants a
+        # Porto — a bare `buildings.Porto` would vanish mid-crossing and the fleet would turn around unfought.
+        await db().settlements.update_one({"_id": cand["_id"]}, {"$set": {"level": 15, "buildings.Castello / Fortezza": 15, "buildings.Porto": 1, "army": {"Fanteria": 100000}}})
         r = await client.post(f"/api/worlds/{wid}/marches", json={"origin_settlement_id": sid, "target_settlement_id": cand["_id"], "mission": "ATTACK", "units": {"Fanteria": 100}, "naval": True, "ships": 2}, headers=acc["headers"])
         if r.status_code == 200:
             break
