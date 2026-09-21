@@ -1011,6 +1011,7 @@ export const pt: Record<StringKey, string> = {
   txCASTLE_SKIN_PURCHASE: "Skin de castelo",
   senInnerRing: "Anel interior · 4 Sentinelas a raio 3: cada uma possui uma fatia do quadrado 7×7 à volta do castelo.",
   senNoWalls: "Sem PV nem muralhas. Sem guarnição: 24 h de tolerância e depois remoção.",
+  errorNetwork: "Não é possível contactar o servidor.",
   senOuterRing: "Anel exterior · 8 Sentinelas a raio 5 (faixa 4–5, até 11×11).",
   senOuterLocked: "Anel exterior · 8 Sentinelas a raio 5 (faixa 4–5, até 11×11) — requer a investigação Perimetro Avanzato.",
   senNaturalTitle: "Fronteira natural",

@@ -1011,6 +1011,7 @@ export const es: Record<StringKey, string> = {
   txCASTLE_SKIN_PURCHASE: "Skin de castillo",
   senInnerRing: "Anillo interior · 4 Centinelas a radio 3: cada uno posee una porción del cuadrado 7×7 alrededor del castillo.",
   senNoWalls: "Sin PV ni murallas. Sin guarnición: 24 h de gracia y luego retirada.",
+  errorNetwork: "No se puede contactar con el servidor.",
   senOuterRing: "Anillo exterior · 8 Centinelas a radio 5 (franja 4–5, hasta 11×11).",
   senOuterLocked: "Anillo exterior · 8 Centinelas a radio 5 (franja 4–5, hasta 11×11) — requiere la investigación Perimetro Avanzato.",
   senNaturalTitle: "Frontera natural",

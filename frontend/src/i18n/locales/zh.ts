@@ -1011,6 +1011,7 @@ export const zh: Record<StringKey, string> = {
   txCASTLE_SKIN_PURCHASE: "城堡皮肤",
   senInnerRing: "内环 · 半径 3 的 4 座哨塔：每座占据城堡周围 7×7 方格中的一块扇区。",
   senNoWalls: "没有生命值，也没有城墙。无驻军时：24 小时宽限期，随后移除。",
+  errorNetwork: "无法连接到服务器。",
   senOuterRing: "外环 · 半径 5 的 8 座哨塔（4–5 带，最大 11×11）。",
   senOuterLocked: "外环 · 半径 5 的 8 座哨塔（4–5 带，最大 11×11）——需要研究 Perimetro Avanzato。",
   senNaturalTitle: "天然边界",
