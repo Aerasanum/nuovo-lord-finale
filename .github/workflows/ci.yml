@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: eld_ci
+      # CI-only values: the suite needs a secret of the right shape, never a real one.
+      JWT_SECRET: ci-jwt-secret-0123456789abcdef0123456789abcdef
+      ADMIN_API_KEY: ci-admin-key-0123456789
+      QA_ENDPOINTS_ENABLED: "true"
+      SCHEDULER_ENABLED: "false"
+      WORLD_AUTO_CREATE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-ci.txt
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-ci.txt
+      - name: Lint
+        working-directory: backend
+        run: flake8
+      # The e2e modules talk to a deployed QA server over HTTP and rewrite its shared world; only the
+      # in-process suites (ASGI client + throwaway database) are self-contained enough to gate a merge.
+      - name: Tests
+        working-directory: backend
+        run: >-
+          pytest tests/test_runtime.py tests/test_spec_formulas.py
+          tests/test_sentinel_geometry.py tests/test_hardening.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Lint
+        run: yarn lint
+      - name: Typecheck
+        run: yarn typecheck

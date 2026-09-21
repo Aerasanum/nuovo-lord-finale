@@ -1,0 +1,25 @@
+# Installable subset of requirements.txt.
+#
+# requirements.txt is a full `pip freeze` of the hosting container and pins packages that are not on
+# public PyPI (emergentintegrations, used only by scripts/translate_i18n.py and scripts/gen_cinematics.py),
+# so it cannot be installed from a clean machine. This file lists what the API, the test suite and the
+# linters actually need, at the same versions, so CI and local checkouts can build the environment.
+bcrypt==4.1.3
+email-validator==2.3.0
+fastapi==0.110.1
+flake8==7.3.0
+httpx==0.28.1
+motor==3.3.1
+numpy==2.4.6
+pydantic==2.13.5
+PyJWT==2.13.0
+pymongo==4.6.3
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-xdist==3.8.0
+python-dotenv==1.2.3
+python-multipart==0.0.32
+requests==2.34.2
+tzdata==2026.3
+starlette==0.37.2
+uvicorn==0.25.0
