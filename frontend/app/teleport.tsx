@@ -10,6 +10,7 @@ import { Button, Empty, Icon, Loading, Panel, Row, T } from "@/src/components/ui
 import { fmt, formatNumber, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { focusOnMap } from "@/src/utils/mapFocus";
 
 const useStyles = makeStyles((c) => ({
   card: { marginHorizontal: spacing.md, marginBottom: spacing.sm, gap: spacing.sm },
@@ -41,13 +42,13 @@ export default function TeleportScreen() {
       .then((r) => {
         setConfirming(null);
         show(fmt(t("tpDone"), { to: `${r.x},${r.y}` }), "success");
-        router.replace({ pathname: "/(tabs)/map", params: { fx: String(r.x), fy: String(r.y), ft: String(Date.now()) } });
+        focusOnMap(router, r.x, r.y, "replace");
       })
       .catch(showError)
       .finally(() => setPending(null));
   };
 
-  const showOnMap = (x: number, y: number) => router.push({ pathname: "/(tabs)/map", params: { fx: String(x), fy: String(y), ft: String(Date.now()) } });
+  const showOnMap = (x: number, y: number) => focusOnMap(router, x, y);
 
   return (
     <Screen title={t("tpTitle")} left={<BackButton testID="teleport-back" />} testID="teleport-screen">

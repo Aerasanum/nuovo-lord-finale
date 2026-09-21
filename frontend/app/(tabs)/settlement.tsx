@@ -10,7 +10,7 @@ import { useVillageInput } from "@/src/city/useVillageInput";
 import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, useToast } from "@/src/components/overlay";
-import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T } from "@/src/components/ui";
+import { Button, CostRow, Countdown, Icon, Loading, Panel, ProgressBar, RES_ICONS, resourceColor, Row, StatePill, T, useNow } from "@/src/components/ui";
 import { buildingIcon } from "@/src/game/buildings";
 import { formatDuration, formatNumber, RESOURCE_LABELS, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
@@ -309,11 +309,7 @@ export function JobLine({ job, onCancel }: { job: JobDto; onCancel?: () => void 
 function LiveProgress({ job }: { job: JobDto }) {
   const start = Date.parse(job.started_at);
   const end = Date.parse(job.ends_at);
-  const [now, setNow] = React.useState(Date.now());
-  React.useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow();
   const v = Math.max(0, Math.min(1, (now - start) / Math.max(1, end - start)));
   return <ProgressBar value={v} />;
 }

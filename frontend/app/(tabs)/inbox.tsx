@@ -82,7 +82,7 @@ export default function InboxScreen() {
   const mut = useInboxMutations(worldId ?? "");
   const [tab, setTab] = useState<"inbox" | "reports">("inbox");
   const [filter, setFilter] = useState<keyof typeof FILTERS>("all");
-  const allItems = inbox.data?.items ?? [];
+  const allItems = useMemo(() => inbox.data?.items ?? [], [inbox.data]);
   const items = useMemo(() => {
     const allow = FILTERS[filter];
     return allow ? allItems.filter((n) => allow.includes(n.event)) : allItems;

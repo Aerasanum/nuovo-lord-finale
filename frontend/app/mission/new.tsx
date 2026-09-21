@@ -7,7 +7,7 @@ import { idem, useArmy, useMissions, useStartMission } from "@/src/api/hooks";
 import { MissionBanner } from "@/src/components/MissionArt";
 import { Screen, useToast } from "@/src/components/overlay";
 import { UnitStepper } from "@/src/components/UnitStepper";
-import { Button, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Icon, Loading, Panel, Row, T, useNow } from "@/src/components/ui";
 import { eligibleUnits, localBlocker, missionDesc, missionName, requirementLines, rewardLines } from "@/src/game/missions";
 import { formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -32,6 +32,7 @@ export default function NewMissionScreen() {
   const start = useStartMission(worldId ?? "");
   const { show, showError } = useToast();
   const [units, setUnits] = useState<Record<string, number>>({});
+  const now = useNow();
   const entry = overview.data?.catalog.find((m) => m.key === key);
   const eligible = useMemo(() => (entry ? eligibleUnits(entry, army.data?.army ?? {}) : {}), [entry, army.data]);
   if (!worldId || !settlementId) return null;
@@ -41,7 +42,7 @@ export default function NewMissionScreen() {
   const chosen = Object.fromEntries(Object.entries(units).filter(([, n]) => n > 0));
   const total = Object.values(chosen).reduce((a, b) => a + b, 0);
   const blocker = localBlocker(t, entry, chosen, settlement.data?.research);
-  const busy = !!entry.active_mission_id || (entry.cooldown_until && new Date(entry.cooldown_until).getTime() > Date.now()) || (overview.data?.slots_left ?? 0) <= 0;
+  const busy = !!entry.active_mission_id || (entry.cooldown_until && new Date(entry.cooldown_until).getTime() > now) || (overview.data?.slots_left ?? 0) <= 0;
 
   const submit = () =>
     start

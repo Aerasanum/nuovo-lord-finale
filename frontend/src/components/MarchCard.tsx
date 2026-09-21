@@ -6,7 +6,7 @@ import type { BattleDto, MarchDto } from "@/src/api/hooks";
 import { useMarchMutations } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { useToast } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Panel, ProgressBar, Row, StatePill, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, Panel, ProgressBar, Row, StatePill, T, useNow } from "@/src/components/ui";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
 import { formatNumber, type Lang, localeOf, type StringKey, useI18n } from "@/src/i18n";
 import { missionLabel } from "@/src/map3d/MapLabels";
@@ -208,11 +208,7 @@ export function MarchListCard({ m }: { m: MarchDto }) {
   const { showError } = useToast();
   const end = m.status === "RETURNING" ? m.return_at : m.arrival_at;
   const start = m.status === "RETURNING" ? m.recalled_at ?? m.arrival_at ?? m.departed_at : m.departed_at;
-  const [now, setNow] = React.useState(Date.now());
-  React.useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow();
   const prog = end && start ? Math.max(0, Math.min(1, (now - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start)))) : 0;
   return (
     <View style={[styles.listItem, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]} testID={`march-card-${m.march_id}`}>

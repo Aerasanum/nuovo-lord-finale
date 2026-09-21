@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,12 +26,12 @@ export default function AllianceSettingsScreen() {
   const a = q.data?.alliance ?? null;
   const [name, setName] = useState<string | null>(null);
   const [description, setDescription] = useState<string | null>(null);
-  useEffect(() => {
-    if (a && name === null) {
-      setName(a.name);
-      setDescription(a.description ?? "");
-    }
-  }, [a, name]);
+  // Prefill once, the render the alliance arrives (React's "adjust state during render"; an effect here would
+  // render the empty form first and then immediately render it again).
+  if (a && name === null) {
+    setName(a.name);
+    setDescription(a.description ?? "");
+  }
   if (!q.data) return <Loading />;
   if (!a || !a.permissions.includes("alliance_settings")) {
     router.back();

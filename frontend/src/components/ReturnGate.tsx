@@ -4,7 +4,7 @@
  * clears the flag server-side; the daily vault waits for it.
  */
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { useTour } from "@/src/state/tour";

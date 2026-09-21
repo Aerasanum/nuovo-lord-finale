@@ -67,7 +67,8 @@ export function ChatDock({ floating = false }: { floating?: boolean }) {
   const { worldId } = useGame();
   const summary = useChatSummary(worldId);
   const dock = useDock();
-  const [, force] = useState(0);
+  const [, bumpRead] = useState(0);
+  const [dockOpen, setDockOpen] = useState(dock.open);
 
   // newest message across channels + unread flag (newer than the last time that channel was opened)
   const newest = useMemo(() => {
@@ -81,9 +82,11 @@ export function ChatDock({ floating = false }: { floating?: boolean }) {
   }, [summary.data, t]);
   const unread = newest.some((m) => (lastRead.get(m.channel) ?? "") < m.at);
   const top = newest[0];
-  useEffect(() => {
-    if (!dock.open) force((n) => n + 1);
-  }, [dock.open]);
+  if (dockOpen !== dock.open) {
+    // The panel wrote its channel into `lastRead` while it was open: recompute the unread dot as it closes.
+    setDockOpen(dock.open);
+    if (!dock.open) bumpRead((n) => n + 1);
+  }
 
   if (!worldId) return null;
   return (
@@ -112,7 +115,12 @@ function ChatPanel({ target, onClose, rooms }: { target: ChatTarget; onClose: ()
   const mine = useMyAlliance(worldId);
   const inAlliance = !!mine.data?.alliance;
   const [tab, setTab] = useState<ChatTarget>(target);
-  useEffect(() => setTab(target), [target]);
+  const [trackedTarget, setTrackedTarget] = useState(target);
+  if (target !== trackedTarget) {
+    // Opened on a different channel (adjusted during render, not in an effect).
+    setTrackedTarget(target);
+    setTab(target);
+  }
 
   const worldQ = useWorldChat(worldId, tab.kind === "world");
   const allianceQ = useAllianceChat(worldId, tab.kind === "alliance" && inAlliance);
@@ -120,7 +128,10 @@ function ChatPanel({ target, onClose, rooms }: { target: ChatTarget; onClose: ()
   const realm = useRealmChatMutations(worldId ?? "");
   const am = useAllianceMutations(worldId ?? "");
 
-  const messages: (RealmChatMessage | ChatMessage)[] = tab.kind === "world" ? (worldQ.data?.messages ?? []) : tab.kind === "alliance" ? (allianceQ.data?.messages ?? []) : (negoQ.data?.messages ?? []);
+  const messages: (RealmChatMessage | ChatMessage)[] = useMemo(
+    () => (tab.kind === "world" ? (worldQ.data?.messages ?? []) : tab.kind === "alliance" ? (allianceQ.data?.messages ?? []) : (negoQ.data?.messages ?? [])),
+    [tab.kind, worldQ.data, allianceQ.data, negoQ.data],
+  );
   const loading = tab.kind === "world" ? !worldQ.data : tab.kind === "alliance" ? inAlliance && !allianceQ.data : !negoQ.data;
   const channel = tab.kind === "world" ? `world:${worldId}` : tab.kind === "alliance" ? `alliance:${mine.data?.alliance?.alliance_id}` : (negoQ.data?.channel ?? "");
   useEffect(() => {

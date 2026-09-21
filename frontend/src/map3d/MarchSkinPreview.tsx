@@ -21,7 +21,10 @@ export function MarchSkinPreview({ skin, crest, style, testID }: Props) {
   const { colors } = useTheme();
   const rig = useRef<Rig | null>(null);
   const props = useRef({ skin, crest });
-  props.current = { skin, crest };
+  // Read by the render loop after the commit, so refresh it after the commit too (never during render).
+  useEffect(() => {
+    props.current = { skin, crest };
+  });
 
   const rebuild = useCallback(() => {
     const r = rig.current;

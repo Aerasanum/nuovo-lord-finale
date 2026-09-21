@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,15 +44,17 @@ export default function HouseScreen() {
   const [newName, setNewName] = useState("");
   const [crest, setCrest] = useState<CrestDto | null>(null);
   const [previewSkin, setPreviewSkin] = useState<MarchSkin | null>(null); // tapped skin (locked ones preview only)
+  const [prefilled, setPrefilled] = useState(false);
   const RENAME_PRICE = 500;
 
-  useEffect(() => {
-    if (q.data && !crest) {
-      setCrest(q.data.house.crest);
-      setMotto(q.data.house.motto ?? "");
-      setDescription(q.data.house.description ?? "");
-    }
-  }, [q.data, crest]);
+  // Prefill once, the render the house arrives (adjusted during render, not in an effect). A House with no crest
+  // yet is a valid prefill, hence the explicit flag rather than a null check on the crest.
+  if (q.data && !prefilled) {
+    setPrefilled(true);
+    setCrest(q.data.house.crest);
+    setMotto(q.data.house.motto ?? "");
+    setDescription(q.data.house.description ?? "");
+  }
 
   if (!worldId) return null;
   const cat = q.data?.catalog;

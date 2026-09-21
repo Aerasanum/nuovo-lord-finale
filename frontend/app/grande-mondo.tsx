@@ -13,6 +13,7 @@ import { formatCountdown, langKey, regionFlag, secondsLeft } from "@/src/game/gr
 import { fmt, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { focusOnMap } from "@/src/utils/mapFocus";
 
 const useStyles = makeStyles((c) => ({
   card: { marginHorizontal: spacing.md, marginBottom: spacing.sm, gap: spacing.sm },
@@ -94,7 +95,7 @@ export default function GrandeMondoScreen() {
     }
   };
 
-  const showOnMap = (x: number, y: number) => router.push({ pathname: "/(tabs)/map", params: { fx: String(x), fy: String(y), ft: String(Date.now()) } });
+  const showOnMap = (x: number, y: number) => focusOnMap(router, x, y);
   const warLabel = (cfg: { regions: string[] | null; speed_multiplier: number } | null | undefined) => (cfg ? `${cfg.regions ? cfg.regions.map(regionFlag).join(" ") : t("gmWarAll")} · ×${cfg.speed_multiplier}` : "—");
 
   // ---- Pyramids: my Piccola Piramide + the Grande Piramide; admin: open/close the Grande, tune the Piccole ----

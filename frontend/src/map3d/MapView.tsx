@@ -133,6 +133,9 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramids, onSelec
     [],
   );
 
+  /* eslint-disable react-hooks/refs --
+     Gesture builders take callbacks that the gesture handler runs on touch, never during render: reaching the engine
+     through its ref inside them is how the imperative camera is driven. */
   const lastPan = useRef({ x: 0, y: 0 });
   const pan = Gesture.Pan()
     .minPointers(1)
@@ -202,6 +205,7 @@ export function MapView3D({ worldId, worldSize, home, marches, pyramids, onSelec
       engineRef.current?.tap(e.x, e.y);
     });
   const composed = Gesture.Race(Gesture.Simultaneous(tap, doubleTap), Gesture.Simultaneous(pan, pinch, rotation, twoFingerPan));
+  /* eslint-enable react-hooks/refs */
 
   return (
     <GestureDetector gesture={composed}>

@@ -34,9 +34,12 @@ function seeded(i: number, k: number): number {
 export function ChestGL({ playing, anchorY = 0.5, widthFrac = 0.42 }: { playing: boolean; anchorY?: number; widthFrac?: number }) {
   const rig = useRef<Rig | null>(null);
   const playingRef = useRef(playing);
-  playingRef.current = playing;
   const frame = useRef({ anchorY, widthFrac });
-  frame.current = { anchorY, widthFrac };
+  // Read by the animation loop after the commit, so refresh them after the commit too (never during render).
+  useEffect(() => {
+    playingRef.current = playing;
+    frame.current = { anchorY, widthFrac };
+  });
   const startRef = useRef<number | null>(null);
   useEffect(() => {
     if (playing) startRef.current = Date.now();

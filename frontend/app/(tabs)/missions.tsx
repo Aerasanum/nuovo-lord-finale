@@ -9,7 +9,7 @@ import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
 import { hasMissionArt, MissionBanner } from "@/src/components/MissionArt";
 import { Screen } from "@/src/components/overlay";
-import { Button, Chip, Countdown, Empty, Icon, type IconName, Loading, Panel, ProgressBar, Row, T } from "@/src/components/ui";
+import { Button, Chip, Countdown, Empty, Icon, Loading, Panel, ProgressBar, Row, T, type IconName, useNow } from "@/src/components/ui";
 import { missionDesc, missionName, requirementLines, rewardItems } from "@/src/game/missions";
 import { fmt, formatNumber, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
@@ -50,12 +50,13 @@ export default function MissionsScreen() {
   const chr = useChronicle(worldId);
   const house = useHouse(worldId);
   const [seg, setSeg] = useState<Seg>("missions");
+  const now = useNow();
   if (!worldId) return null;
   const data = q.data;
 
   const statusOf = (m: MissionCatalogEntry): { label: string; color: string; kind: "active" | "cooldown" | "ready" } => {
     if (m.active_mission_id) return { label: t("missionInProgress"), color: colors.brandPrimary, kind: "active" };
-    if (m.cooldown_until && new Date(m.cooldown_until).getTime() > Date.now()) return { label: t("missionOnCooldown"), color: colors.warning, kind: "cooldown" };
+    if (m.cooldown_until && new Date(m.cooldown_until).getTime() > now) return { label: t("missionOnCooldown"), color: colors.warning, kind: "cooldown" };
     return { label: t("missionReady"), color: colors.success, kind: "ready" };
   };
 
@@ -337,10 +338,11 @@ function ActiveMission({ m }: { m: MissionDto }) {
   const s = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
+  const now = useNow();
   const total = Object.values(m.units).reduce((a, b) => a + b, 0);
-  const started = m.started_at ? new Date(m.started_at).getTime() : Date.now();
-  const ends = m.ends_at ? new Date(m.ends_at).getTime() : Date.now();
-  const frac = ends > started ? Math.min(1, Math.max(0, (Date.now() - started) / (ends - started))) : 1;
+  const started = m.started_at ? new Date(m.started_at).getTime() : now;
+  const ends = m.ends_at ? new Date(m.ends_at).getTime() : now;
+  const frac = ends > started ? Math.min(1, Math.max(0, (now - started) / (ends - started))) : 1;
   return (
     <View style={s.activeCard} testID={`mission-active-${m.mission_id}`}>
       <Row style={{ justifyContent: "space-between" }}>

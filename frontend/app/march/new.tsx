@@ -45,9 +45,8 @@ export default function MarchComposer() {
   const [units, setUnits] = useState<Record<string, number>>({});
   const [preview, setPreview] = useState<any>(null);
   const friendly = pub.data?.faction === "OWN" || pub.data?.faction === "ALLY";
-  useEffect(() => {
-    if (friendly && mission !== "REINFORCE") setMission("REINFORCE");
-  }, [friendly, mission]);
+  // A friendly target only accepts REINFORCE (adjusted during render, not in an effect).
+  if (friendly && mission !== "REINFORCE") setMission("REINFORCE");
 
   const available = army.data?.army ?? {};
   const totalUnits = Object.values(units).reduce((a, c) => a + c, 0);

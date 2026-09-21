@@ -21,7 +21,10 @@ export function CastlePreview({ skin, level, crest, style, testID }: Props) {
   const { colors } = useTheme();
   const rig = useRef<Rig | null>(null);
   const props = useRef({ skin, level, crest });
-  props.current = { skin, level, crest };
+  // Read by the render loop after the commit, so refresh it after the commit too (never during render).
+  useEffect(() => {
+    props.current = { skin, level, crest };
+  });
 
   const rebuild = useCallback(() => {
     const r = rig.current;

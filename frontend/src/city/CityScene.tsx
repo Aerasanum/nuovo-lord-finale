@@ -46,12 +46,15 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
   const { colors } = useTheme();
   const rig = useRef<Rig | null>(null);
   const inputRef = useRef(input);
-  inputRef.current = input;
   const cam = useRef({ yaw: 0.6, pitch: 0.62, dist: 0, auto: true, lastTouch: 0 });
   const size = useRef({ width: 1, height: 1 });
   const focused = useRef(true);
   const onPickRef = useRef(onPick);
-  onPickRef.current = onPick;
+  // The render loop and the gesture callbacks read these after the commit, so the refs are refreshed after it too.
+  useEffect(() => {
+    inputRef.current = input;
+    onPickRef.current = onPick;
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -242,6 +245,9 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
     onPickRef.current?.(best?.name ?? null);
   };
 
+  /* eslint-disable react-hooks/refs, react-hooks/purity --
+     Gesture builders take callbacks that the gesture handler runs on touch, never during render: reading the camera
+     ref and the wall clock inside them is the point of the imperative camera. */
   const lastPan = useRef({ x: 0, y: 0 });
   const pan = Gesture.Pan()
     .enabled(interactive)
@@ -284,6 +290,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
     .runOnJS(true)
     .onEnd((e) => pick(e.x, e.y));
   const composed = Gesture.Race(tap, Gesture.Simultaneous(pan, pinch));
+  /* eslint-enable react-hooks/refs, react-hooks/purity */
 
   return (
     <GestureDetector gesture={composed}>

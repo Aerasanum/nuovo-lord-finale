@@ -4,7 +4,7 @@
  * (shared SEEN list with the battle-report page, so opening the report later does not replay it).
  */
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { get } from "@/src/api/client";
 import { type BattleDto, useMe } from "@/src/api/hooks";
@@ -19,10 +19,15 @@ export function RainbowWatcher() {
   const cinematic = useCinematic();
   const me = useMe(worldId);
   const state = player?.unicorn?.state as string | undefined;
-  const armed = useRef(false);
   const playing = useRef(false);
-  if (state === "IN_FLIGHT") armed.current = true;
-  const active = !!worldId && (state === "IN_FLIGHT" || (armed.current && state === "COOLDOWN"));
+  // Stay armed through COOLDOWN: the Unicorn flips state ~10 s after launch, before the battle is committed.
+  const [armed, setArmed] = useState(false);
+  const [trackedState, setTrackedState] = useState(state);
+  if (state !== trackedState) {
+    setTrackedState(state);
+    if (state === "IN_FLIGHT") setArmed(true);
+  }
+  const active = !!worldId && (state === "IN_FLIGHT" || (armed && state === "COOLDOWN"));
   const battles = useQuery<{ battles: BattleDto[] }>({
     queryKey: ["rainbow-watch", worldId],
     queryFn: () => get(`/worlds/${worldId}/battles`),
@@ -43,14 +48,14 @@ export function RainbowWatcher() {
     storage.getItem<string>(SEEN_KEY, "[]").then(async (raw) => {
       const seen: string[] = JSON.parse(raw || "[]");
       if (seen.includes(hit.battle_id)) {
-        armed.current = false;
+        setArmed(false);
         return;
       }
       await storage.setItem(SEEN_KEY, JSON.stringify([...seen, hit.battle_id].slice(-50)));
       const full = await get<BattleDto>(`/worlds/${worldId}/battles/${hit.battle_id}`).catch(() => hit);
       const r = (full as any).report ?? {};
       cinematic.play({ kind: "CONQUEST", rainbow: true, units: r.attacker_survivors ?? {}, missionLabel: null, targetName: hit.target_name, etaSeconds: null, crest: player.house?.crest ?? null, houseName: player.house_name ?? null, allianceTag: player.alliance?.tag ?? null, newLevel: hit.ownership_result?.new_level ?? null });
-      armed.current = false;
+      setArmed(false);
     });
   }, [active, battles.data, player, worldId, cinematic]);
   return null;

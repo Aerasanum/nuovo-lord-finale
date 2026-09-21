@@ -7,10 +7,11 @@ import type { DetectedCaravan } from "@/src/api/hooks";
 import { useCaravanSearch } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
 import { Screen } from "@/src/components/overlay";
-import { Button, Countdown, Icon, Loading, Panel, Row, T } from "@/src/components/ui";
+import { Button, Countdown, Icon, Loading, Panel, Row, T, useNow } from "@/src/components/ui";
 import { fmt, formatNumber, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { focusOnMap } from "@/src/utils/mapFocus";
 
 /** "Carovane nei dintorni": foreign convoys travelling within the realm's search radius of the active settlement,
  * nearest first, each with a Raid (intercept) action and a "show on map" deep link. */
@@ -36,7 +37,7 @@ export default function NearbyCaravansScreen() {
   if (!worldId || !settlementId) return null;
   const list = q.data?.caravans ?? [];
   const canRaid = !!q.data?.interception_unlocked;
-  const showOnMap = (xy: [number, number]) => router.push({ pathname: "/(tabs)/map", params: { fx: String(xy[0]), fy: String(xy[1]), ft: String(Date.now()) } });
+  const showOnMap = (xy: [number, number]) => focusOnMap(router, xy[0], xy[1]);
   return (
     <Screen testID="nearby-caravans-screen">
       <View style={[s.header, { paddingTop: insets.top + spacing.sm }]}>
@@ -84,8 +85,9 @@ function NearbyRow({ c, canRaid, onRaid, onMap }: { c: DetectedCaravan; canRaid:
   const s = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
+  const now = useNow();
   // feasibility estimate: fastest land unit (cavalry, 3 tiles/h) must reach the convoy before it is delivered
-  const etaH = Math.max(0, (new Date(c.arrival_at).getTime() - Date.now()) / 3.6e6);
+  const etaH = Math.max(0, (new Date(c.arrival_at).getTime() - now) / 3.6e6);
   const reachable = c.distance / 3 <= etaH;
   return (
     <Panel testID={`nearby-caravan-${c.caravan_id}`}>

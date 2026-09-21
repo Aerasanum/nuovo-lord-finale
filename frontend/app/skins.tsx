@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -37,9 +37,8 @@ export default function SkinsScreen() {
   const { showError, show } = useToast();
   const [picked, setPicked] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (q.data && !picked) setPicked(q.data.current);
-  }, [q.data, picked]);
+  // Start on the skin currently in use, as soon as the catalog arrives (adjusted during render, not in an effect).
+  if (q.data && !picked) setPicked(q.data.current);
 
   if (!worldId || !settlementId) return null;
   const cat = q.data;

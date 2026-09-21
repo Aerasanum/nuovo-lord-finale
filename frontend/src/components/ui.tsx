@@ -130,10 +130,25 @@ export function StatePill({ state, testID }: { state: string; testID?: string })
 }
 
 // --------------------------------------------------------------------------------------------- countdown
+/** Wall clock in milliseconds, refreshed every second so progress bars actually advance while a screen is open. */
+export function useNow(intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
 export function useCountdown(endsAt?: string | null) {
   const [left, setLeft] = useState(() => secondsUntil(endsAt));
-  useEffect(() => {
+  const [trackedEnd, setTrackedEnd] = useState(endsAt);
+  if (endsAt !== trackedEnd) {
+    // New deadline: show it immediately instead of one stale second (adjusted during render, not in an effect).
+    setTrackedEnd(endsAt);
     setLeft(secondsUntil(endsAt));
+  }
+  useEffect(() => {
     if (!endsAt) return;
     const id = setInterval(() => setLeft(secondsUntil(endsAt)), 1000);
     return () => clearInterval(id);

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -42,9 +42,8 @@ export default function NewCaravanScreen() {
   const [escortOn, setEscortOn] = useState(false);
   const [escort, setEscort] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    if (info.data && !dest && info.data.destinations.length === 1) setDest(info.data.destinations[0].settlement_id);
-  }, [info.data, dest]);
+  // Only one possible destination: pick it as soon as the list arrives (adjusted during render, not in an effect).
+  if (info.data && !dest && info.data.destinations.length === 1) setDest(info.data.destinations[0].settlement_id);
 
   const capacity = useMemo(() => (info.data ? info.data.capacity_per_caravan * slots : 0), [info.data, slots]);
   const total = Object.values(cargo).reduce((a, b) => a + b, 0);

@@ -52,7 +52,7 @@ export default function MapScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
-  const pyramidTarget = useTourTarget<View>("map-pyramid-button"); // spotlight of the first-login tour
+  const { ref: pyramidButtonRef, onLayout: measurePyramidButton } = useTourTarget<View>("map-pyramid-button"); // spotlight of the first-login tour
   const router = useRouter();
   const { selectSettlement } = useAuth();
   const { worldId, settlementId, settlement, settlements, player, world } = useGame();
@@ -205,8 +205,8 @@ export default function MapScreen() {
           <Icon name="home-map-marker" size={22} color={colors.brandPrimary} />
         </Pressable>
         <Pressable
-          ref={pyramidTarget.ref}
-          onLayout={pyramidTarget.onLayout}
+          ref={pyramidButtonRef}
+          onLayout={measurePyramidButton}
           style={s.iconBtn}
           onPress={() => {
             // the viewer's own Pyramid (Grande Mondo: the region's Piccola Piramide — the Grande Piramide lies beyond the fog)

@@ -11,6 +11,9 @@ let sdk: any | null = null;
 function load(): any | null {
   if (sdk) return sdk;
   try {
+    // Deliberately lazy and guarded: the native module is absent on web and in Expo Go, where the store stays in
+    // preview mode instead of crashing the bundle at import time.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     sdk = require("react-native-purchases").default;
   } catch {
     sdk = null;
