@@ -330,7 +330,7 @@ def build_report(boot: dict | None) -> str:
     seq_min = tot_min_fast + build_min_fast
     P(f"- **Limite code di costruzione** (2 code condivise): {fmt_min(seq_min)} di lavoro → ≈ **{seq_min / 2 / 1440:.0f} giorni** in parallelo, ≈ {seq_min * 0.65 / 2 / 1440:.0f} giorni con la riduzione ricerca −35 % (il Castello è sequenziale: {fmt_min(tot_min_fast)} minimo).")
     P(f"- **Limite code di ricerca** (2 code): ≈ **{res_min / 2 / 1440:.0f} giorni** base, {res_min * 0.65 / 2 / 1440:.0f} con −35 %.")
-    P(f"- **Leggendari**: 126 giorni sulla coda del Tempio (disponibile solo a L30) — è il vincolo temporale più lungo dopo la Metropoli.")
+    P("- **Leggendari**: 126 giorni sulla coda del Tempio (disponibile solo a L30) — è il vincolo temporale più lungo dopo la Metropoli.")
     P(f"- **Santuario Mitico + Unicorno**: {sanct_days:g} giorni + rituale 7 giorni (backlog §12).")
     P("")
     est_days = max(hours_at_max / 24 / 0.57, seq_min / 2 / 1440) + 126

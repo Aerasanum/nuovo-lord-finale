@@ -176,7 +176,7 @@ async def _window_defense(world_id: str, defender: str, battle: dict) -> None:
     win.append({"at": now, "attacker": battle["attacker_player_id"], "battle_id": battle["_id"]})
     req = cat["requirements"]
     if len(win) >= req["valid_pvp_defense_wins"] and len({e["attacker"] for e in win}) >= req["distinct_attackers_min"]:
-        await db().players.update_one({"_id": defender}, {"$set": {"border_guardians_window": [], f"challenge_cooldowns.border_guardians": now + timedelta(hours=cat["cooldown_hours"])}, "$addToSet": {"cosmetics": cat["reward"]["cosmetic_unlock"]}})
+        await db().players.update_one({"_id": defender}, {"$set": {"border_guardians_window": [], "challenge_cooldowns.border_guardians": now + timedelta(hours=cat["cooldown_hours"])}, "$addToSet": {"cosmetics": cat["reward"]["cosmetic_unlock"]}})
         await award_prestige(world_id, defender, cat["reward"]["prestige"], "border_guardians", battle["_id"])
         await notifications.notify(world_id, defender, "MISSION_COMPLETED", {"mission_key": "border_guardians", "reward": cat["reward"], "completion_id": f"bg:{battle['_id']}"}, dedupe_key=f"bg:{battle['_id']}", deep_link="missions")
     else:

@@ -110,6 +110,7 @@ async def run(langs: list[str], batch: int, model: str, only_missing: bool) -> N
     for lang in langs:
         cache_file = CACHE_DIR / f"{lang}.json"
         cache: dict[str, str] = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
+
         def stale(k: str) -> bool:
             # a "translation" identical to the Italian source (while English differs) is a miss by the model → redo it
             src, en_v = all_items[k]

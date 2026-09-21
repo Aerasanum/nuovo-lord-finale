@@ -73,7 +73,7 @@ class TestWallet:
 class TestInstantFinish:
     def test_construction_finish_quote_and_pay(self):
         h = login(*DEMO)
-        s = wait_free_queue(h)
+        wait_free_queue(h)
         requests.post(url("/qa/grant"), json={"settlement_id": HOME, "resources": {"grain": 50000, "wood": 50000, "clay": 50000, "iron": 50000, "gold": 5000}}, headers=ADMIN, timeout=30)
         # start a cheap building upgrade (Magazzino / Boscaiolo / whichever is upgradable)
         started = None
@@ -131,7 +131,6 @@ class TestInstantFinish:
             requests.post(url(f"/worlds/{WORLD}/jobs/{jid2}/cancel"), headers=h, timeout=30)
 
     def test_insufficient_rubies(self):
-        h = login(*DEMO)
         # drain: spend on a rename to a random name is expensive to undo; instead compute a job pricier than wallet by asserting error path with a huge job is impractical →
         # emulate: check that 409 INSUFFICIENT_RUBIES is returned when wallet < price using a fresh account
         email = f"poor_{uuid.uuid4().hex[:6]}@empirelords.com"

@@ -4,11 +4,10 @@ speedup endpoint removed (404), inbox items shape.
 """
 from __future__ import annotations
 
-import os
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD# QA backend only
+from tests.e2e_base import BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 
 WORLD_ID = "qa_1"
 DEMO = {"email": DEMO_EMAIL, "password": DEMO_PASSWORD}

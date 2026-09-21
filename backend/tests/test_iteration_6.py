@@ -3,7 +3,6 @@ Runs against the public deployment. Uses admin key for QA grants and clock/sched
 """
 from __future__ import annotations
 
-import os
 import uuid
 import pytest
 import requests
@@ -11,8 +10,6 @@ import requests
 from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, track_player  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
-
-
 
 
 def api(path: str) -> str:

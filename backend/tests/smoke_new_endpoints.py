@@ -1,6 +1,5 @@
 """Quick smoke for the new endpoints (daily / chat / mercenaries) against the public URL."""
 import json
-import os
 import sys
 
 import requests

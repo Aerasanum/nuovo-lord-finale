@@ -1,7 +1,6 @@
 """Shared fixtures: isolated test DB, generated world, registered accounts, ASGI client, manual scheduler."""
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
 

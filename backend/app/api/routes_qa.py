@@ -232,7 +232,6 @@ async def qa_gm_phase(body: GmPhaseIn):
     return grande_mondo.dto(world)
 
 
-
 # --------------------------------------------------------------------------- inactivity (3 gg nei primi 30 gg, poi 120 gg)
 class InactivityConfigIn(BaseModel):
     world_id: str
@@ -372,7 +371,6 @@ async def qa_return_arm(body: ReturnArmIn):
     if not res.matched_count:
         raise ApiError("PLAYER_NOT_FOUND", "Player not found", 404)
     return {"player_id": body.player_id, "return_since": clock.iso(since), "return_pending": True}
-
 
 
 # --------------------------------------------------------------------------- Prestige (march-skin rewards, Bible §41.3)

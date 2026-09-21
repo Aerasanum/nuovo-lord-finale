@@ -7,14 +7,13 @@ functions and a per-test session. Reads seeded accounts from /app/memory/test_cr
 """
 from __future__ import annotations
 
-import os
 import time
 import uuid
 
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD, MAX_EMAIL, MAX_PASSWORD# QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD, MAX_EMAIL, MAX_PASSWORD  # QA backend only
 
 WORLD_ID = "qa_1"
 
@@ -75,7 +74,6 @@ class TestDaily:
             d0 = r0.json()
             assert d0["claimable"], f"still not claimable after clock advance: {d0}"
 
-        pre_speedup = int(d0.get("speedup_minutes", 0))
         pre_day = d0["day"]
 
         r1 = requests.post(f"{BASE}/api/worlds/{WORLD_ID}/daily/claim", headers=max_hdr, timeout=30)
@@ -159,7 +157,7 @@ class TestChat:
         h = requests.get(f"{BASE}/api/worlds/{WORLD_ID}/chat/world?limit=100", headers=demo_hdr, timeout=30)
         assert h.status_code == 200
         msgs = h.json().get("messages", [])
-        assert any(text in (m.get("text") or "") for m in msgs), f"posted message not found in history"
+        assert any(text in (m.get("text") or "") for m in msgs), "posted message not found in history"
 
     def test_chat_summary_has_world_alliance_negotiations(self, demo_hdr):
         r = requests.get(f"{BASE}/api/worlds/{WORLD_ID}/chat/summary", headers=demo_hdr, timeout=30)

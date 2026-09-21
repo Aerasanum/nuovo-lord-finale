@@ -5,7 +5,6 @@ Leaves gm_1 in ISOLATION, next_war FR+IT ×5, regional_first_open_day=90.
 """
 from __future__ import annotations
 
-import os
 import pytest
 import requests
 from dotenv import load_dotenv
@@ -130,12 +129,12 @@ class TestAdmin:
     def test_regional_config_roundtrip(self, obs):
         # set 60 for ALL regions
         r = requests.post(_url(f"/worlds/{WORLD}/grande-mondo/admin/regional-pyramid-config"), headers=obs,
-                         json={"region": None, "config": {"first_open_day": 60}}, timeout=30)
+                          json={"region": None, "config": {"first_open_day": 60}}, timeout=30)
         assert r.status_code == 200, r.text
         assert r.json()["regional_first_open_day"] == 60
         # restore 90
         r2 = requests.post(_url(f"/worlds/{WORLD}/grande-mondo/admin/regional-pyramid-config"), headers=obs,
-                          json={"region": None, "config": {"first_open_day": 90}}, timeout=30)
+                           json={"region": None, "config": {"first_open_day": 90}}, timeout=30)
         assert r2.status_code == 200
         assert r2.json()["regional_first_open_day"] == 90
 

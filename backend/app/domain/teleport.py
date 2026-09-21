@@ -90,6 +90,7 @@ async def teleport(world: dict, player: dict, account_id: str, doc: dict, slot_i
         raise
     now = clock.now()
     # 3) swap coordinates
+
     def _pos_fields(p: dict) -> dict:
         cx, cy = chunk_of(p["x"], p["y"])
         return {"x": p["x"], "y": p["y"], "chunk_cx": cx, "chunk_cy": cy, "terrain": p["terrain"], "region": p["region"], "port_eligible": p["port_eligible"]}

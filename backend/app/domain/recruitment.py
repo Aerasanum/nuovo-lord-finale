@@ -30,7 +30,6 @@ async def legendary_usage(doc: dict, unit: str, jobs: list[dict] | None = None) 
     return {"max": cap, "used": used, "garrison": garrison, "queued": queued, "in_flight": in_flight, "free": max(0, cap - used)}
 
 
-
 async def start_recruitment(doc: dict, player: dict, unit: str, count: int, idempotency_key: str | None) -> dict:
     spec = get_spec()
     if unit not in spec.units_by_name:

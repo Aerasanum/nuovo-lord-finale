@@ -9,7 +9,6 @@ Runs against the public URL.
 """
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
@@ -21,7 +20,6 @@ from tests.e2e_base import BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, LORD_EMAIL, LORD
 API = f"{BASE_URL}/api"
 
 WORLD_ID = "world_2"
-
 
 
 LORD_HOME = "stl_aaf827bc3a0340cc"

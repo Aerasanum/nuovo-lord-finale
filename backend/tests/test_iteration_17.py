@@ -2,7 +2,6 @@
 (GET/PUT house.march_skin, unlocks, catalog.march_skins, marches update)."""
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest

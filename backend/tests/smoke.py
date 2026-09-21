@@ -1,7 +1,6 @@
 """Quick smoke run against the live backend (localhost:8001)."""
 import json
 import sys
-import time
 import uuid
 
 import httpx

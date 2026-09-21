@@ -106,4 +106,3 @@ async def ensure_indexes() -> None:
     await d.emerald_ledger.create_index([("alliance_id", ASCENDING), ("at", DESCENDING)])
     await d.mercenary_contracts.create_index([("world_id", ASCENDING), ("status", ASCENDING), ("provider_alliance_id", ASCENDING)])
     await d.war_votes.create_index([("alliance_id", ASCENDING), ("status", ASCENDING)])
-

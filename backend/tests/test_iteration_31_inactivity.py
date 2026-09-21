@@ -7,7 +7,6 @@ is cleared at the end; the QA clock is never advanced.
 """
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest

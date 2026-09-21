@@ -5,13 +5,12 @@ Tests run against the deployed backend (EXPO_PUBLIC_BACKEND_URL) using real acco
 """
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD# QA backend only
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL as BASE, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 API = f"{BASE}/api"
 ADMIN_KEY = ADMIN_KEY_ENV
 
@@ -126,9 +125,7 @@ class TestTeleportPost:
         old_x, old_y = int(s["x"]), int(s["y"])
         ikey = f"test-{uuid.uuid4().hex}"
 
-        # balance before
-        me_before = requests.get(f"{API}/worlds/gm_1/me", headers=obs_headers, timeout=30).json()
-        # premium balance not in /me; use candidates payload for prior rubies
+        # premium balance is not in /me: use the candidates payload for the prior Ruby count
         cands_prior = requests.get(f"{API}/worlds/gm_1/settlements/{sid}/teleport", headers=obs_headers, timeout=30).json()
         rubies_before = int(cands_prior["rubies"])
 

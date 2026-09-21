@@ -10,7 +10,6 @@ from app.core import clock
 from app.core.db import db
 from app.core.spec import get_spec
 from app.domain import combat, conquest, economy, scheduler
-from app.domain import formulas as F
 from app.domain.pathfinding import load_terrain
 from tests.conftest import advance, grant, join, register
 
@@ -156,7 +155,7 @@ async def test_overflow_no_duplicate_credit_on_retry(client, world):
     clock.advance(3600)  # one hour: +20 grain/wood/clay, +18 iron, +5 gold
     doc = await db().settlements.find_one({"_id": sid})
     # concurrent / retried accrual with the same stale snapshot
-    results = await asyncio.gather(economy.accrue(doc), economy.accrue(doc), economy.accrue(dict(doc)))
+    await asyncio.gather(economy.accrue(doc), economy.accrue(doc), economy.accrue(dict(doc)))
     fresh = await db().settlements.find_one({"_id": sid})
     assert fresh["resources"]["grain"] == 3500 and fresh["resources"]["wood"] == 3500 and fresh["resources"]["clay"] == 3500
     assert fresh["resources"]["iron"] == 18 and fresh["resources"]["gold"] == 5

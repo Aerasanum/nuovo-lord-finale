@@ -399,7 +399,6 @@ async def on_intercept_arrival(march: dict) -> None:
     if not caravan or caravan["status"] != "OUTBOUND":
         await M._start_return(march, units, "TARGET_MISSING")
         return
-    player = await db().players.find_one({"_id": march["player_id"]})
     sender = await db().players.find_one({"_id": caravan["player_id"]})
     escort = {u: int(c) for u, c in (caravan.get("units") or {}).items() if int(c) > 0}
     battle_id = f"btl_{march['_id']}"

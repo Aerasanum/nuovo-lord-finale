@@ -5,7 +5,6 @@ Run: cd /app/backend && pytest tests/test_iteration_33_return_skins.py -o addopt
 """
 from __future__ import annotations
 
-import os
 import uuid
 
 import requests

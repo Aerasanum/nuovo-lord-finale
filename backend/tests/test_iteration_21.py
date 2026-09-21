@@ -15,16 +15,12 @@ Coverage:
 from __future__ import annotations
 
 import base64
-import os
 
 import pytest
 import requests
 
 from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD, OBSERVER_PASSWORD  # QA backend only
 ADMIN_KEY = ADMIN_KEY_ENV
-
-
-
 
 
 @pytest.fixture(scope="module")

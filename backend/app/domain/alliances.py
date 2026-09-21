@@ -939,4 +939,3 @@ def player_alliance_dto(p: dict, a: dict | None) -> dict | None:
     if not a:
         return None
     return {"alliance_id": a["_id"], "name": a["name"], "tag": a["tag"], "kind": a["kind"], "role": p.get("alliance_role")}
-

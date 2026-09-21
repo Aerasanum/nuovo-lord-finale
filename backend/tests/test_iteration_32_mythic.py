@@ -6,7 +6,6 @@ target. Advances the QA clock (~17 days) to run the Sanctuary upgrade, the 7-day
 """
 from __future__ import annotations
 
-import os
 import time
 import uuid
 

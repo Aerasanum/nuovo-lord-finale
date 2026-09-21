@@ -5,13 +5,11 @@ Runs against deployed backend (EXPO_PUBLIC_BACKEND_URL) using real accounts.
 """
 from __future__ import annotations
 
-import os
-import uuid
 
 import pytest
 import requests
 
-from tests.e2e_base import ADMIN_HEADERS, BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
+from tests.e2e_base import BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 API = f"{BASE_URL}/api"
 
 

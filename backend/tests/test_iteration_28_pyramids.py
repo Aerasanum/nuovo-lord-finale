@@ -6,7 +6,6 @@ durations, then restores realistic configs and leaves gm_1 in ISOLATION with nex
 """
 from __future__ import annotations
 
-import os
 import time
 
 import pytest

@@ -18,8 +18,6 @@ ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
 
 
-
-
 def api(p: str) -> str:
     return f"{BASE_URL}{p}"
 

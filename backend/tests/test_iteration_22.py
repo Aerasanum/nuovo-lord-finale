@@ -2,7 +2,6 @@
 Runs against the public URL with the demo JWT."""
 from __future__ import annotations
 
-import os
 import uuid
 
 import pytest
@@ -12,7 +11,6 @@ pytestmark = pytest.mark.skip(reason="legacy Regno 1 fixture (hard-coded demo se
 
 from tests.e2e_base import BASE_URL, DEMO_EMAIL, DEMO_PASSWORD  # QA backend only
 API = f"{BASE_URL}/api"
-
 
 
 WORLD_ID = "qa_1"
@@ -52,7 +50,7 @@ class TestSentinelsGet:
         # 4 inner GUARDED (N,E,S,W)
         inner = {s["direction"]: s for s in arr if s["ring"] == "INNER"}
         for d in ("N", "E", "S", "W"):
-            assert d in inner, f"missing INNER {d}: {[s['direction'] for s in arr if s['ring']=='INNER']}"
+            assert d in inner, f"missing INNER {d}: {[s['direction'] for s in arr if s['ring'] == 'INNER']}"
             assert inner[d]["state"] == "GUARDED", f"INNER {d} state = {inner[d]['state']}"
         # OUTER N and OUTER NE should exist (non-REMOVED)
         outer = {s["direction"]: s for s in arr if s["ring"] == "OUTER"}
@@ -99,10 +97,10 @@ class TestSentinelPost:
         r = requests.post(f"{API}/worlds/{WORLD_ID}/settlements/{SETTLEMENT_ID}/sentinels", json=body, headers=auth, timeout=30)
         if r.status_code == 409 and r.json().get("code") == "REJECT_QUEUE_FULL":
             pytest.skip(
-                f"Construction queue full (both slots busy with OUTER N + OUTER NE BUILDING). "
-                f"POST OUTER SE cannot be tested until one of the running jobs completes or seed is adjusted "
-                f"to provide a free queue slot. This is a SEED STATE issue, not a code bug — the endpoint "
-                f"correctly enforces the queue limit."
+                "Construction queue full (both slots busy with OUTER N + OUTER NE BUILDING). "
+                "POST OUTER SE cannot be tested until one of the running jobs completes or seed is adjusted "
+                "to provide a free queue slot. This is a SEED STATE issue, not a code bug — the endpoint "
+                "correctly enforces the queue limit."
             )
         assert r.status_code == 200, f"POST OUTER SE failed: {r.status_code} {r.text}"
         # Verify GET now returns pre_count + 1

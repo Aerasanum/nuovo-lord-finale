@@ -7,7 +7,7 @@ dismisses it once (`/return-summary/seen`). Everything is read from existing col
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.core import clock
 from app.core.db import db
