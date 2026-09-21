@@ -8,12 +8,14 @@ Safe order: 1) offset → 0 first (now() jumps back, nothing is due, the schedul
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 
 from pymongo import UpdateOne
 
 from app.core import clock
 from app.core.db import db
+from app.core.errors import ApiError
 
 SKIP_COLLECTIONS = {"qa_state"}
 
@@ -77,11 +79,20 @@ async def shift_all_datetimes(delta: timedelta) -> dict[str, int]:
     return counts
 
 
+_running = asyncio.Lock()
+
+
 async def reset_to_real_time() -> dict:
-    offset = clock.get_offset_seconds()
-    if abs(offset) < 1:
-        return {"offset_seconds_before": offset, "shifted": {}, "now": clock.iso(clock.now())}
-    clock.set_offset_seconds(0.0)  # 1) nothing is due while we move the data
-    counts = await shift_all_datetimes(timedelta(seconds=-offset))  # 2)
-    await clock.persist_offset()  # 3)
-    return {"offset_seconds_before": offset, "shifted": counts, "now": clock.iso(clock.now())}
+    # The rewrite walks every collection. A second reset starting while the first is halfway through would shift the
+    # documents it already moved a second time, and each pass reads the offset that the other one is zeroing, so the
+    # endpoint answers 409 instead of quietly corrupting every timer in the realm.
+    if _running.locked():
+        raise ApiError("CLOCK_RESET_RUNNING", "A clock reset is already rewriting the stored timestamps", 409)
+    async with _running:
+        offset = clock.get_offset_seconds()
+        if abs(offset) < 1:
+            return {"offset_seconds_before": offset, "shifted": {}, "now": clock.iso(clock.now())}
+        clock.set_offset_seconds(0.0)  # 1) nothing is due while we move the data
+        counts = await shift_all_datetimes(timedelta(seconds=-offset))  # 2)
+        await clock.persist_offset()  # 3)
+        return {"offset_seconds_before": offset, "shifted": counts, "now": clock.iso(clock.now())}

@@ -1,6 +1,7 @@
 """Game API — all world-scoped, server-authoritative. Every mutation accepts an optional idempotency_key."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import math
 import re
@@ -243,13 +244,16 @@ async def grande_mondo_regional_pyramid_config(body: RegionalPyramidConfigIn, c:
 
 @router.get("/worlds/{world_id}/me")
 async def me(c: Ctx = Depends(ctx)):
-    cur = db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}).sort("founded_at", 1)
-    settlements = []
-    async for s in cur:
-        s = await economy.accrue(s)
-        settlements.append({**public_dto(s, c.player["_id"], c.player.get("alliance_id")), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]})
-    unread = await db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None})
-    acc = await db().accounts.find_one({"_id": c.account_id}, {"rubies": 1})
+    owned = [s async for s in db().settlements.find({"world_id": c.world["_id"], "owner_player_id": c.player["_id"]}).sort("founded_at", 1)]
+    # This is the screen the client polls every 20 s. Each settlement accrues against its own document and neither
+    # the inbox count nor the wallet touches them, so the whole set goes out as one batch of round trips instead of
+    # a chain of them — a metropolis with ten castles used to pay for ten sequential accruals.
+    accrued, unread, acc = await asyncio.gather(
+        asyncio.gather(*(economy.accrue(s) for s in owned)),
+        db().inbox.count_documents({"world_id": c.world["_id"], "player_id": c.player["_id"], "read_at": None}),
+        db().accounts.find_one({"_id": c.account_id}, {"rubies": 1}),
+    )
+    settlements = [{**public_dto(s, c.player["_id"], c.player.get("alliance_id")), "is_mother": bool(s.get("is_mother")), "resources": s["resources"]} for s in accrued]
     return {"player": player_dto(c.player), "world": world_dto(c.world, c.player), "settlements": settlements, "unread_inbox": unread, "rubies": int((acc or {}).get("rubies", 0)), "server_time": clock.iso(clock.now())}
 
 

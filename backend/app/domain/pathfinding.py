@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import heapq
 import math
+from collections import OrderedDict
 
 import numpy as np
 
@@ -13,19 +14,42 @@ from app.core.spec import get_spec
 
 N = 400  # default world size; each world carries its own `size` (grid.shape) — never assume 400 in callers
 CHUNK = 32
-_cache: dict[str, np.ndarray] = {}
+
+# A realm costs n² bytes of terrain plus 4·n² of landmass labels — 0.8 MB for the standard 400×400 grid. One process
+# answers for every realm it is asked about, so the caches are bounded and drop the least recently used realm instead
+# of growing for the lifetime of the worker. Reloading one is a chunk scan, not a correctness problem.
+CACHE_MAX_WORLDS = 8
+_cache: OrderedDict[str, np.ndarray] = OrderedDict()
+_components: OrderedDict[str, np.ndarray] = OrderedDict()
+
+
+def _cached(store: OrderedDict[str, np.ndarray], world_id: str) -> np.ndarray | None:
+    grid = store.get(world_id)
+    if grid is not None:
+        store.move_to_end(world_id)
+    return grid
+
+
+def _remember(store: OrderedDict[str, np.ndarray], world_id: str, value: np.ndarray) -> np.ndarray:
+    store[world_id] = value
+    store.move_to_end(world_id)
+    while len(store) > CACHE_MAX_WORLDS:
+        store.popitem(last=False)
+    return value
 
 
 async def world_size(world_id: str) -> int:
-    if world_id in _cache:
-        return int(_cache[world_id].shape[0])
+    grid = _cached(_cache, world_id)
+    if grid is not None:
+        return int(grid.shape[0])
     w = await db().worlds.find_one({"_id": world_id}, {"size": 1})
     return int((w or {}).get("size") or N)
 
 
 async def load_terrain(world_id: str) -> np.ndarray:
-    if world_id in _cache:
-        return _cache[world_id]
+    grid = _cached(_cache, world_id)
+    if grid is not None:
+        return grid
     n = await world_size(world_id)
     grid = np.full((n, n), 3, dtype=np.uint8)
     async for c in db().map_chunks.find({"world_id": world_id}):
@@ -34,16 +58,12 @@ async def load_terrain(world_id: str) -> np.ndarray:
         h = min(CHUNK, n - cy * CHUNK)
         w = min(CHUNK, n - cx * CHUNK)
         grid[cy * CHUNK : cy * CHUNK + h, cx * CHUNK : cx * CHUNK + w] = arr[:h, :w]
-    _cache[world_id] = grid
-    return grid
+    return _remember(_cache, world_id, grid)
 
 
 def invalidate(world_id: str) -> None:
     _cache.pop(world_id, None)
     _components.pop(world_id, None)
-
-
-_components: dict[str, np.ndarray] = {}
 
 
 def _label_land(grid: np.ndarray) -> np.ndarray:
@@ -73,10 +93,10 @@ def _label_land(grid: np.ndarray) -> np.ndarray:
 async def same_landmass(world_id: str, a: tuple[int, int], b: tuple[int, int]) -> bool:
     """Cheap reject for land routes: two land tiles on different landmasses can never be joined by a land path
     (a failing A* on a mega-realm otherwise explores every reachable tile). Computed once per world (~3 s) and cached."""
-    if world_id not in _components:
+    comp = _cached(_components, world_id)
+    if comp is None:
         grid = await load_terrain(world_id)
-        _components[world_id] = await asyncio.get_running_loop().run_in_executor(None, _label_land, grid)
-    comp = _components[world_id]
+        comp = _remember(_components, world_id, await asyncio.get_running_loop().run_in_executor(None, _label_land, grid))
     la, lb = int(comp[a[1], a[0]]), int(comp[b[1], b[0]])
     if la == -1 or lb == -1:
         return True  # water tile involved: let A* decide
