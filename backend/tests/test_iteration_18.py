@@ -14,10 +14,9 @@ import uuid
 import pytest
 import requests
 
-from tests.e2e_base import BASE_URL as BASE  # QA backend only
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL as BASE# QA backend only
 
 WORLD_ID = "qa_1"
-ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}
 
 DEMO = {"email": "demo@empirelords.com", "password": "Demo12345!"}
 MAX = {"email": "max@empirelords.com", "password": "Max12345!"}

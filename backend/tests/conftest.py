@@ -9,6 +9,10 @@ os.environ["DB_NAME"] = f"eld_test_{os.environ.get('PYTEST_XDIST_WORKER', 'main'
 os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["WORLD_AUTO_CREATE"] = "false"
 os.environ["QA_ENDPOINTS_ENABLED"] = "true"
+os.environ.setdefault("ADMIN_API_KEY", "test-admin-key-0123456789")
+# The suite registers dozens of throwaway accounts from one address; the limiter itself is covered by
+# tests/test_hardening.py, which sets its own threshold.
+os.environ["RATE_LIMIT_REGISTER_PER_HOUR"] = "0"
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402

@@ -4,8 +4,9 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from tests.paths import BACKEND_ENV
 
-load_dotenv("/app/backend/.env")
+load_dotenv(BACKEND_ENV)
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 
 

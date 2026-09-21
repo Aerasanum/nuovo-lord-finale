@@ -10,11 +10,11 @@ import uuid
 
 import requests
 from dotenv import load_dotenv
+from tests.paths import BACKEND_ENV, FRONTEND_ENV
 
-load_dotenv("/app/frontend/.env")
-load_dotenv("/app/backend/.env")
-from tests.e2e_base import BASE_URL  # QA backend only
-ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
+load_dotenv(FRONTEND_ENV)
+load_dotenv(BACKEND_ENV)
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
 RC_AUTH = {"Authorization": f"Bearer {os.environ['RC_WEBHOOK_AUTH']}", "Content-Type": "application/json"}
 WORLD = "qa_1"
 

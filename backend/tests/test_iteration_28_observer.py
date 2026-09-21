@@ -9,9 +9,10 @@ import os
 import pytest
 import requests
 from dotenv import load_dotenv
+from tests.paths import FRONTEND_ENV
 
-load_dotenv("/app/frontend/.env")
-from tests.e2e_base import BASE_URL  # QA backend only
+load_dotenv(FRONTEND_ENV)
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
 WORLD = "gm_1"
 GRAND = WORLD
 IT = f"{WORLD}:IT"
@@ -71,7 +72,7 @@ class TestPyramidDetails:
         assert d["config"]["first_open_day"] == 90
         # guardian is exposed via QA endpoint when DORMANT_INITIAL (not in player endpoint)
         qa = requests.get(_url("/qa/pyramid/config"), params={"world_id": WORLD, "pyramid_id": IT},
-                          headers={"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}, timeout=30).json()
+                          headers=ADMIN_HEADERS, timeout=30).json()
         assert qa["config"]["guardian"]["min_power"] == 250000
 
     def test_grand_config(self, obs):

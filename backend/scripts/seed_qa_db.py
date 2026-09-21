@@ -40,6 +40,13 @@ def run(*args: str, **env: str) -> None:
 
 
 async def main() -> None:
+    if "--drop" in sys.argv:
+        # Full reseed: the e2e suite consumes player slots and mutates the fixtures, so a clean slate is the only way
+        # to keep it repeatable. Guarded by the DB_NAME check at the top of this file.
+        from pymongo import MongoClient
+
+        MongoClient(os.environ["MONGO_URL"]).drop_database("eld_qa")
+        print("dropped database eld_qa")
     await ensure_indexes()
     await clock.load_offset()
     if not await db().worlds.find_one({"_id": "gm_1"}):

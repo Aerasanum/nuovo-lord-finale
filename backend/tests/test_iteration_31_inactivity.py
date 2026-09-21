@@ -13,10 +13,10 @@ import uuid
 import pytest
 import requests
 from dotenv import load_dotenv
+from tests.paths import FRONTEND_ENV
 
-load_dotenv("/app/frontend/.env")
-from tests.e2e_base import BASE_URL  # QA backend only
-ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
+load_dotenv(FRONTEND_ENV)
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
 WORLD = "qa_1"
 LORD = ("lord@empirelords.com", "Lord12345!")
 DEMO = ("demo@empirelords.com", "Demo12345!")

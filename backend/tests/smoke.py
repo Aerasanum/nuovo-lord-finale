@@ -6,8 +6,10 @@ import uuid
 
 import httpx
 
+from tests.e2e_base import ADMIN_HEADERS
+
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8001"
-ADMIN = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e"}
+ADMIN = ADMIN_HEADERS
 c = httpx.Client(base_url=BASE, timeout=60)
 
 email = f"smoke_{uuid.uuid4().hex[:6]}@test.it"

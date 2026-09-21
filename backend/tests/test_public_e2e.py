@@ -11,8 +11,8 @@ import time
 import pytest
 import requests
 
-from tests.e2e_base import BASE_URL  # QA backend only
-ADMIN_KEY = "eld-admin-7f3c9a1d2b4e"
+from tests.e2e_base import ADMIN_KEY as ADMIN_KEY_ENV, BASE_URL  # QA backend only
+ADMIN_KEY = ADMIN_KEY_ENV
 ADMIN_HEADERS = {"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"}
 DEMO_EMAIL = "demo@empirelords.com"
 DEMO_PASSWORD = "Demo12345!"

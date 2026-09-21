@@ -10,10 +10,10 @@ import uuid
 
 import requests
 from dotenv import load_dotenv
+from tests.paths import FRONTEND_DIR, FRONTEND_ENV
 
-load_dotenv("/app/frontend/.env")
-from tests.e2e_base import BASE_URL  # QA backend only
-ADMIN_HEADERS = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
+load_dotenv(FRONTEND_ENV)
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
 WORLD = "qa_1"
 
 
@@ -122,4 +122,4 @@ def test_touch_arms_return_after_long_gap():
 
 def test_rainbow_flag_in_march_dto_and_gallery_assets():
     for name in ("rainbow_0.jpg", "rainbow_1.jpg", "rainbow_conquest_0.jpg", "rainbow_conquest_1.jpg"):
-        assert os.path.exists(f"/app/frontend/assets/cinematics/{name}"), name
+        assert (FRONTEND_DIR / "assets" / "cinematics" / name).exists(), name

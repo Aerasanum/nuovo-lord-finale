@@ -8,10 +8,11 @@ import pytest
 from app.core.spec import get_spec, parse_duration_minutes
 from app.domain import formulas as F
 from app.domain.research import validate_dag
+from tests.paths import SPEC_DIR
 
 spec = get_spec()
-TABLES = open("/app/spec/03_TABELLE.md", encoding="utf-8").read()
-RICERCHE = open("/app/spec/04_RICERCHE.md", encoding="utf-8").read()
+TABLES = (SPEC_DIR / "03_TABELLE.md").read_text(encoding="utf-8")
+RICERCHE = (SPEC_DIR / "04_RICERCHE.md").read_text(encoding="utf-8")
 
 
 # 1 ------------------------------------------------------------------------------------------------

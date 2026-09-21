@@ -11,8 +11,8 @@ import uuid
 
 import requests
 
-from tests.e2e_base import BASE_URL  # QA backend only
-ADMIN = {"X-Admin-Key": "eld-admin-7f3c9a1d2b4e", "Content-Type": "application/json"}
+from tests.e2e_base import ADMIN_HEADERS, BASE_URL  # QA backend only
+ADMIN = ADMIN_HEADERS
 WORLD = "qa_1"
 HOME = None  # resolved from /me at runtime
 DEMO = ("demo@empirelords.com", "Demo12345!")
