@@ -13,14 +13,19 @@ from __future__ import annotations
 import os
 import sys
 import time
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
-load_dotenv("/app/backend/.env")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.fixture_creds import cred  # noqa: E402
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 BASE = os.environ.get("PUBLIC_BASE_URL", "https://empire-lords-dragon.preview.emergentagent.com").rstrip("/") + "/api"
 ADMIN = {"X-Admin-Key": os.environ["ADMIN_API_KEY"]}
-EMAIL, PASSWORD = "demo@empirelords.com", "Demo12345!"
+EMAIL, PASSWORD = "demo@empirelords.com", cred("DEMO_PASSWORD", "Demo12345!")
 
 
 def main() -> None:

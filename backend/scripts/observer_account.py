@@ -26,9 +26,10 @@ from app.domain import conquest, grande_mondo, worlds  # noqa: E402
 from app.domain import formulas as F  # noqa: E402
 from scripts.lord_account import village_state  # noqa: E402
 from scripts.max_account import LEGENDARY, STANDARD_ARMY, max_buildings, max_research  # noqa: E402
+from scripts.fixture_creds import cred  # noqa: E402
 
 EMAIL = "osservatore@empirelords.com"
-PASSWORD = "Demo12345!"
+PASSWORD = cred("OBSERVER_PASSWORD", "Demo12345!")
 DISPLAY = "Osservatore"
 HOUSE = "Casa Osservatore"
 REGION = "IT"

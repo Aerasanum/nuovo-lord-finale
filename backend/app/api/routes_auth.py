@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core import auth
@@ -30,9 +30,17 @@ class LogoutIn(BaseModel):
     refresh_token: str | None = None
 
 
+def _client_ip(request: Request) -> str:
+    """Caller address for rate limiting. Behind a proxy the first X-Forwarded-For hop is the real client."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/register")
-async def register(body: RegisterIn):
-    return await auth.register(body.email, body.password, body.display_name)
+async def register(body: RegisterIn, request: Request):
+    return await auth.register(body.email, body.password, body.display_name, client_ip=_client_ip(request))
 
 
 @router.post("/login")

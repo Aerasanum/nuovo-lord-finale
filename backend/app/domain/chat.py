@@ -5,6 +5,7 @@ Realm chat channels (world-scoped, Bible §19 communication):
                                           Mercenary contracts are planned here before/while a commission runs.
 Alliance chat keeps its own collection (alliances.py). Messages are append-only; clients poll with an `after` cursor.
 """
+import re
 import uuid
 
 from app.core import clock
@@ -93,7 +94,8 @@ async def nego_rooms(player: dict) -> list[dict]:
         return []
     mine_id = player["alliance_id"]
     rows: list[dict] = []
-    async for m in db().chat_messages.aggregate([{"$match": {"world_id": player["world_id"], "channel": {"$regex": f"^nego:.*{mine_id}"}}}, {"$sort": {"at": -1}}, {"$group": {"_id": "$channel", "last": {"$first": "$$ROOT"}}}, {"$sort": {"last.at": -1}}, {"$limit": 30}]):
+    # `re.escape`: the id is interpolated into a regex, so it must never be read as a pattern.
+    async for m in db().chat_messages.aggregate([{"$match": {"world_id": player["world_id"], "channel": {"$regex": f"^nego:.*{re.escape(mine_id)}"}}}, {"$sort": {"at": -1}}, {"$group": {"_id": "$channel", "last": {"$first": "$$ROOT"}}}, {"$sort": {"last.at": -1}}, {"$limit": 30}]):
         parts = m["_id"].split(":")
         other_id = parts[2] if parts[1] == mine_id else parts[1]
         other = await db().alliances.find_one({"_id": other_id}, {"name": 1, "tag": 1, "kind": 1})

@@ -31,9 +31,10 @@ from app.core.spec import get_spec  # noqa: E402
 from app.domain import conquest, formulas as F, sentinels, territory, worlds  # noqa: E402
 from app.domain.pathfinding import load_terrain  # noqa: E402
 from scripts.max_account import LEGENDARY, STANDARD_ARMY, max_buildings, max_research  # noqa: E402
+from scripts.fixture_creds import cred  # noqa: E402
 
 EMAIL = "lord@empirelords.com"
-PASSWORD = "Lord12345!"
+PASSWORD = cred("LORD_PASSWORD", "Lord12345!")
 DISPLAY = "LordDragon"
 HOUSE = "Casa Lord"
 WORLD = os.environ.get("LORD_WORLD", "gm_1")  # gm_1 (regione IT) for players, qa_1 (hidden classic) for the e2e suite

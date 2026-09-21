@@ -6,7 +6,9 @@ Both credential types are accepted as `Authorization: Bearer <token>`:
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import hmac
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -18,9 +20,11 @@ from fastapi import Depends, Header
 from jwt.exceptions import InvalidTokenError
 from pymongo.errors import DuplicateKeyError
 
-from app.core import clock, config
+from app.core import clock, config, ratelimit
 from app.core.db import db
 from app.core.errors import ApiError, unauthorized
+
+LOGIN_BUCKET = "login"
 
 
 def hash_password(password: str) -> str:
@@ -72,17 +76,21 @@ async def create_token_pair(account_id: str) -> dict:
     }
 
 
-async def register(email: str, password: str, display_name: str | None) -> dict:
+async def register(email: str, password: str, display_name: str | None, client_ip: str | None = None) -> dict:
     email = email.lower().strip()
     if len(password) < 8:
         raise ApiError("PASSWORD_TOO_SHORT", "Password must be at least 8 characters", 400)
+    if client_ip:
+        await ratelimit.hit("register", client_ip, config.RATE_LIMIT_REGISTER_PER_HOUR, 3600)
     account_id = f"acc_{uuid.uuid4().hex[:12]}"
+    # bcrypt at 12 rounds costs ~250 ms of pure CPU: off the event loop, or one signup stalls every other request.
+    password_hash = await asyncio.to_thread(hash_password, password)
     try:
         await db().accounts.insert_one(
             {
                 "_id": account_id,
                 "email": email,
-                "password_hash": hash_password(password),
+                "password_hash": password_hash,
                 "display_name": display_name or email.split("@")[0],
                 "provider": "password",
                 "created_at": clock.now(),
@@ -95,9 +103,15 @@ async def register(email: str, password: str, display_name: str | None) -> dict:
 
 
 async def login(email: str, password: str) -> dict:
-    acc = await db().accounts.find_one({"email": email.lower().strip()})
-    if not acc or not acc.get("password_hash") or not verify_password(password, acc["password_hash"]):
+    email = email.lower().strip()
+    # Throttle per account, not per address: credential stuffing rotates IPs but keeps hammering the same inbox.
+    # Only failures count, and a success clears the window, so a legitimate user is never locked out by past typos.
+    await ratelimit.hit(LOGIN_BUCKET, email, config.RATE_LIMIT_LOGIN_FAILURES, config.RATE_LIMIT_LOGIN_WINDOW_SECONDS)
+    acc = await db().accounts.find_one({"email": email})
+    ok = bool(acc and acc.get("password_hash")) and await asyncio.to_thread(verify_password, password, acc["password_hash"])
+    if not ok:
         raise ApiError("INVALID_CREDENTIALS", "Invalid email or password", 401)
+    await ratelimit.reset(LOGIN_BUCKET, email, config.RATE_LIMIT_LOGIN_WINDOW_SECONDS)
     tokens = await create_token_pair(acc["_id"])
     return {**tokens, "account": await public_account(acc["_id"])}
 
@@ -211,7 +225,7 @@ async def current_account_id(authorization: str | None = Header(default=None)) -
 
 
 def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
-    if not config.ADMIN_API_KEY or x_admin_key != config.ADMIN_API_KEY:
+    if not config.ADMIN_API_KEY or not hmac.compare_digest(x_admin_key or "", config.ADMIN_API_KEY):
         raise ApiError("FORBIDDEN", "Admin key required", 403)
 
 

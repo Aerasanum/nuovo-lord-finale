@@ -9,13 +9,15 @@ State written (server data model, same fields the runtime reads):
   settlement level 30 (Metropolis), every building L30 (Santuario Mitico L5 = its own 5-level table), all 114 research
   nodes at max level, resources = warehouse cap, wall L30 full HP, a full garrison of every standard unit and 3 of each
   Legendary (metropolis cap), ships, Rubies / speed-up bank for QA.
-Report: /app/memory/MAX_ACCOUNT_REPORT.md — time and resource cost for a normal player to reach every cap, warehouse
-feasibility of every single step (nothing unreachable) and the production-limited wall-clock estimate.
+Report (only with --report, so seeding never rewrites a tracked file): memory/MAX_ACCOUNT_REPORT.md — time and resource
+cost for a normal player to reach every cap, warehouse feasibility of every single step (nothing unreachable) and the
+production-limited wall-clock estimate.
 """
 from __future__ import annotations
 
 import asyncio
 import math
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,13 +33,14 @@ from app.core.db import db  # noqa: E402
 from app.core.spec import get_spec  # noqa: E402
 from app.domain import formulas as F  # noqa: E402
 from app.domain import worlds  # noqa: E402
+from scripts.fixture_creds import cred  # noqa: E402
 
 EMAIL = "max@empirelords.com"
-PASSWORD = "Max12345!"
+PASSWORD = cred("MAX_PASSWORD", "Max12345!")
 DISPLAY = "MaxLord"
 HOUSE = "Casa Max"
 WORLD = "qa_1"
-REPORT = Path("/app/memory/MAX_ACCOUNT_REPORT.md")
+REPORT = Path(os.environ.get("MAX_ACCOUNT_REPORT") or Path(__file__).resolve().parents[2] / "memory" / "MAX_ACCOUNT_REPORT.md")
 
 STANDARD_ARMY = {
     "Fanteria": 100_000,
@@ -393,6 +396,7 @@ def build_report(boot: dict | None) -> str:
 
 async def main() -> None:
     report_only = "--report" in sys.argv
+    write_report = report_only or "--write-report" in sys.argv
     boot = None if report_only else await bootstrap()
     if boot is None:
         acc = await db().accounts.find_one({"email": EMAIL})
@@ -400,6 +404,10 @@ async def main() -> None:
         home = await db().settlements.find_one({"owner_player_id": player["_id"]}, sort=[("founded_at", 1), ("_id", 1)]) if player else None
         if home:
             boot = {"player_id": player["_id"], "settlement_id": home["_id"], "xy": (home["x"], home["y"]), "cap": F.warehouse_capacity(max_buildings(), max_research(), get_spec())}
+    if not write_report:
+        # Seeding must not touch a tracked file: the report is only rewritten when asked for explicitly.
+        print("account ready (pass --report or --write-report to regenerate the feasibility report)")
+        return
     text = build_report(boot)
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(text, encoding="utf-8")

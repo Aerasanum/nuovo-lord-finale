@@ -23,11 +23,12 @@ from app.core.db import db  # noqa: E402
 from app.core.spec import get_spec  # noqa: E402
 from app.domain import conquest, formulas as F, worlds  # noqa: E402
 from scripts.max_account import max_buildings  # noqa: E402
+from scripts.fixture_creds import cred  # noqa: E402
 
-EMAIL, PASSWORD, DISPLAY, HOUSE, WORLD = "demo@empirelords.com", "Demo12345!", "Demo", "Casa Demo", "qa_1"
+EMAIL, PASSWORD, DISPLAY, HOUSE, WORLD = "demo@empirelords.com", cred("DEMO_PASSWORD", "Demo12345!"), "Demo", "Casa Demo", "qa_1"
 # no Elefante and prestige < 2000 on purpose: the e2e suite expects the elephant march skin to be LOCKED for Demo
 ARMY = {"Fanteria": 600, "Arciere": 400, "Cavalleria": 150, "Lupo": 80, "Orso": 40, "Falco": 20, "Drago": 1}
-ALLY_EMAIL, ALLY_PASSWORD, ALLY_HOUSE = "ally@empirelords.com", "Ally12345!", "Casa Ally"
+ALLY_EMAIL, ALLY_PASSWORD, ALLY_HOUSE = "ally@empirelords.com", cred("ALLY_PASSWORD", "Ally12345!"), "Casa Ally"
 
 
 def state(level: int, spec) -> dict:

@@ -35,9 +35,10 @@ from app.domain.pathfinding import load_terrain  # noqa: E402
 from app.domain.settlements import new_id  # noqa: E402
 from app.domain.store import PREMIUM_SKINS  # noqa: E402
 from scripts.max_account import LEGENDARY, STANDARD_ARMY, max_buildings, max_research  # noqa: E402
+from scripts.fixture_creds import cred  # noqa: E402
 
-EMAIL, PASSWORD, DISPLAY, HOUSE = "sovrano@empirelords.com", "Sovrano12345!", "Il Sovrano", "Casa Sovrana"
-ENEMY_EMAIL, ENEMY_PASSWORD, ENEMY_DISPLAY, ENEMY_HOUSE = "predone@empirelords.com", "Predone12345!", "Il Predone", "Casa Predone"
+EMAIL, PASSWORD, DISPLAY, HOUSE = "sovrano@empirelords.com", cred("SOVRANO_PASSWORD"), "Il Sovrano", "Casa Sovrana"
+ENEMY_EMAIL, ENEMY_PASSWORD, ENEMY_DISPLAY, ENEMY_HOUSE = "predone@empirelords.com", cred("PREDONE_PASSWORD", "Predone12345!"), "Il Predone", "Casa Predone"
 WORLD = "gm_1"
 REGION = "IT"
 CASTLES = 20
