@@ -223,6 +223,15 @@ export class EntityFactory {
     (this.parts.crystalGlow.mat as THREE.MeshBasicMaterial).opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 2.3)) + 0.2 * this.night;
   }
 
+  /** Frees the shared parts. disposeGroup skips them on purpose (every settlement points at the same ones), so the
+   *  owner of the factory has to release them when its scene goes away. */
+  dispose() {
+    for (const p of Object.values(this.parts)) {
+      p.geo.dispose();
+      p.mat.dispose();
+    }
+  }
+
   factionColor(f?: string): THREE.Color {
     return f === "OWN" ? this.pal.own : f === "ENEMY" ? this.pal.enemy : f === "ALLY" ? this.pal.ally : this.pal.neutral;
   }

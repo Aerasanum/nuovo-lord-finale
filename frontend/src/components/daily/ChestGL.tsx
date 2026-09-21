@@ -8,6 +8,8 @@ import React, { useCallback, useEffect, useRef } from "react";
 import { StyleSheet } from "react-native";
 import * as THREE from "three";
 
+import { disposeGroup } from "@/src/map3d/entities";
+
 // Physical asset colours (identical in every UI theme by design)
 const OAK = "#4A2E16";
 const OAK_DARK = "#33200E";
@@ -17,6 +19,13 @@ const GOLD_DEEP = "#C9922A";
 const LIGHT = "#FFE6A3";
 
 type Rig = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; lid: THREE.Group; glow: THREE.Mesh; rays: THREE.Mesh; coins: THREE.InstancedMesh; sparks: THREE.InstancedMesh; light: THREE.PointLight; raf: number; t0: number };
+
+/** The chest is built from scratch on every context, so its geometries and materials have to go back with it. */
+function disposeRig(r: Rig) {
+  cancelAnimationFrame(r.raf);
+  disposeGroup(r.scene);
+  r.renderer.dispose();
+}
 
 const COINS = 90;
 const SPARKS = 70;
@@ -46,10 +55,7 @@ export function ChestGL({ playing, anchorY = 0.5, widthFrac = 0.42 }: { playing:
   }, [playing]);
 
   const onContextCreate = useCallback((gl: ExpoWebGLRenderingContext) => {
-    if (rig.current) {
-      cancelAnimationFrame(rig.current.raf);
-      rig.current.renderer.dispose();
-    }
+    if (rig.current) disposeRig(rig.current);
     const w = gl.drawingBufferWidth;
     const h = gl.drawingBufferHeight;
     const canvas: any = { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: h, getContext: () => gl };
@@ -203,11 +209,8 @@ export function ChestGL({ playing, anchorY = 0.5, widthFrac = 0.42 }: { playing:
 
   useEffect(
     () => () => {
-      if (rig.current) {
-        cancelAnimationFrame(rig.current.raf);
-        rig.current.renderer.dispose();
-        rig.current = null;
-      }
+      if (rig.current) disposeRig(rig.current);
+      rig.current = null;
     },
     [],
   );

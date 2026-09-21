@@ -668,6 +668,7 @@ export class MapEngine {
     for (const node of this.pyramids.values()) node.monument.dispose();
     this.pyramids.clear();
     this.fog.dispose();
+    this.factory.dispose();
     for (const t of Object.values(this.textures)) t.dispose();
     this.sun.shadow.dispose();
     this.renderer.dispose();

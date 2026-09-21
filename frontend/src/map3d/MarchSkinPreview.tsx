@@ -15,7 +15,17 @@ import { animateSkin, buildSkin } from "./markerSkins";
 import { makeRoofTexture, makeStoneTexture } from "./textures";
 
 type Props = { skin: MarchSkin; crest?: CrestDto | null; style?: StyleProp<ViewStyle>; testID?: string };
-type Rig = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; factory: EntityFactory; marker: THREE.Group | null; skin: THREE.Group | null; raf: number };
+type Rig = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; factory: EntityFactory; textures: THREE.Texture[]; marker: THREE.Group | null; skin: THREE.Group | null; raf: number };
+
+/** Releases the GPU resources of one preview. Reached both when the GL context is recreated and on unmount. */
+function disposeRig(r: Rig) {
+  cancelAnimationFrame(r.raf);
+  if (r.marker) disposeGroup(r.marker);
+  disposeGroup(r.scene);
+  r.factory.dispose();
+  for (const t of r.textures) t.dispose();
+  r.renderer.dispose();
+}
 
 export function MarchSkinPreview({ skin, crest, style, testID }: Props) {
   const { colors } = useTheme();
@@ -50,10 +60,7 @@ export function MarchSkinPreview({ skin, crest, style, testID }: Props) {
 
   const onContextCreate = useCallback(
     (gl: ExpoWebGLRenderingContext) => {
-      if (rig.current) {
-        cancelAnimationFrame(rig.current.raf);
-        rig.current.renderer.dispose();
-      }
+      if (rig.current) disposeRig(rig.current);
       const w = gl.drawingBufferWidth;
       const h = gl.drawingBufferHeight;
       const canvas: any = { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: h, getContext: () => gl };
@@ -83,8 +90,9 @@ export function MarchSkinPreview({ skin, crest, style, testID }: Props) {
       scene.add(ground);
       const camera = new THREE.PerspectiveCamera(36, w / Math.max(1, h), 0.1, 60);
       const pal = { own: new THREE.Color(colors.factionOwn), enemy: new THREE.Color(colors.factionEnemy), neutral: new THREE.Color(colors.factionNeutral), ally: new THREE.Color(colors.factionAlly), snow: new THREE.Color(colors.onSurface) };
-      const factory = new EntityFactory(pal, { stone: makeStoneTexture(), roof: makeRoofTexture() });
-      const r: Rig = { renderer, scene, camera, factory, marker: null, skin: null, raf: 0 };
+      const textures = [makeStoneTexture(), makeRoofTexture()];
+      const factory = new EntityFactory(pal, { stone: textures[0], roof: textures[1] });
+      const r: Rig = { renderer, scene, camera, factory, textures, marker: null, skin: null, raf: 0 };
       rig.current = r;
       rebuild();
       const start = Date.now();
@@ -116,11 +124,7 @@ export function MarchSkinPreview({ skin, crest, style, testID }: Props) {
 
   useEffect(
     () => () => {
-      const r = rig.current;
-      if (!r) return;
-      cancelAnimationFrame(r.raf);
-      if (r.marker) disposeGroup(r.marker);
-      r.renderer.dispose();
+      if (rig.current) disposeRig(rig.current);
       rig.current = null;
     },
     [],

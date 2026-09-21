@@ -15,7 +15,18 @@ import { makeRoofTexture, makeStoneTexture } from "./textures";
 
 type Props = { skin: string; level: number; crest?: CrestDto | null; style?: StyleProp<ViewStyle>; testID?: string };
 
-type Rig = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; factory: EntityFactory; smoke: SmokeSystem; castle: THREE.Group | null; raf: number; gl: ExpoWebGLRenderingContext };
+type Rig = { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; factory: EntityFactory; textures: THREE.Texture[]; smoke: SmokeSystem; castle: THREE.Group | null; raf: number; gl: ExpoWebGLRenderingContext };
+
+/** Releases the GPU resources of one preview. Reached both when the GL context is recreated and on unmount. */
+function disposeRig(r: Rig) {
+  cancelAnimationFrame(r.raf);
+  if (r.castle) disposeGroup(r.castle);
+  disposeGroup(r.scene);
+  r.smoke.dispose();
+  r.factory.dispose();
+  for (const t of r.textures) t.dispose();
+  r.renderer.dispose();
+}
 
 export function CastlePreview({ skin, level, crest, style, testID }: Props) {
   const { colors } = useTheme();
@@ -48,10 +59,7 @@ export function CastlePreview({ skin, level, crest, style, testID }: Props) {
 
   const onContextCreate = useCallback(
     (gl: ExpoWebGLRenderingContext) => {
-      if (rig.current) {
-        cancelAnimationFrame(rig.current.raf);
-        rig.current.renderer.dispose();
-      }
+      if (rig.current) disposeRig(rig.current);
       const w = gl.drawingBufferWidth;
       const h = gl.drawingBufferHeight;
       const canvas: any = { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: h, getContext: () => gl };
@@ -81,10 +89,11 @@ export function CastlePreview({ skin, level, crest, style, testID }: Props) {
       scene.add(ground);
       const camera = new THREE.PerspectiveCamera(38, w / Math.max(1, h), 0.1, 100);
       const pal = { own: new THREE.Color(colors.factionOwn), enemy: new THREE.Color(colors.factionEnemy), neutral: new THREE.Color(colors.factionNeutral), ally: new THREE.Color(colors.factionAlly), snow: new THREE.Color(colors.onSurface) };
-      const factory = new EntityFactory(pal, { stone: makeStoneTexture(), roof: makeRoofTexture() });
+      const textures = [makeStoneTexture(), makeRoofTexture()];
+      const factory = new EntityFactory(pal, { stone: textures[0], roof: textures[1] });
       const smoke = new SmokeSystem(pal.snow.clone().multiplyScalar(0.8));
       scene.add(smoke.mesh);
-      const r: Rig = { renderer, scene, camera, factory, smoke, castle: null, raf: 0, gl };
+      const r: Rig = { renderer, scene, camera, factory, textures, smoke, castle: null, raf: 0, gl };
       rig.current = r;
       rebuild();
       const start = Date.now();
@@ -116,12 +125,7 @@ export function CastlePreview({ skin, level, crest, style, testID }: Props) {
 
   useEffect(
     () => () => {
-      const r = rig.current;
-      if (!r) return;
-      cancelAnimationFrame(r.raf);
-      if (r.castle) disposeGroup(r.castle);
-      r.smoke.dispose();
-      r.renderer.dispose();
+      if (rig.current) disposeRig(rig.current);
       rig.current = null;
     },
     [],

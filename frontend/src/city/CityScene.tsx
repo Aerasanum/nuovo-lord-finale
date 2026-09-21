@@ -32,6 +32,7 @@ type Rig = {
   sun: THREE.DirectionalLight;
   hemi: THREE.HemisphereLight;
   factory: EntityFactory;
+  textures: THREE.Texture[];
   smoke: SmokeSystem;
   villagers: Villagers;
   sky: Sky;
@@ -41,6 +42,19 @@ type Rig = {
   daylightMinute: number;
   night: number;
 };
+
+/** Releases everything the scene allocated on the GPU. Both teardown paths (a new GL context and unmount) go
+ *  through here: the scene is rebuilt every time the Player walks in and out of the city. */
+function disposeRig(r: Rig) {
+  cancelAnimationFrame(r.raf);
+  r.village?.dispose();
+  r.villagers.dispose();
+  r.smoke.dispose();
+  r.sky.dispose();
+  r.factory.dispose();
+  for (const t of r.textures) t.dispose();
+  r.renderer.dispose();
+}
 
 export function CityScene({ input, onPick, style, testID, interactive = true }: Props) {
   const { colors } = useTheme();
@@ -111,13 +125,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
 
   const onContextCreate = useCallback(
     (gl: ExpoWebGLRenderingContext) => {
-      if (rig.current) {
-        cancelAnimationFrame(rig.current.raf);
-        rig.current.village?.dispose();
-        rig.current.villagers.dispose();
-        rig.current.sky.dispose();
-        rig.current.renderer.dispose();
-      }
+      if (rig.current) disposeRig(rig.current);
       const w = gl.drawingBufferWidth;
       const h = gl.drawingBufferHeight;
       const canvas: any = { width: w, height: h, style: {}, addEventListener: () => {}, removeEventListener: () => {}, clientHeight: h, getContext: () => gl };
@@ -147,12 +155,13 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
       scene.add(sky.group);
       const camera = new THREE.PerspectiveCamera(40, w / Math.max(1, h), 0.1, 160);
       const pal = { own: new THREE.Color(colors.factionOwn), enemy: new THREE.Color(colors.factionEnemy), neutral: new THREE.Color(colors.factionNeutral), ally: new THREE.Color(colors.factionAlly), snow: new THREE.Color(colors.onSurface) };
-      const factory = new EntityFactory(pal, { stone: makeStoneTexture(), roof: makeRoofTexture() });
+      const textures = [makeStoneTexture(), makeRoofTexture()];
+      const factory = new EntityFactory(pal, { stone: textures[0], roof: textures[1] });
       const smoke = new SmokeSystem(new THREE.Color("#f0ece6"));
       scene.add(smoke.mesh);
       const villagers = new Villagers(pal.own, 1.45);
       scene.add(villagers.group);
-      const r: Rig = { gl, renderer, scene, camera, sun, hemi, factory, smoke, villagers, sky, village: null, raf: 0, lastMs: Date.now(), daylightMinute: -1, night: 0 };
+      const r: Rig = { gl, renderer, scene, camera, sun, hemi, factory, textures, smoke, villagers, sky, village: null, raf: 0, lastMs: Date.now(), daylightMinute: -1, night: 0 };
       rig.current = r;
       rebuild();
       const loop = () => {
@@ -209,14 +218,7 @@ export function CityScene({ input, onPick, style, testID, interactive = true }: 
 
   useEffect(
     () => () => {
-      const r = rig.current;
-      if (!r) return;
-      cancelAnimationFrame(r.raf);
-      r.village?.dispose();
-      r.villagers.dispose();
-      r.smoke.dispose();
-      r.sky.dispose();
-      r.renderer.dispose();
+      if (rig.current) disposeRig(rig.current);
       rig.current = null;
     },
     [],
