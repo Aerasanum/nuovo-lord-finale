@@ -5,7 +5,7 @@
 import { focusManager, QueryClient } from "@tanstack/react-query";
 import { AppState, Platform } from "react-native";
 
-import { ApiError } from "@/src/api/client";
+import { ApiError, isUnreachable } from "@/src/api/client";
 
 // React Query decides whether the app is "in the background" from a browser visibilitychange listener. On a
 // device there is no document, so it considers the app focused forever and the two dozen polling queries keep
@@ -21,7 +21,7 @@ export const queryClient = new QueryClient({
       refetchIntervalInBackground: false,
       // A rejected command (not enough resources, queue full, …) is an answer, not a hiccup: retrying it three
       // times only delays the error the screen is about to show. Transport and server faults are worth a retry.
-      retry: (attempt, error) => attempt < 2 && (!(error instanceof ApiError) || error.status === 0 || error.status >= 500),
+      retry: (attempt, error) => attempt < 2 && (!(error instanceof ApiError) || isUnreachable(error) || error.status >= 500),
     },
   },
 });

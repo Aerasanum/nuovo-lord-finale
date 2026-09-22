@@ -2,7 +2,7 @@ import { MaterialDesignIcons } from "@react-native-vector-icons/material-design-
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleProp, Text, TextStyle, View, ViewStyle } from "react-native";
 
-import { ApiError, secondsUntil } from "@/src/api/client";
+import { isUnreachable, secondsUntil } from "@/src/api/client";
 import { formatDuration, formatNumber, RESOURCE_LABELS, useI18n } from "@/src/i18n";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
@@ -247,7 +247,7 @@ export function LoadState({ query, label, testID }: { query: QueryState; label?:
   const { colors } = useTheme();
   const { t } = useI18n();
   if (!query.isError) return <Loading label={label} />;
-  const message = (query.error as ApiError | null)?.code === "NETWORK_ERROR" ? t("errorNetwork") : (query.error as Error | null)?.message;
+  const message = isUnreachable(query.error) ? t("errorNetwork") : (query.error as Error | null)?.message;
   return (
     <View style={s.center} testID={testID ?? "load-error"}>
       <Icon name="cloud-off-outline" size={40} color={colors.muted} />

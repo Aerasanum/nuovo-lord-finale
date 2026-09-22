@@ -34,6 +34,9 @@ export class ApiError extends Error {
   }
 }
 
+/** No answer came back at all — no connection, or none within the deadline. Status 0 is never a real response. */
+export const isUnreachable = (e: unknown): boolean => e instanceof ApiError && e.status === 0;
+
 const ACCESS_KEY = "eld.access_token";
 const REFRESH_KEY = "eld.refresh_token";
 const SESSION_KEY = "eld.session_token";
@@ -108,23 +111,37 @@ async function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T = any>(path: string, init: RequestInit & { auth?: boolean; retry?: boolean } = {}): Promise<T> {
-  const { auth = true, retry = true, ...rest } = init;
+/**
+ * A stalled mobile connection does not fail — it hangs. Without a deadline the promise never settles, so React
+ * Query stays in `isFetching`, no error is ever raised and the retry screen it would have shown never appears:
+ * the player just watches a spinner. Twenty seconds is far longer than any endpoint the client calls.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
+export async function api<T = any>(path: string, init: RequestInit & { auth?: boolean; retry?: boolean; timeoutMs?: number } = {}): Promise<T> {
+  const { auth = true, retry = true, timeoutMs = REQUEST_TIMEOUT_MS, ...rest } = init;
   const headers: Record<string, string> = { "Content-Type": "application/json", ...((rest.headers as Record<string, string>) || {}) };
   const bearer = tokenStore.bearer();
   if (auth && bearer) headers.Authorization = `Bearer ${bearer}`;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   let res: Response;
+  let text: string;
   try {
-    res = await fetch(`${API}${path}`, { ...rest, headers });
+    // The body is read inside the deadline too: headers can arrive promptly and then the body stall forever.
+    res = await fetch(`${API}${path}`, { ...rest, headers, signal: abort.signal });
+    text = await res.text();
   } catch (e: any) {
+    if (abort.signal.aborted) throw new ApiError(0, { code: "TIMEOUT", message: `No answer within ${Math.round(timeoutMs / 1000)}s`, retryable: true });
     throw new ApiError(0, { code: "NETWORK_ERROR", message: e?.message || "Network error", retryable: true });
+  } finally {
+    clearTimeout(timer);
   }
   if (res.status === 401 && auth && retry) {
     if (await tryRefresh()) return api<T>(path, { ...init, retry: false });
     await tokenStore.clear();
     onUnauthorized?.();
   }
-  const text = await res.text();
   const body = text ? safeJson(text) : null;
   if (!res.ok) throw new ApiError(res.status, body);
   return body as T;

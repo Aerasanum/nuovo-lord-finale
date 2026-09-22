@@ -1,6 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFocused } from "expo-router";
 
 import { api, get, post, put, syncServerTime } from "./client";
+
+/**
+ * Polling that stops while its screen is off screen.
+ *
+ * The queries below poll between 5 and 60 seconds — around two requests a second per player if every one of them
+ * were live at once. Tab screens stay mounted after their first visit, so the load used to grow with everywhere
+ * the player had been rather than with what they are looking at. React Query polls a key at the shortest interval
+ * any of its mounted observers asks for, so a blurred screen bowing out never stops a visible one.
+ */
+function usePolling(ms: number): number | false {
+  return useIsFocused() ? ms : false;
+}
 
 export type Resources = Record<"grain" | "wood" | "clay" | "iron" | "gold", number>;
 
@@ -105,7 +118,7 @@ export type MythicDto = {
 };
 
 export function useMythic(worldId?: string | null) {
-  return useQuery({ queryKey: ["mythic", worldId], queryFn: () => get<MythicDto>(`/worlds/${worldId}/mythic`), enabled: !!worldId, refetchInterval: 30_000 });
+  return useQuery({ queryKey: ["mythic", worldId], queryFn: () => get<MythicDto>(`/worlds/${worldId}/mythic`), enabled: !!worldId, refetchInterval: usePolling(30_000) });
 }
 
 export function useUnicornSummon(worldId: string) {
@@ -251,7 +264,7 @@ export function useCaravanInfo(worldId?: string | null, sid?: string | null) {
 }
 
 export function useCaravanSearch(worldId?: string | null, sid?: string | null) {
-  return useQuery<{ radius: number; interception_unlocked: boolean; caravans: DetectedCaravan[] }>({ queryKey: ["caravan-search", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/caravans/search`), enabled: !!worldId && !!sid, refetchInterval: 30000 });
+  return useQuery<{ radius: number; interception_unlocked: boolean; caravans: DetectedCaravan[] }>({ queryKey: ["caravan-search", worldId || "", sid || ""], queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/caravans/search`), enabled: !!worldId && !!sid, refetchInterval: usePolling(30000) });
 }
 
 export function useCaravanMutations(worldId: string) {
@@ -458,19 +471,19 @@ export function useTeleportMutation(worldId: string, sid: string) {
 }
 
 export function useGrandeMondo(worldId?: string | null, enabled = true) {
-  return useQuery<GrandeMondoDto & { server_time: string }>({ queryKey: ["grande-mondo", worldId || ""], queryFn: () => get(`/worlds/${worldId}/grande-mondo`).then(sync), enabled: !!worldId && enabled, refetchInterval: 30000 });
+  return useQuery<GrandeMondoDto & { server_time: string }>({ queryKey: ["grande-mondo", worldId || ""], queryFn: () => get(`/worlds/${worldId}/grande-mondo`).then(sync), enabled: !!worldId && enabled, refetchInterval: usePolling(30000) });
 }
 
 export function useWorlds(enabled = true) {
-  return useQuery({ queryKey: qk.worlds, queryFn: () => get("/worlds").then(sync), enabled, refetchInterval: 15000 });
+  return useQuery({ queryKey: qk.worlds, queryFn: () => get("/worlds").then(sync), enabled, refetchInterval: usePolling(15000) });
 }
 
 export function useMe(worldId?: string | null) {
-  return useQuery({ queryKey: qk.me(worldId || ""), queryFn: () => get(`/worlds/${worldId}/me`).then(sync), enabled: !!worldId, refetchInterval: 20000 });
+  return useQuery({ queryKey: qk.me(worldId || ""), queryFn: () => get(`/worlds/${worldId}/me`).then(sync), enabled: !!worldId, refetchInterval: usePolling(20000) });
 }
 
 export function useSettlement(worldId?: string | null, sid?: string | null) {
-  return useQuery<SettlementDto>({ queryKey: qk.settlement(worldId || "", sid || ""), queryFn: () => get(`/worlds/${worldId}/settlements/${sid}`).then(sync), enabled: !!worldId && !!sid, refetchInterval: 10000 });
+  return useQuery<SettlementDto>({ queryKey: qk.settlement(worldId || "", sid || ""), queryFn: () => get(`/worlds/${worldId}/settlements/${sid}`).then(sync), enabled: !!worldId && !!sid, refetchInterval: usePolling(10000) });
 }
 
 export function useBuildings(worldId?: string | null, sid?: string | null) {
@@ -478,7 +491,7 @@ export function useBuildings(worldId?: string | null, sid?: string | null) {
     queryKey: qk.buildings(worldId || "", sid || ""),
     queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/buildings`).then(sync),
     enabled: !!worldId && !!sid,
-    refetchInterval: 10000,
+    refetchInterval: usePolling(10000),
   });
 }
 
@@ -487,7 +500,7 @@ export function useResearch(worldId?: string | null, sid?: string | null) {
     queryKey: qk.research(worldId || "", sid || ""),
     queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/research`).then(sync),
     enabled: !!worldId && !!sid,
-    refetchInterval: 15000,
+    refetchInterval: usePolling(15000),
   });
 }
 
@@ -496,7 +509,7 @@ export function useArmy(worldId?: string | null, sid?: string | null) {
     queryKey: qk.army(worldId || "", sid || ""),
     queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/army`).then(sync),
     enabled: !!worldId && !!sid,
-    refetchInterval: 10000,
+    refetchInterval: usePolling(10000),
   });
 }
 
@@ -505,12 +518,12 @@ export function useSentinels(worldId?: string | null, sid?: string | null) {
     queryKey: qk.sentinels(worldId || "", sid || ""),
     queryFn: () => get(`/worlds/${worldId}/settlements/${sid}/sentinels`),
     enabled: !!worldId && !!sid,
-    refetchInterval: 15000,
+    refetchInterval: usePolling(15000),
   });
 }
 
 export function useMarches(worldId?: string | null) {
-  return useQuery<{ marches: MarchDto[]; incoming: MarchDto[]; server_time: string }>({ queryKey: qk.marches(worldId || ""), queryFn: () => get(`/worlds/${worldId}/marches`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
+  return useQuery<{ marches: MarchDto[]; incoming: MarchDto[]; server_time: string }>({ queryKey: qk.marches(worldId || ""), queryFn: () => get(`/worlds/${worldId}/marches`).then(sync), enabled: !!worldId, refetchInterval: usePolling(10000) });
 }
 
 export function useHouse(worldId?: string | null) {
@@ -554,7 +567,7 @@ export function useTourSeen(worldId: string) {
 }
 
 export function useBattles(worldId?: string | null) {
-  return useQuery<{ battles: BattleDto[] }>({ queryKey: qk.battles(worldId || ""), queryFn: () => get(`/worlds/${worldId}/battles`), enabled: !!worldId, refetchInterval: 20000 });
+  return useQuery<{ battles: BattleDto[] }>({ queryKey: qk.battles(worldId || ""), queryFn: () => get(`/worlds/${worldId}/battles`), enabled: !!worldId, refetchInterval: usePolling(20000) });
 }
 
 export function useBattle(worldId?: string | null, id?: string | null) {
@@ -562,7 +575,7 @@ export function useBattle(worldId?: string | null, id?: string | null) {
 }
 
 export function useInbox(worldId?: string | null) {
-  return useQuery<{ items: InboxItem[]; unread: number; server_time: string }>({ queryKey: qk.inbox(worldId || ""), queryFn: () => get(`/worlds/${worldId}/inbox?limit=200`).then(sync), enabled: !!worldId, refetchInterval: 10000 });
+  return useQuery<{ items: InboxItem[]; unread: number; server_time: string }>({ queryKey: qk.inbox(worldId || ""), queryFn: () => get(`/worlds/${worldId}/inbox?limit=200`).then(sync), enabled: !!worldId, refetchInterval: usePolling(10000) });
 }
 
 export function usePublicSettlement(worldId?: string | null, id?: string | null) {
@@ -592,7 +605,7 @@ export type MissionsOverview = { catalog: MissionCatalogEntry[]; active: Mission
 export type ChronicleEntry = { chronicle_id: string; kind: string; params: Record<string, any>; actors: string[]; at: string };
 
 export function useMissions(worldId?: string | null) {
-  return useQuery<MissionsOverview>({ queryKey: ["missions", worldId || ""], queryFn: () => get(`/worlds/${worldId}/missions`), enabled: !!worldId, refetchInterval: 15000 });
+  return useQuery<MissionsOverview>({ queryKey: ["missions", worldId || ""], queryFn: () => get(`/worlds/${worldId}/missions`), enabled: !!worldId, refetchInterval: usePolling(15000) });
 }
 
 export function useStartMission(worldId: string) {
@@ -683,7 +696,7 @@ export type TreasuryDto = { emeralds: number; entries: { ledger_id: string; amou
 export type DiplomacyAction = "pna_propose" | "pna_accept" | "pna_decline" | "pna_terminate" | "war_propose" | "peace_propose" | "peace_accept";
 
 export function useMyAlliance(worldId?: string | null) {
-  return useQuery<MyAllianceDto>({ queryKey: ["alliance", worldId], queryFn: () => get(`/worlds/${worldId}/alliance`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+  return useQuery<MyAllianceDto>({ queryKey: ["alliance", worldId], queryFn: () => get(`/worlds/${worldId}/alliance`).then(sync), enabled: !!worldId, refetchInterval: usePolling(15000) });
 }
 export function useAlliances(worldId?: string | null) {
   return useQuery<{ alliances: AlliancePublic[]; caps: Record<string, number> }>({ queryKey: ["alliances", worldId], queryFn: () => get(`/worlds/${worldId}/alliances`), enabled: !!worldId });
@@ -692,7 +705,7 @@ export function useAlliancePublic(worldId?: string | null, id?: string | null) {
   return useQuery<AlliancePublic>({ queryKey: ["alliance-public", worldId, id], queryFn: () => get(`/worlds/${worldId}/alliances/${id}`), enabled: !!worldId && !!id });
 }
 export function useAllianceChat(worldId?: string | null, enabled = true) {
-  return useQuery<{ messages: ChatMessage[] }>({ queryKey: ["alliance-chat", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/chat?limit=100`), enabled: !!worldId && enabled, refetchInterval: 5000 });
+  return useQuery<{ messages: ChatMessage[] }>({ queryKey: ["alliance-chat", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/chat?limit=100`), enabled: !!worldId && enabled, refetchInterval: usePolling(5000) });
 }
 // ---- realm chat (world / negotiations) + mercenary hire directory ----
 export type RealmChatMessage = { message_id: string; channel: string; player_id: string | null; house_name: string | null; alliance_tag: string | null; alliance_id: string | null; role: AllianceRole | null; text: string; at: string };
@@ -701,16 +714,16 @@ export type ChatSummary = { world: { channel: string; last: RealmChatMessage | n
 export type MercenaryEntry = AlliancePublic & { active_contracts: number; max_active: number; contracts_failed: number; available: boolean };
 
 export function useChatSummary(worldId?: string | null) {
-  return useQuery<ChatSummary>({ queryKey: ["chat-summary", worldId], queryFn: () => get(`/worlds/${worldId}/chat/summary`), enabled: !!worldId, refetchInterval: 8000 });
+  return useQuery<ChatSummary>({ queryKey: ["chat-summary", worldId], queryFn: () => get(`/worlds/${worldId}/chat/summary`), enabled: !!worldId, refetchInterval: usePolling(8000) });
 }
 export function useWorldChat(worldId?: string | null, enabled = true) {
-  return useQuery<{ messages: RealmChatMessage[] }>({ queryKey: ["world-chat", worldId], queryFn: () => get(`/worlds/${worldId}/chat/world?limit=100`), enabled: !!worldId && enabled, refetchInterval: 5000 });
+  return useQuery<{ messages: RealmChatMessage[] }>({ queryKey: ["world-chat", worldId], queryFn: () => get(`/worlds/${worldId}/chat/world?limit=100`), enabled: !!worldId && enabled, refetchInterval: usePolling(5000) });
 }
 export function useNegotiation(worldId?: string | null, allianceId?: string | null) {
-  return useQuery<{ channel: string; alliance: AlliancePublic; messages: RealmChatMessage[] }>({ queryKey: ["nego-chat", worldId, allianceId], queryFn: () => get(`/worlds/${worldId}/chat/negotiations/${allianceId}?limit=100`), enabled: !!worldId && !!allianceId, refetchInterval: 5000 });
+  return useQuery<{ channel: string; alliance: AlliancePublic; messages: RealmChatMessage[] }>({ queryKey: ["nego-chat", worldId, allianceId], queryFn: () => get(`/worlds/${worldId}/chat/negotiations/${allianceId}?limit=100`), enabled: !!worldId && !!allianceId, refetchInterval: usePolling(5000) });
 }
 export function useMercenaryDirectory(worldId?: string | null, enabled = true) {
-  return useQuery<{ mercenaries: MercenaryEntry[] }>({ queryKey: ["mercenaries", worldId], queryFn: () => get(`/worlds/${worldId}/mercenaries`), enabled: !!worldId && enabled, refetchInterval: 30000 });
+  return useQuery<{ mercenaries: MercenaryEntry[] }>({ queryKey: ["mercenaries", worldId], queryFn: () => get(`/worlds/${worldId}/mercenaries`), enabled: !!worldId && enabled, refetchInterval: usePolling(30000) });
 }
 export function useRealmChatMutations(worldId: string) {
   const qc = useQueryClient();
@@ -725,7 +738,7 @@ export function useAllianceTreasury(worldId?: string | null, enabled = true) {
   return useQuery<TreasuryDto>({ queryKey: ["alliance-treasury", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/treasury`), enabled: !!worldId && enabled });
 }
 export function useMercenaryMarket(worldId?: string | null, enabled = true) {
-  return useQuery<MarketDto>({ queryKey: ["alliance-market", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/mercenary`), enabled: !!worldId && enabled, refetchInterval: 20000 });
+  return useQuery<MarketDto>({ queryKey: ["alliance-market", worldId], queryFn: () => get(`/worlds/${worldId}/alliance/mercenary`), enabled: !!worldId && enabled, refetchInterval: usePolling(20000) });
 }
 
 export function useAllianceMutations(worldId: string) {
@@ -816,12 +829,12 @@ export type PyramidDto = {
 
 /** One Pyramid: `id` = "<world>" (classic / Grande Piramide) or "<world>:<REG>" (Piccola Piramide); default = the viewer's own. */
 export function usePyramid(worldId?: string | null, id?: string | null) {
-  return useQuery<PyramidDto>({ queryKey: ["pyramid", worldId, id ?? "mine"], queryFn: () => get(`/worlds/${worldId}/pyramid${id ? `?id=${encodeURIComponent(id)}` : ""}`).then(sync), enabled: !!worldId, refetchInterval: 15000 });
+  return useQuery<PyramidDto>({ queryKey: ["pyramid", worldId, id ?? "mine"], queryFn: () => get(`/worlds/${worldId}/pyramid${id ? `?id=${encodeURIComponent(id)}` : ""}`).then(sync), enabled: !!worldId, refetchInterval: usePolling(15000) });
 }
 
 /** Every Pyramid of the realm (Grande Piramide + Piccole Piramidi) — monuments on the map. */
 export function usePyramids(worldId?: string | null) {
-  return useQuery<{ pyramids: PyramidSummary[]; server_time: string }>({ queryKey: ["pyramids", worldId], queryFn: () => get(`/worlds/${worldId}/pyramids`).then(sync), enabled: !!worldId, refetchInterval: 20000 });
+  return useQuery<{ pyramids: PyramidSummary[]; server_time: string }>({ queryKey: ["pyramids", worldId], queryFn: () => get(`/worlds/${worldId}/pyramids`).then(sync), enabled: !!worldId, refetchInterval: usePolling(20000) });
 }
 
 // ---------------------------------------------------------------------------------------------- premium / rubies (Bible §23)
@@ -843,7 +856,7 @@ export type StoreSkin = { id: string; tier: number; price_rubies: number; owned:
 export type StoreReward = { reward_id: string; product_id: string; units: Record<string, number>; at: string };
 export type StoreDto = { rubies: number; billing: { channel: string; status: "LIVE" | "COMING_SOON"; environment: string }; packs: StorePack[]; skins: StoreSkin[]; pending_rewards: StoreReward[]; purchases: number; server_time: string };
 export function useStore(enabled = true) {
-  return useQuery<StoreDto>({ queryKey: ["store"], queryFn: () => get("/store"), enabled, refetchInterval: 20000 });
+  return useQuery<StoreDto>({ queryKey: ["store"], queryFn: () => get("/store"), enabled, refetchInterval: usePolling(20000) });
 }
 export function useStoreMutations(worldId?: string | null) {
   const qc = useQueryClient();
@@ -869,7 +882,7 @@ export function useStoreMutations(worldId?: string | null) {
 }
 
 export function useWallet(enabled = true) {
-  return useQuery<WalletDto>({ queryKey: ["wallet"], queryFn: () => get("/wallet"), enabled, refetchInterval: 30000 });
+  return useQuery<WalletDto>({ queryKey: ["wallet"], queryFn: () => get("/wallet"), enabled, refetchInterval: usePolling(30000) });
 }
 export function useSpecialization(worldId?: string | null) {
   return useQuery<SpecializationDto>({ queryKey: ["specialization", worldId], queryFn: () => get(`/worlds/${worldId}/specialization`), enabled: !!worldId });
@@ -879,7 +892,7 @@ export type DailyReward = { day: number; kind: "RESOURCES" | "CHEST"; mult: numb
 export type DailyStatus = { day: number; claimable: boolean; streak: number; next_reset_at: string; rewards: DailyReward[]; capital_settlement_id: string | null };
 export type DailyGrant = { day: number; kind: DailyReward["kind"]; mult: number; resources: Partial<Resources> | null; discarded: Partial<Resources> | null };
 export function useDaily(worldId?: string | null) {
-  return useQuery<DailyStatus>({ queryKey: ["daily", worldId], queryFn: () => get(`/worlds/${worldId}/daily`), enabled: !!worldId, refetchInterval: 60000 });
+  return useQuery<DailyStatus>({ queryKey: ["daily", worldId], queryFn: () => get(`/worlds/${worldId}/daily`), enabled: !!worldId, refetchInterval: usePolling(60000) });
 }
 export function useDailyMutations(worldId: string) {
   const qc = useQueryClient();
