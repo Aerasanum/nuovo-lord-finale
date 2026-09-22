@@ -77,3 +77,5 @@ jobs:
         run: yarn lint
       - name: Typecheck
         run: yarn typecheck
+      - name: Tests
+        run: yarn test --ci

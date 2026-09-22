@@ -2206,16 +2206,16 @@ const I18nContext = createContext<Ctx>({ lang: "it", t: (k) => it[k], setLang: (
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("it");
-  // activeLang is set before the state, so the re-render already formats in the new language.
+  // The formatters' language is set before the state, so the re-render already formats in the new language.
   useEffect(() => {
     storage.getItem<string>("eld.lang", "it").then((v) => {
       const next = v && LANGS.some((l) => l.code === v) ? (v as Lang) : "it";
-      activeLang = next;
+      setFormatterLanguage(next);
       setLangState(next);
     });
   }, []);
   const setLang = useCallback((l: Lang) => {
-    activeLang = l;
+    setFormatterLanguage(l);
     setLangState(l);
     storage.setItem("eld.lang", l);
   }, []);
@@ -2261,7 +2261,18 @@ export const RESOURCE_LABELS: Record<Lang, Record<string, string>> = {
 // Countdowns and resource counts are formatted from dozens of render paths that call these as plain functions.
 // Threading the language through every one of them would touch most of the app, so the provider publishes the
 // active language here instead and the formatters read it.
+/**
+ * The language the two formatters below read.
+ *
+ * They are plain functions, called from render paths and from places with no hook context, so the choice cannot
+ * come from the context the rest of the file uses. The provider is the only writer; keeping the assignment behind
+ * a named function is what makes that ownership visible, and what lets the formatting be tested per language.
+ */
 let activeLang: Lang = "it";
+
+export function setFormatterLanguage(l: Lang): void {
+  activeLang = l;
+}
 
 const DURATION_UNITS: Record<Lang, { d: string; h: string; m: string }> = {
   it: { d: "g", h: "h", m: "m" },

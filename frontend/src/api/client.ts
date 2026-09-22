@@ -118,7 +118,9 @@ async function tryRefresh(): Promise<boolean> {
  */
 const REQUEST_TIMEOUT_MS = 20_000;
 
-export async function api<T = any>(path: string, init: RequestInit & { auth?: boolean; retry?: boolean; timeoutMs?: number } = {}): Promise<T> {
+export type ApiInit = RequestInit & { auth?: boolean; retry?: boolean; timeoutMs?: number };
+
+export async function api<T = any>(path: string, init: ApiInit = {}): Promise<T> {
   const { auth = true, retry = true, timeoutMs = REQUEST_TIMEOUT_MS, ...rest } = init;
   const headers: Record<string, string> = { "Content-Type": "application/json", ...((rest.headers as Record<string, string>) || {}) };
   const bearer = tokenStore.bearer();
@@ -155,9 +157,9 @@ function safeJson(text: string) {
   }
 }
 
-export const post = <T = any>(path: string, body?: unknown, init?: RequestInit) => api<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body), ...init });
-export const put = <T = any>(path: string, body?: unknown, init?: RequestInit) => api<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body), ...init });
-export const get = <T = any>(path: string, init?: RequestInit) => api<T>(path, { method: "GET", ...init });
+export const post = <T = any>(path: string, body?: unknown, init?: ApiInit) => api<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body), ...init });
+export const put = <T = any>(path: string, body?: unknown, init?: ApiInit) => api<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body), ...init });
+export const get = <T = any>(path: string, init?: ApiInit) => api<T>(path, { method: "GET", ...init });
 
 // ---- server clock sync: remaining timers are computed against server_time ----
 let serverOffsetMs = 0;
