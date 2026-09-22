@@ -18,6 +18,10 @@ node_modules/
 
 # Testing
 /coverage
+# Coverage data, written next to the suite that produced it (backend/.coverage).
+.coverage
+.coverage.*
+htmlcov/
 
 # Next.js
 /.next/
