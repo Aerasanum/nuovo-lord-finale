@@ -9,9 +9,11 @@ os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["WORLD_AUTO_CREATE"] = "false"
 os.environ["QA_ENDPOINTS_ENABLED"] = "true"
 os.environ.setdefault("ADMIN_API_KEY", "test-admin-key-0123456789")
-# The suite registers dozens of throwaway accounts from one address; the limiter itself is covered by
-# tests/test_hardening.py, which sets its own threshold.
+# The suite registers dozens of throwaway accounts from one address and drives months of play in seconds, which is
+# the traffic the action ceiling exists to stop. Both limiters are covered by tests/test_hardening.py, which sets
+# its own threshold rather than relying on the default.
 os.environ["RATE_LIMIT_REGISTER_PER_HOUR"] = "0"
+os.environ["RATE_LIMIT_ACTIONS_PER_MINUTE"] = "0"
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402

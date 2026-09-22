@@ -7,13 +7,14 @@
 # the live backend (:8001, DB eld) once advanced the real Grande Mondo by 99 days and eliminated real players through
 # the inactivity sweep (13/09/2026). The live DB must never be touched by tests again → see scripts/e2e.sh.
 #
-# Registration throttling is switched off here (RATE_LIMIT_REGISTER_PER_HOUR=0): the suite signs up hundreds of
-# throwaway accounts from one address. The limiter itself is covered by tests/test_hardening.py.
+# Registration and action throttling are switched off here (RATE_LIMIT_*=0): the suite signs up hundreds of
+# throwaway accounts from one address and drives weeks of play through four fixture accounts in about a minute,
+# which is exactly the traffic the action limit exists to stop. Both limiters are covered by tests/test_hardening.py.
 #
 # Without supervisor (CI, a plain clone) the script falls back to running uvicorn directly in the background.
 set -euo pipefail
 BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-QA_ENV='DB_NAME="eld_qa",QA_ENDPOINTS_ENABLED="true",SCHEDULER_ENABLED="true",WORLD_AUTO_CREATE="false",STORE_BILLING_LIVE="false",RATE_LIMIT_REGISTER_PER_HOUR="0"'
+QA_ENV='DB_NAME="eld_qa",QA_ENDPOINTS_ENABLED="true",SCHEDULER_ENABLED="true",WORLD_AUTO_CREATE="false",STORE_BILLING_LIVE="false",RATE_LIMIT_REGISTER_PER_HOUR="0",RATE_LIMIT_ACTIONS_PER_MINUTE="0"'
 
 wait_healthy() {
   for _ in $(seq 1 60); do
@@ -57,6 +58,6 @@ if curl -sf http://localhost:8002/api/health >/dev/null 2>&1; then
 fi
 cd "$BACKEND_DIR"
 DB_NAME=eld_qa QA_ENDPOINTS_ENABLED=true SCHEDULER_ENABLED=true WORLD_AUTO_CREATE=false STORE_BILLING_LIVE=false \
-  RATE_LIMIT_REGISTER_PER_HOUR=0 \
-  nohup python -m uvicorn server:app --host 0.0.0.0 --port 8002 --workers 1 >/tmp/backend_qa.log 2>&1 &
+  RATE_LIMIT_REGISTER_PER_HOUR=0 RATE_LIMIT_ACTIONS_PER_MINUTE=0 \
+  nohup python3 -m uvicorn server:app --host 0.0.0.0 --port 8002 --workers 1 >/tmp/backend_qa.log 2>&1 &
 wait_healthy || { echo "backend_qa did not become healthy — see /tmp/backend_qa.log" >&2; tail -30 /tmp/backend_qa.log >&2; exit 1; }

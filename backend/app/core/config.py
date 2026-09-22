@@ -55,3 +55,7 @@ STORE_BILLING_LIVE = os.environ.get("STORE_BILLING_LIVE", "false").lower() == "t
 RATE_LIMIT_LOGIN_FAILURES = int(os.environ.get("RATE_LIMIT_LOGIN_FAILURES", "10"))
 RATE_LIMIT_LOGIN_WINDOW_SECONDS = int(os.environ.get("RATE_LIMIT_LOGIN_WINDOW_SECONDS", "900"))
 RATE_LIMIT_REGISTER_PER_HOUR = int(os.environ.get("RATE_LIMIT_REGISTER_PER_HOUR", "20"))
+# spec.anti_cheat.rate_limit_actions: a ceiling on world-scoped mutations per account. Two a second sustained is far
+# above anything a person does through the UI and far below what a script can attempt, so it is a safety net rather
+# than a game rule — the rules themselves are enforced by the server being authoritative.
+RATE_LIMIT_ACTIONS_PER_MINUTE = int(os.environ.get("RATE_LIMIT_ACTIONS_PER_MINUTE", "120"))

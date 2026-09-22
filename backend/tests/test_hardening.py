@@ -12,7 +12,7 @@ import pytest
 from app.core import config
 from app.core.db import db
 from app.domain import construction, premium
-from tests.conftest import ADMIN, register
+from tests.conftest import ADMIN, join, register
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -81,6 +81,34 @@ async def test_registration_is_rate_limited_per_address(client, world, monkeypat
         codes.append(r.status_code)
     assert codes[:2] == [200, 200], codes
     assert codes[-1] == 429, codes
+
+
+# ------------------------------------------------------------------------------------------------ action ceiling
+async def test_world_mutations_are_capped_per_account(client, world, monkeypatch):
+    """spec.anti_cheat.rate_limit_actions. Server authority decides whether an action is legal; this only stops
+    one account from attempting them faster than a person could."""
+    acc = await register(client)
+    await join(client, acc, world["_id"])
+    monkeypatch.setattr(config, "RATE_LIMIT_ACTIONS_PER_MINUTE", 3)
+
+    # Cancelling a job that does not exist is refused by the route, which is the point: the ceiling sits in front
+    # of the action, so it must answer TOO_MANY_REQUESTS whatever the action itself would have replied.
+    codes = []
+    for _ in range(5):
+        r = await client.post(f"/api/worlds/{world['_id']}/jobs/job_nope/cancel", headers=acc["headers"])
+        codes.append(r.json()["code"])
+    assert codes[:3] == ["JOB_NOT_FOUND"] * 3, codes
+    assert codes[3:] == ["TOO_MANY_REQUESTS"] * 2, codes
+
+
+async def test_reads_are_never_throttled(client, world, monkeypatch):
+    """The client polls these on a timer; throttling a poll would break the screen it feeds."""
+    acc = await register(client)
+    await join(client, acc, world["_id"])
+    monkeypatch.setattr(config, "RATE_LIMIT_ACTIONS_PER_MINUTE", 1)
+
+    for _ in range(6):
+        assert (await client.get(f"/api/worlds/{world['_id']}/me", headers=acc["headers"])).status_code == 200
 
 
 # ------------------------------------------------------------------------------------------------ admin gate

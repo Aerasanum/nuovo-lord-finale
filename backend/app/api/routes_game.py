@@ -7,10 +7,10 @@ import math
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
-from app.core import clock, reqlog
+from app.core import clock, config, ratelimit, reqlog
 from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
@@ -32,10 +32,14 @@ class Ctx:
         self.account_id = account_id
 
 
-async def ctx(world_id: str, account_id: str = CurrentAccount) -> Ctx:
+async def ctx(world_id: str, request: Request, account_id: str = CurrentAccount) -> Ctx:
     world = await worlds.get_world(world_id)
     player = await worlds.get_player(world_id, account_id)
     reqlog.bind(world_id=world_id, player_id=player["_id"])
+    # spec.anti_cheat.rate_limit_actions. Reads are left alone: the client polls them on a timer and throttling a
+    # poll would break the screen it feeds, while a mutation is the only thing worth hammering.
+    if request.method != "GET":
+        await ratelimit.hit("actions", account_id, config.RATE_LIMIT_ACTIONS_PER_MINUTE, 60)
     return Ctx(world, player, account_id)
 
 
