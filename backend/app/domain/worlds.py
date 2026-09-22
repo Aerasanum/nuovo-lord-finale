@@ -11,7 +11,7 @@ import uuid
 import numpy as np
 from pymongo.errors import DuplicateKeyError
 
-from app.core import clock
+from app.core import clock, tasks
 from app.core.db import db
 from app.core.errors import ApiError
 from app.core.spec import get_spec
@@ -245,7 +245,7 @@ async def create_grande_mondo(name: str | None = None, seed: int | None = None, 
         log.info("grande mondo %s ready (%d regions, %dx%d)", world_id, n, lay["world_size"], lay["world_size"])
 
     if background:
-        asyncio.create_task(_finish())
+        tasks.spawn(_finish(), f"generate:{world_id}")
     else:
         await _finish()
     return await db().worlds.find_one({"_id": world_id})

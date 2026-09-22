@@ -130,3 +130,22 @@ async def worker_loop(stop: asyncio.Event) -> None:
 
 def metrics() -> dict:
     return dict(_metrics)
+
+
+async def health() -> dict:
+    """Queue state as the database has it (spec.observability.required_metrics).
+
+    The counters above live in the process and reset with it, which makes them useless for the two questions that
+    actually matter: is the scheduler keeping up, and has anything been dropped. `lag_seconds` is how long the
+    oldest due event has been waiting — a march arrives late by exactly that much — and `dead_letter` counts the
+    events that exhausted their retries, each one a player action that will never happen. Nothing surfaced those
+    before, so a permanently lost march looked identical to a healthy realm.
+    """
+    now = clock.now()
+    pending, dead_letter, oldest = await asyncio.gather(
+        db().scheduled_events.count_documents({"status": "PENDING"}),
+        db().scheduled_events.count_documents({"status": "FAILED"}),
+        db().scheduled_events.find_one({"status": "PENDING", "scheduled_at": {"$lte": now}}, {"scheduled_at": 1}, sort=[("scheduled_at", 1)]),
+    )
+    lag = (now - clock.aware(oldest["scheduled_at"])).total_seconds() if oldest else 0.0
+    return {**metrics(), "queue_depth": pending, "dead_letter": dead_letter, "lag_seconds": round(max(0.0, lag), 3)}

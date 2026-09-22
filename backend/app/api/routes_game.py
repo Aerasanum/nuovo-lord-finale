@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from app.core import clock
+from app.core import clock, reqlog
 from app.core.auth import CurrentAccount, require_admin
 from app.core.db import db
 from app.core.errors import ApiError, not_found
@@ -35,10 +35,12 @@ class Ctx:
 async def ctx(world_id: str, account_id: str = CurrentAccount) -> Ctx:
     world = await worlds.get_world(world_id)
     player = await worlds.get_player(world_id, account_id)
+    reqlog.bind(world_id=world_id, player_id=player["_id"])
     return Ctx(world, player, account_id)
 
 
 async def _fresh_settlement(world_id: str, settlement_id: str, player_id: str) -> dict:
+    reqlog.bind(entity_id=settlement_id)
     doc = await get_owned_settlement(world_id, settlement_id, player_id)
     for j in await running_jobs(doc["_id"]):
         if j["kind"] == "RECRUIT":
@@ -49,7 +51,7 @@ async def _fresh_settlement(world_id: str, settlement_id: str, player_id: str) -
 # --------------------------------------------------------------------------- spec / health
 @router.get("/health")
 async def health():
-    return {"status": "ok", "spec": spec_meta(), "server_time": clock.iso(clock.now()), "scheduler": scheduler.metrics()}
+    return {"status": "ok", "spec": spec_meta(), "server_time": clock.iso(clock.now()), "scheduler": await scheduler.health()}
 
 
 @router.get("/spec/meta")

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import routes_alliance, routes_auth, routes_game, routes_premium, routes_qa, routes_store
-from app.core import clock, config
+from app.core import clock, config, reqlog, tasks
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
 from app.core.spec import get_spec, spec_meta
@@ -32,10 +32,10 @@ async def lifespan(app: FastAPI):
     stop = asyncio.Event()
     worker = None
     if config.WORLD_AUTO_CREATE:
-        asyncio.create_task(worlds.ensure_default_world())
-    asyncio.create_task(pyramid.bootstrap())  # Pyramid cycle state + first deadline for every OPEN world (Bible §21)
-    asyncio.create_task(grande_mondo.bootstrap())  # fog wall / War of the Regions deadline for every Grande Mondo (Bibbia GM)
-    asyncio.create_task(inactivity.bootstrap())  # inactivity sweep per OPEN world (3 gg nei primi 30 gg del Regno, poi 120 gg)
+        tasks.spawn(worlds.ensure_default_world(), "ensure_default_world")
+    tasks.spawn(pyramid.bootstrap(), "pyramid.bootstrap")  # Pyramid cycle state + first deadline for every OPEN world (Bible §21)
+    tasks.spawn(grande_mondo.bootstrap(), "grande_mondo.bootstrap")  # fog wall / War of the Regions deadline for every Grande Mondo (Bibbia GM)
+    tasks.spawn(inactivity.bootstrap(), "inactivity.bootstrap")  # inactivity sweep per OPEN world (3 gg nei primi 30 gg del Regno, poi 120 gg)
     if config.SCHEDULER_ENABLED:
         worker = asyncio.create_task(scheduler.worker_loop(stop))
     try:
@@ -58,21 +58,33 @@ app.add_middleware(
 )
 
 
+def _action(request: Request) -> str:
+    """The route template rather than the concrete path, so the same action reads the same across players."""
+    route = request.scope.get("route")
+    return f"{request.method} {getattr(route, 'path', None) or request.url.path}"
+
+
 @app.exception_handler(ApiError)
-async def api_error_handler(_: Request, exc: ApiError):
+async def api_error_handler(request: Request, exc: ApiError):
+    # A refused action is the ordinary case (not enough resources, queue full), so it is not a server problem to
+    # warn about — but it is exactly what a player reports, and the trace_id is how their report is found again.
+    log.info("api error code=%s %s", exc.code, reqlog.describe(exc.trace_id, _action(request)))
     return JSONResponse(status_code=exc.status, content=exc.to_dict())
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_handler(_: Request, exc: RequestValidationError):
+async def validation_handler(request: Request, exc: RequestValidationError):
     err = ApiError("VALIDATION_ERROR", "Invalid request", 422, {"errors": exc.errors()})
+    log.info("api error code=%s %s", err.code, reqlog.describe(err.trace_id, _action(request)))
     return JSONResponse(status_code=422, content=err.to_dict())
 
 
 @app.exception_handler(Exception)
-async def unhandled_handler(_: Request, exc: Exception):
-    log.exception("unhandled error")
+async def unhandled_handler(request: Request, exc: Exception):
     err = ApiError("INTERNAL_ERROR", "Internal server error", 500, {}, retryable=True)
+    # The stack trace and the id the client is shown have to be on the same line: logging them separately is what
+    # made the trace_id useless, since the id in the body was never the one written next to the traceback.
+    log.error("unhandled error %s", reqlog.describe(err.trace_id, _action(request)), exc_info=exc)
     return JSONResponse(status_code=500, content=err.to_dict())
 
 
