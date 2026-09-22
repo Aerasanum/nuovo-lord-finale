@@ -12,6 +12,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CinematicProvider } from "@/src/components/cinematic/Cinematic";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/overlay";
+import { ScreenErrorBoundary } from "@/src/components/screen-error";
 import { I18nProvider } from "@/src/i18n";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider } from "@/src/state/AuthContext";
@@ -45,7 +46,7 @@ export default function RootLayout() {
                   <ToastProvider>
                     <CinematicProvider>
                     <StatusBar style="light" />
-                    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface }, animation: "fade" }}>
+                    <Stack unstable_screenErrorBoundary={ScreenErrorBoundary} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface }, animation: "fade" }}>
                       <Stack.Screen name="index" />
                       <Stack.Screen name="login" />
                       <Stack.Screen name="worlds" />

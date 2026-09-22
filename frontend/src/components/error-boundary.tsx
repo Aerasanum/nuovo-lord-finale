@@ -1,6 +1,11 @@
-// App level error boundary, mounted once in app/_layout.tsx. A render crash
-// shows a reload screen instead of a blank app; the error is also logged so
-// it shows up in the Metro output. Do not mount additional boundaries.
+// Last-resort error boundary, mounted once in app/_layout.tsx above every
+// provider (spec.error_ux.root_error_boundary_last_resort_only). It only sees
+// what the per-screen boundaries could not contain — a crash in the theme,
+// the translations or the navigator itself — so it deliberately depends on
+// almost nothing: hardcoded English, no i18n, and a reload as its only offer.
+//
+// Individual screens are covered by src/components/screen-error.tsx, which
+// each navigator installs; a crash there never reaches this far.
 
 import { reloadAppAsync } from "expo";
 import { Component, type ErrorInfo, type PropsWithChildren, useState } from "react";

@@ -1012,6 +1012,7 @@ export const fr: Record<StringKey, string> = {
   senInnerRing: "Anneau intérieur · 4 Sentinelles à rayon 3 : chacune possède une part du carré 7×7 autour du château.",
   senNoWalls: "Ni PV ni murs. Sans garnison : 24 h de grâce, puis retrait.",
   errorNetwork: "Impossible de joindre le serveur.",
+  errorScreen: "Cet écran n'a pas pu se charger.",
   senOuterRing: "Anneau extérieur · 8 Sentinelles à rayon 5 (bande 4–5, jusqu’à 11×11).",
   senOuterLocked: "Anneau extérieur · 8 Sentinelles à rayon 5 (bande 4–5, jusqu’à 11×11) — requiert la recherche Perimetro Avanzato.",
   senNaturalTitle: "Frontière naturelle",

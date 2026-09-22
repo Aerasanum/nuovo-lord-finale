@@ -8,6 +8,7 @@ import { ChatDock } from "@/src/components/chat/ChatDock";
 import { IntroGate } from "@/src/components/cinematic/IntroGate";
 import { RainbowWatcher } from "@/src/components/cinematic/RainbowWatcher";
 import { ReturnGate } from "@/src/components/ReturnGate";
+import { ScreenErrorBoundary } from "@/src/components/screen-error";
 import { DailyGate } from "@/src/components/daily/DailyGate";
 import { TourGate } from "@/src/components/tour/TourGate";
 import { Icon } from "@/src/components/ui";
@@ -56,7 +57,7 @@ export default function TabsLayout() {
         <ReturnGate />
         <DailyGate />
         <ChatDock floating />
-        <NativeTabs>
+        <NativeTabs unstable_screenErrorBoundary={ScreenErrorBoundary}>
           <NativeTabs.Trigger name="map">
             <NativeTabs.Trigger.Icon sf="map.fill" />
             <NativeTabs.Trigger.Label>{t("tabMap")}</NativeTabs.Trigger.Label>
@@ -97,6 +98,7 @@ export default function TabsLayout() {
       <ReturnGate />
       <DailyGate />
       <Tabs
+        unstable_screenErrorBoundary={ScreenErrorBoundary}
         tabBar={(props) => (
           <View>
             <ChatDock />

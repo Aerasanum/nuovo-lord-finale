@@ -1012,6 +1012,7 @@ export const de: Record<StringKey, string> = {
   senInnerRing: "Innerer Ring · 4 Wächter mit Radius 3: Jeder besitzt ein Segment des 7×7-Quadrats um die Burg.",
   senNoWalls: "Keine TP, keine Mauern. Ohne Besatzung: 24 Std. Schonfrist, dann Entfernung.",
   errorNetwork: "Der Server ist nicht erreichbar.",
+  errorScreen: "Dieser Bildschirm konnte nicht geladen werden.",
   senOuterRing: "Äußerer Ring · 8 Wächter mit Radius 5 (Band 4–5, bis 11×11).",
   senOuterLocked: "Äußerer Ring · 8 Wächter mit Radius 5 (Band 4–5, bis 11×11) — erfordert die Forschung Perimetro Avanzato.",
   senNaturalTitle: "Natürliche Grenze",
