@@ -51,6 +51,13 @@ jobs:
         run: >-
           pytest tests/test_runtime.py tests/test_spec_formulas.py
           tests/test_sentinel_geometry.py tests/test_hardening.py
+          tests/test_observability.py tests/test_spec_conformance.py
+          --cov=app --cov-report=term-missing
+      # Printed, not enforced: a threshold picked to match today's number only blocks the next pull request. What
+      # the report is for is seeing which domain module a change leaves uncovered.
+      - name: Coverage of the domain logic
+        working-directory: backend
+        run: coverage report --include='app/domain/*,app/core/*' --sort=cover
 
   frontend:
     runs-on: ubuntu-latest

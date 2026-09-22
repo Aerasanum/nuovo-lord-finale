@@ -191,7 +191,10 @@ def astar(grid: np.ndarray, start: tuple[int, int], goal: tuple[int, int], naval
                     if not (passable(x + dx, y) and passable(x, y + dy)):
                         continue
                 mult = diag if (dx != 0 and dy != 0) else 1.0
-                cost = (step_cost(nx, ny) if not goal_here else (1.0 if naval else (terrain_cost(int(grid[ny, nx])) or 1.0))) * mult
+                # The goal needed its own branch only to stay enterable when its terrain is not walkable, which
+                # `passable` above already handles; the price it charged was step_cost's minus the territory
+                # discount, so the last tile of a march through friendly land was billed at full rate.
+                cost = step_cost(nx, ny) * mult
                 ng = g + cost
                 if ng < g_score.get((nx, ny), float("inf")):
                     g_score[(nx, ny)] = ng

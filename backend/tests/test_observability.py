@@ -12,8 +12,9 @@ from datetime import timedelta
 
 import pytest
 
-from app.core import clock, reqlog, tasks
+from app.core import clock, clock_shift, reqlog, tasks
 from app.core.db import db
+from app.core.errors import ApiError
 from app.domain import scheduler
 from tests.conftest import join, register
 
@@ -98,6 +99,56 @@ async def test_a_refused_action_is_logged_with_the_trace_id_the_client_is_shown(
     assert f"player_id={joined['player']['player_id']}" in line, line
     assert "entity_id=sett_does_not_exist" in line, line
     assert "action_type=GET /api/worlds/{world_id}/settlements/{settlement_id}" in line, line
+
+
+# ------------------------------------------------------------------------------------------------ QA clock reset
+@pytest.fixture
+def borrowed_clock():
+    """The offset is process-wide and other suites advance it to make jobs come due; give it back untouched."""
+    before = clock.get_offset_seconds()
+    yield
+    clock.set_offset_seconds(before)
+
+
+async def test_a_second_clock_reset_is_refused_while_the_first_is_running(borrowed_clock):
+    """The rewrite walks every collection; a second pass would shift the documents the first already moved again,
+    and both read the offset the other is zeroing. Refusing beats corrupting every timer in the realm."""
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def slow_shift(_delta):
+        started.set()
+        await release.wait()
+        return {}
+
+    clock.set_offset_seconds(3600.0)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(clock_shift, "shift_all_datetimes", slow_shift)
+        first = asyncio.create_task(clock_shift.reset_to_real_time())
+        await started.wait()
+        with pytest.raises(ApiError) as refused:
+            await clock_shift.reset_to_real_time()
+        release.set()
+        await first
+
+    assert refused.value.code == "CLOCK_RESET_RUNNING" and refused.value.status == 409
+    assert clock.get_offset_seconds() == 0.0
+
+
+async def test_a_clock_already_on_real_time_is_left_alone(borrowed_clock):
+    """Nothing to shift means no rewrite at all: walking every collection to move zero seconds is pure risk."""
+    clock.set_offset_seconds(0.0)
+    called = False
+
+    async def should_not_run(_delta):
+        nonlocal called
+        called = True
+        return {}
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(clock_shift, "shift_all_datetimes", should_not_run)
+        out = await clock_shift.reset_to_real_time()
+
+    assert not called and out["shifted"] == {}
 
 
 # ------------------------------------------------------------------------------------------------ scheduler health
