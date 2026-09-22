@@ -51,5 +51,9 @@ const useStyles = makeStyles((colors) => ({
     marginTop: 8,
     gap: 8,
     alignSelf: "stretch",
+    // Full width is right on a phone; on a tablet or the web preview it would stretch the buttons across the view.
+    maxWidth: 420,
+    width: "100%",
+    marginHorizontal: "auto",
   },
 }));
