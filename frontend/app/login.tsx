@@ -102,6 +102,12 @@ export default function LoginScreen() {
             </Pressable>
           ))}
         </View>
+        {/* Before the account exists, not buried behind it: this is the screen where consent is actually given. */}
+        <Pressable onPress={() => router.push("/legal/privacy")} testID="login-privacy-link" style={{ alignSelf: "center", padding: spacing.sm }}>
+          <T v="caption" style={{ textDecorationLine: "underline" }}>
+            {t("privacyTitle")}
+          </T>
+        </Pressable>
       </KeyboardAwareScrollView>
     </View>
   );

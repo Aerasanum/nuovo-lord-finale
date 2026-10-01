@@ -68,6 +68,9 @@ export default function RootLayout() {
                       <Stack.Screen name="mission/new" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
                       <Stack.Screen name="battle/[id]" options={{ animation: "slide_from_right" }} />
                       <Stack.Screen name="auth/callback" />
+                      {/* Public: a store listing links straight here, with nobody signed in. */}
+                      <Stack.Screen name="legal/privacy" options={{ animation: "slide_from_right" }} />
+                      <Stack.Screen name="legal/delete-account" options={{ animation: "slide_from_right" }} />
                     </Stack>
                     </CinematicProvider>
                   </ToastProvider>
