@@ -37,10 +37,10 @@ const P = (sun: number, sunI: number, dir: [number, number, number], sky: number
 
 // Night is a readable "blue hour" by design (user rule): cool but bright key light, luminous sky, exposure close to
 // daytime — torches, braziers and windows still glow (night = 1), terrain and castles never sink into black.
-const NIGHT = P(0xb7c8f6, 1.35, [0.3, 0.72, -0.5], 0x7f97d6, 0x33405f, 1.0, 0x2a3f78, 0.75, 0.98, 1);
-const DAWN = P(0xffc38c, 1.75, [0.85, 0.42, 0.3], 0xf2c4a6, 0x5c5a46, 0.9, 0xf5b58c, 0.55, 1.04, 0.22);
-const DAY = P(0xfff3dc, 2.05, [0.6, 0.78, 0.36], 0xbfe1ff, 0x7c9a58, 1.0, 0xa9d6f5, 0, 1.08, 0);
-const DUSK = P(0xffa26a, 1.7, [-0.7, 0.38, 0.45], 0xe6a8ac, 0x5c4c48, 0.9, 0xf39a70, 0.6, 1.02, 0.28);
+const NIGHT = P(0xd6e4ff, 1.7, [0.3, 0.72, -0.5], 0xa8c0ea, 0x4a7a52, 1.05, 0x3a5a98, 0.55, 1.12, 1);
+const DAWN = P(0xffc38c, 1.85, [0.85, 0.42, 0.3], 0xf6d0b0, 0x6a6848, 0.95, 0xf5b58c, 0.48, 1.1, 0.22);
+const DAY = P(0xfff6e0, 2.2, [0.6, 0.78, 0.36], 0xd4eeff, 0x8fbf62, 1.05, 0xc7e7ff, 0, 1.18, 0);
+const DUSK = P(0xffa26a, 1.8, [-0.7, 0.38, 0.45], 0xf0b8b4, 0x6a5850, 0.95, 0xf39a70, 0.5, 1.08, 0.28);
 
 // realm hour → preset (wraps at 24)
 const KEYS: Key[] = [

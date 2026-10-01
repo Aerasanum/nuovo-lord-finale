@@ -56,13 +56,13 @@ const obsidian = {
   resourceIron: "#8E9AA5",
   resourceGold: "#E8C56E",
 
-  // Terrain (3D map + legend) — vivid storybook palette (Game-of-Warriors style): lush grass, deep green pine,
-  // warm grey rock, clear blue water, light-blue haze on the horizon
-  terrainPlain: "#5DAB3C",
-  terrainForest: "#2E8A48",
-  terrainMountain: "#8E877C",
-  terrainWater: "#2F8ED8",
-  skyHorizon: "#A9D6F5", // distant haze the 3D map fades into
+  // Terrain (3D map + legend) — brighter painted storybook: saturated meadows, deep pine,
+  // warm limestone, clear water, a pale horizon so zoomed-out land stays colourful
+  terrainPlain: "#6FBF3A",
+  terrainForest: "#1F8A3E",
+  terrainMountain: "#C4B49A",
+  terrainWater: "#3AA6EE",
+  skyHorizon: "#C7E7FF", // distant haze the 3D map fades into
 
   // Factions
   factionOwn: "#C89B3C",

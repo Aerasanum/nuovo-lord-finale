@@ -95,8 +95,8 @@ void main() {
   col *= light;
   // painterly grade: a touch more saturation and a soft lift in the shadows (vivid storybook look)
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(vec3(lum), col, 1.14);
-  col = max(col, vec3(0.0)) * 1.04 + vec3(0.012, 0.014, 0.02);
+  col = mix(vec3(lum), col, 1.26);
+  col = max(col, vec3(0.0)) * 1.06 + vec3(0.01, 0.016, 0.012);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
