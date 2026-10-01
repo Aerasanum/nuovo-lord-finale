@@ -1033,6 +1033,16 @@ export const zh: Record<StringKey, string> = {
 };
 
 export const zhErrors: Record<string, string> = {
+  INVALID_CREDENTIALS: "邮箱或密码不正确。",
+  EMAIL_ALREADY_REGISTERED: "该邮箱已注册：请直接登录，无需重新创建账号。",
+  PASSWORD_TOO_SHORT: "密码至少需要 8 个字符。",
+  PASSWORD_TOO_LONG: "该密码过长。",
+  PASSWORD_REQUIRED: "请输入密码以确认。",
+  TOO_MANY_REQUESTS: "尝试次数过多：请稍候再试。",
+  UNAUTHORIZED: "登录状态已过期：请重新登录。",
+  INVALID_REFRESH_TOKEN: "登录状态已过期：请重新登录。",
+  WORLD_FULL: "该王国的名额已满。",
+  HOUSE_NAME_TAKEN: "该家族名称在此王国中已被使用：请换一个。",
   FOG_WALL: "迷雾之墙会阻止你在区域战争前离开本区域的任何行动。",
   REGION_FULL: "该区域已达到100名玩家上限：请选择其他区域。",
   REGION_REQUIRED: "请先选择一个大世界区域。",

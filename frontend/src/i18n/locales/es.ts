@@ -1033,6 +1033,16 @@ export const es: Record<StringKey, string> = {
 };
 
 export const esErrors: Record<string, string> = {
+  INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
+  EMAIL_ALREADY_REGISTERED: "Este correo ya está registrado: inicia sesión en lugar de crear otra cuenta.",
+  PASSWORD_TOO_SHORT: "La contraseña debe tener al menos 8 caracteres.",
+  PASSWORD_TOO_LONG: "Esta contraseña es demasiado larga.",
+  PASSWORD_REQUIRED: "Escribe tu contraseña para confirmar.",
+  TOO_MANY_REQUESTS: "Demasiados intentos: espera un momento e inténtalo de nuevo.",
+  UNAUTHORIZED: "Tu sesión ha caducado: vuelve a iniciar sesión.",
+  INVALID_REFRESH_TOKEN: "Tu sesión ha caducado: vuelve a iniciar sesión.",
+  WORLD_FULL: "Este Reino se ha quedado sin plazas.",
+  HOUSE_NAME_TAKEN: "Ese nombre de Casa ya está usado en este Reino: elige otro.",
   FOG_WALL: "El muro de niebla bloquea todo movimiento fuera de tu región hasta la Guerra de las Regiones.",
   REGION_FULL: "Esta región ha alcanzado el límite de 100 jugadores: elige otra.",
   REGION_REQUIRED: "Elige primero una región del Gran Mundo.",

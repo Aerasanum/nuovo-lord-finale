@@ -1033,6 +1033,16 @@ export const fr: Record<StringKey, string> = {
 };
 
 export const frErrors: Record<string, string> = {
+  INVALID_CREDENTIALS: "E-mail ou mot de passe incorrect.",
+  EMAIL_ALREADY_REGISTERED: "Cet e-mail est déjà enregistré : connecte-toi au lieu de créer un compte.",
+  PASSWORD_TOO_SHORT: "Le mot de passe doit comporter au moins 8 caractères.",
+  PASSWORD_TOO_LONG: "Ce mot de passe est trop long.",
+  PASSWORD_REQUIRED: "Saisis ton mot de passe pour confirmer.",
+  TOO_MANY_REQUESTS: "Trop de tentatives : patiente un instant et réessaie.",
+  UNAUTHORIZED: "Ta session a expiré : reconnecte-toi.",
+  INVALID_REFRESH_TOKEN: "Ta session a expiré : reconnecte-toi.",
+  WORLD_FULL: "Ce Royaume n’a plus de places disponibles.",
+  HOUSE_NAME_TAKEN: "Ce nom de Maison est déjà pris dans ce Royaume : choisis-en un autre.",
   FOG_WALL: "Le mur de brume bloque tout mouvement hors de ta région jusqu’à la Guerre des Régions.",
   REGION_FULL: "Cette région a atteint la limite de 100 joueurs : choisis-en une autre.",
   REGION_REQUIRED: "Choisis d’abord une région du Grand Monde.",

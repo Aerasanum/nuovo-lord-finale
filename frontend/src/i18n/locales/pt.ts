@@ -1033,6 +1033,16 @@ export const pt: Record<StringKey, string> = {
 };
 
 export const ptErrors: Record<string, string> = {
+  INVALID_CREDENTIALS: "E-mail ou palavra-passe incorretos.",
+  EMAIL_ALREADY_REGISTERED: "Este e-mail já está registado: inicia sessão em vez de criar outra conta.",
+  PASSWORD_TOO_SHORT: "A palavra-passe tem de ter pelo menos 8 caracteres.",
+  PASSWORD_TOO_LONG: "Esta palavra-passe é demasiado longa.",
+  PASSWORD_REQUIRED: "Escreve a tua palavra-passe para confirmar.",
+  TOO_MANY_REQUESTS: "Demasiadas tentativas: aguarda um momento e tenta de novo.",
+  UNAUTHORIZED: "A tua sessão expirou: inicia sessão novamente.",
+  INVALID_REFRESH_TOKEN: "A tua sessão expirou: inicia sessão novamente.",
+  WORLD_FULL: "Este Reino já não tem lugares disponíveis.",
+  HOUSE_NAME_TAKEN: "Esse nome de Casa já é usado neste Reino: escolhe outro.",
   FOG_WALL: "A muralha de nevoeiro bloqueia qualquer movimento fora da tua região até à Guerra das Regiões.",
   REGION_FULL: "Esta região atingiu o limite de 100 jogadores: escolhe outra.",
   REGION_REQUIRED: "Escolhe primeiro uma região do Grande Mundo.",

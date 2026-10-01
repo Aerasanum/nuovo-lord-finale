@@ -1033,6 +1033,16 @@ export const de: Record<StringKey, string> = {
 };
 
 export const deErrors: Record<string, string> = {
+  INVALID_CREDENTIALS: "E-Mail oder Passwort sind falsch.",
+  EMAIL_ALREADY_REGISTERED: "Diese E-Mail ist bereits registriert: Melde dich an, statt ein neues Konto zu erstellen.",
+  PASSWORD_TOO_SHORT: "Das Passwort muss mindestens 8 Zeichen haben.",
+  PASSWORD_TOO_LONG: "Dieses Passwort ist zu lang.",
+  PASSWORD_REQUIRED: "Gib dein Passwort ein, um zu bestätigen.",
+  TOO_MANY_REQUESTS: "Zu viele Versuche: Warte einen Moment und versuche es erneut.",
+  UNAUTHORIZED: "Deine Sitzung ist abgelaufen: Melde dich erneut an.",
+  INVALID_REFRESH_TOKEN: "Deine Sitzung ist abgelaufen: Melde dich erneut an.",
+  WORLD_FULL: "In diesem Reich sind keine Plätze mehr frei.",
+  HOUSE_NAME_TAKEN: "Dieser Hausname ist in diesem Reich bereits vergeben: Wähle einen anderen.",
   FOG_WALL: "Die Nebelwand blockiert jede Bewegung außerhalb deiner Region bis zum Krieg der Regionen.",
   REGION_FULL: "Diese Region hat das Limit von 100 Spielern erreicht: Wähle eine andere.",
   REGION_REQUIRED: "Wähle zuerst eine Region der Großen Welt.",
