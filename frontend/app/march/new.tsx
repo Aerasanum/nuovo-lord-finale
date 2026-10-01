@@ -9,6 +9,7 @@ import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { Screen, useToast } from "@/src/components/overlay";
 import { pyramidName } from "@/src/components/PyramidCard";
 import { UnitStepper } from "@/src/components/UnitStepper";
+import { PaintedRoster } from "@/src/painted/PaintedRoster";
 import { Button, Chip, chipRowStyles, Icon, LoadState, Panel, Row, T } from "@/src/components/ui";
 import { Hint } from "@/src/components/Hint";
 import { fmt, formatDuration, formatNumber, useI18n } from "@/src/i18n";
@@ -131,6 +132,7 @@ export default function MarchComposer() {
           <T v="label">{missionLabel(mission)}</T>
         )}
 
+        <PaintedRoster counts={units} height={120} />
         <Panel testID="march-units">
           <Row style={{ justifyContent: "space-between", marginBottom: spacing.xs }}>
             <T v="heading">{t("selectUnits")}</T>
