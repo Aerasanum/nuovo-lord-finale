@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.core import auth
 from app.core.auth import CurrentAccount
+from app.domain import account
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -28,6 +29,11 @@ class SessionIn(BaseModel):
 
 class LogoutIn(BaseModel):
     refresh_token: str | None = None
+
+
+class DeleteAccountIn(BaseModel):
+    # Only accounts that have a password can confirm with one; a Google account arrives here with nothing to re-type.
+    password: str | None = None
 
 
 def _client_ip(request: Request) -> str:
@@ -69,3 +75,13 @@ async def logout(body: LogoutIn, authorization: str | None = Header(default=None
 @router.get("/me")
 async def me(account_id: str = CurrentAccount):
     return await auth.public_account(account_id)
+
+
+@router.post("/account/delete")
+async def delete_account(body: DeleteAccountIn, account_id: str = CurrentAccount):
+    """Erase the account (Google Play User Data policy). Irreversible: the caller's tokens die with it.
+
+    POST rather than DELETE because the confirmation travels in the body, and a request body on DELETE is the kind
+    of thing intermediaries feel free to drop.
+    """
+    return await account.delete(account_id, body.password)
