@@ -9,6 +9,7 @@ import { FinishNowButton } from "@/src/components/FinishNow";
 import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { Button, CostRow, Countdown, Icon, LoadState, Panel, Row, StatePill, T } from "@/src/components/ui";
 import { UNIT_ICON } from "@/src/game/units";
+import { PaintedRoster } from "@/src/painted/PaintedRoster";
 import { formatDuration, formatNumber, tDyn, unlockLine, useI18n } from "@/src/i18n";
 import { useGame } from "@/src/state/useGame";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -70,6 +71,7 @@ export default function ArmyScreen() {
         <LoadState query={army} />
       ) : (
         <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + spacing.lg }]} refreshControl={<RefreshControl refreshing={army.isRefetching} onRefresh={() => army.refetch()} tintColor={colors.brandPrimary} />}>
+          <PaintedRoster counts={Object.fromEntries(d.units.map((u) => [u.name, u.count]))} />
           <Panel testID="army-garrison">
             <Row style={{ justifyContent: "space-between", marginBottom: spacing.sm }}>
               <T v="heading">{t("garrison")}</T>

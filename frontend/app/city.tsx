@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CityScene } from "@/src/city/CityScene";
+import { PaintedCity } from "@/src/painted/PaintedCity";
 import { useVillageInput } from "@/src/city/useVillageInput";
 import { Button, Icon, Loading, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
@@ -37,7 +37,7 @@ export default function CityScreen() {
 
   return (
     <View style={s.root} testID="city-screen">
-      {input ? <CityScene input={input} onPick={setPicked} style={[StyleSheet.absoluteFill, { borderRadius: 0, borderWidth: 0 }]} testID="city-scene" /> : <Loading />}
+      {input ? <PaintedCity input={input} onPick={setPicked} style={[StyleSheet.absoluteFill, { borderRadius: 0, borderWidth: 0 }]} testID="city-scene" /> : <Loading />}
       <View style={[s.header, { top: insets.top + spacing.xs }]}>
         <Pressable style={s.btn} onPress={() => router.back()} testID="city-back" accessibilityRole="button" accessibilityLabel={t("back")}>
           <Icon name="arrow-left" size={22} color={colors.onSurface} />

@@ -16,9 +16,8 @@ import { caravanAsMarch } from "@/src/game/caravans";
 import { formatNumber, type StringKey, useI18n } from "@/src/i18n";
 import { realmHour, timeOfDay, type TimeOfDay } from "@/src/map3d/daylight";
 import type { MapEngine, Selection } from "@/src/map3d/engine";
-import { allowedZones, fogZonesFor, formatCountdown, regionAt, regionByCode, regionFlag, secondsLeft, zoneAt, zonesBounds } from "@/src/game/grandeMondo";
-import { MapView3D } from "@/src/map3d/MapView";
-import { MiniMapFrame } from "@/src/map3d/MiniMap";
+import { allowedZones, formatCountdown, regionAt, regionByCode, regionFlag, secondsLeft, zoneAt, zonesBounds } from "@/src/game/grandeMondo";
+import { PaintedMap } from "@/src/painted/PaintedMap";
 import { useAuth } from "@/src/state/AuthContext";
 import { useTourTarget } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
@@ -91,7 +90,6 @@ export default function MapScreen() {
     return z == null ? null : allowedZones(gm, z);
   }, [gm, active?.x, active?.y, myRegion]); // eslint-disable-line react-hooks/exhaustive-deps
   const viewBounds = useMemo(() => (gm && reach ? zonesBounds(gm, reach) : null), [gm, reach]);
-  const fogZones = useMemo(() => (gm && reach ? fogZonesFor(gm, reach) : null), [gm, reach]);
   const gmLeft = secondsLeft(gm, realmNow);
   // fog fell / returned: foreign castles become visible / hidden → refetch chunks and the far LOD
   const phaseRef = useRef<string | null>(null);
@@ -147,7 +145,7 @@ export default function MapScreen() {
 
   return (
     <View style={s.root} testID="map-screen">
-      {world?.size ? <MapView3D worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramids={pyramids} onSelect={onSelect} onEngine={(e) => (engineRef.current = e)} onCameraChange={onCam} showLabels={labelsOn} viewBounds={viewBounds} fogZones={fogZones} /> : null}
+      {world?.size ? <PaintedMap worldId={worldId} worldSize={world.size} home={home} marches={allMarches} pyramids={pyramids} onSelect={onSelect} onEngine={(e) => (engineRef.current = e as unknown as MapEngine)} onCameraChange={onCam} viewBounds={viewBounds} /> : null}
 
       {/* top HUD: resources of the active settlement */}
       <View style={[s.hud, { top: insets.top + spacing.xs, pointerEvents: "box-none" }]}>
@@ -267,8 +265,6 @@ export default function MapScreen() {
       ) : null}
 
       {/* minimap (hidden while a selection card or the legend occupies the bottom) */}
-      {!sel && !legend ? <MiniMapFrame engine={engineRef} style={{ left: spacing.sm, bottom: spacing.md + 26 }} /> : null}
-
       {/* selection card */}
       {sel && selM ? (
         <Animated.View entering={FadeInUp} exiting={FadeOutDown} style={[s.bottom, { bottom: spacing.md }]}>
@@ -371,7 +367,7 @@ export default function MapScreen() {
       )}
       <View style={{ position: "absolute", bottom: 2, left: 6, pointerEvents: "none" }}>
         <T v="caption" style={{ fontSize: 9 }}>
-          {`3D · LOD ${cam.dist < 34 ? "0" : cam.dist < 100 ? "1" : "2"}`}
+          {`Pittura · ×${Math.max(8, Math.round(cam.dist))}`}
         </T>
       </View>
     </View>

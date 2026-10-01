@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { BuildingEntry, JobDto } from "@/src/api/hooks";
 import { useBuildings, useDaily, useSettlementMutations } from "@/src/api/hooks";
-import { CityScene } from "@/src/city/CityScene";
+import { PaintedCity } from "@/src/painted/PaintedCity";
 import { useVillageInput } from "@/src/city/useVillageInput";
 import { Crest } from "@/src/components/Crest";
 import { FinishNowButton } from "@/src/components/FinishNow";
@@ -116,7 +116,7 @@ export default function SettlementScreen() {
           {/* living 3D village */}
           {village ? (
             <View style={s.villageBox} testID="settlement-village">
-              <CityScene input={village} onPick={(name) => name && name !== "Castello / Fortezza" && router.push({ pathname: "/building/[name]", params: { name } })} style={s.village} testID="settlement-village-scene" />
+              <PaintedCity input={village} onPick={(name) => name && name !== "Castello / Fortezza" && router.push({ pathname: "/building/[name]", params: { name } })} style={s.village} testID="settlement-village-scene" />
               <Pressable style={s.villageExpand} onPress={() => router.push("/city")} testID="settlement-village-expand" accessibilityLabel={t("cityExpand")}>
                 <Icon name="arrow-expand" size={20} color={colors.onSurface} />
               </Pressable>
