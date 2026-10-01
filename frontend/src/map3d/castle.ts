@@ -35,7 +35,7 @@ export type CastleSkin = {
 // Asset colours (physical materials of the 3D models, not UI tokens) — identical in every scheme by design.
 // Bright, readable stone and saturated roofs (storybook look): the map reads at a glance even at dusk.
 export const CASTLE_SKINS: Record<string, CastleSkin> = {
-  classic: { id: "classic", name: { it: "Classico", en: "Classic" }, stone: "#CFC2AC", stoneDark: "#8F8372", roof: "#B8442F", trim: "#E2B14A", wood: "#6B4726", keepRoof: "pyramid", towerRoof: "cone", torches: true },
+  classic: { id: "classic", name: { it: "Classico", en: "Classic" }, stone: "#E7D8BE", stoneDark: "#A89880", roof: "#D64532", trim: "#F0C14A", wood: "#7A5230", keepRoof: "pyramid", towerRoof: "cone", torches: true },
   royal: { id: "royal", name: { it: "Regale", en: "Royal" }, stone: "#E9E2D3", stoneDark: "#B0A896", roof: "#2F5AA0", trim: "#F0CD73", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },
   obsidian: { id: "obsidian", name: { it: "Ossidiana", en: "Obsidian" }, stone: "#5A5862", stoneDark: "#33323A", roof: "#6E2E5E", trim: "#E2B14A", wood: "#3A2D25", keepRoof: "cone", towerRoof: "pyramid", torches: true },
   sandstone: { id: "sandstone", name: { it: "Arenaria", en: "Sandstone" }, stone: "#DDBB80", stoneDark: "#A8865A", roof: "#3F8C7C", trim: "#F0CD73", wood: "#6B4A2E", keepRoof: "onion", towerRoof: "cone", torches: true },

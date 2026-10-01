@@ -127,10 +127,10 @@ export function makeStoneTexture(size = 256, rows = 4, tint = 1.0): THREE.DataTe
       let v = tone * bevel * (0.93 + 0.14 * grain[i]) * (0.95 + 0.1 * macro[i]);
       if (dEdge < joint) v = 0.66 + 0.1 * grain[i];
       else if (dEdge < joint * 3) v *= 0.9 + 0.1 * ((dEdge - joint) / (joint * 2));
-      const c = Math.max(0, Math.min(1, v * 0.86));
+      const c = Math.max(0, Math.min(1, v * 0.9));
       data[i * 4] = Math.round(c * 255 * Math.min(1, tint));
-      data[i * 4 + 1] = Math.round(c * 255 * Math.min(1, tint * 0.985));
-      data[i * 4 + 2] = Math.round(c * 255 * Math.min(1, tint * 0.95));
+      data[i * 4 + 1] = Math.round(c * 236 * Math.min(1, tint * 0.96));
+      data[i * 4 + 2] = Math.round(c * 210 * Math.min(1, tint * 0.88));
       data[i * 4 + 3] = 255;
     }
   }
@@ -152,13 +152,13 @@ export function makeRoofTexture(size = 128, rows = 8): THREE.DataTexture {
       const col = Math.floor(xs / tileW);
       const lx = (xs - col * tileW) / tileW;
       const i = y * size + x;
-      const curve = 1 - Math.pow(Math.abs(lx - 0.5) * 2, 2) * 0.35; // rounded tile profile
-      const shade = 0.6 + 0.4 * Math.min(1, ly * 2.2); // shadow under the course above
-      const tone = 0.82 + 0.3 * hash(col, row, 91);
-      const v = Math.max(0, Math.min(1, curve * shade * tone * (0.92 + 0.16 * grain[i]) * 0.9));
+      const curve = 1 - Math.pow(Math.abs(lx - 0.5) * 2, 2) * 0.42; // rounded tile profile
+      const shade = 0.42 + 0.58 * Math.min(1, ly * 2.4); // deep shadow under the course above
+      const tone = 0.78 + 0.34 * hash(col, row, 91);
+      const v = Math.max(0, Math.min(1, curve * shade * tone * (0.9 + 0.18 * grain[i])));
       data[i * 4] = Math.round(v * 255);
-      data[i * 4 + 1] = Math.round(v * 240);
-      data[i * 4 + 2] = Math.round(v * 225);
+      data[i * 4 + 1] = Math.round(v * 214);
+      data[i * 4 + 2] = Math.round(v * 186);
       data[i * 4 + 3] = 255;
     }
   }

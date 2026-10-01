@@ -149,8 +149,8 @@ export class EntityFactory {
     const basic = (extra: Partial<THREE.MeshBasicMaterialParameters> = {}) => new THREE.MeshBasicMaterial({ color: 0xffffff, ...extra });
     // masonry: fieldstone courses on every wall-like part, tiles on the roofs (skins tint them through the instance colour)
     // textured parts: the maps average ≈0.8 (stone) / ≈0.63 (tiles) brightness, the boosted base colour compensates
-    const stoneBoost = new THREE.Color(1.28, 1.28, 1.28);
-    const roofBoost = new THREE.Color(1.6, 1.6, 1.6);
+    const stoneBoost = new THREE.Color(1.22, 1.16, 1.05);
+    const roofBoost = new THREE.Color(1.28, 1.12, 1.02);
     const stone = (extra: Partial<THREE.MeshLambertMaterialParameters> = {}) => lit(textures ? { map: textures.stone, color: stoneBoost, ...extra } : extra);
     const roof = () => lit(textures ? { map: textures.roof, color: roofBoost } : {});
     const symMat = basic({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });

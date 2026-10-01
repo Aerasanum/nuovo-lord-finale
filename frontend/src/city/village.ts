@@ -79,7 +79,7 @@ const PALETTE: Record<MatKey, { c: string; tex?: Tex; rough?: number; metal?: nu
   thatch: { c: "#d9ae4f", tex: "thatch" },
   cobble: { c: "#c8b48f", tex: "cobble" },
   dirt: { c: "#b8905a", tex: "grass" },
-  grass: { c: "#68bb42", tex: "grass" },
+  grass: { c: "#74c848", tex: "grass" },
   field: { c: "#d8bd52", tex: "thatch" },
   water: { c: "#3a9be0", rough: 0.15, alpha: 0.85 },
   metal: { c: "#9aa2b0", rough: 0.4, metal: 0.65 },
