@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import uuid
 
-from app.core import clock
+from app.core import clock, tasks
 from app.core.db import db
 from app.core.spec import get_spec
+from app.domain import push
 
 
 def _catalog(event: str) -> dict:
@@ -56,8 +57,12 @@ async def notify(world_id: str, player_id: str | None, event: str, payload: dict
     }
     try:
         await db().inbox.insert_one(doc)
-    except Exception:  # duplicate event_id => already delivered (idempotent)
-        pass
+    except Exception:  # duplicate event_id => already delivered (idempotent), and already pushed with it
+        return
+    # Only for the events whose catalog entry lists PUSH, and never on the caller's thread of control: an outbound
+    # HTTP call to Expo has no business sitting between a player's action and its answer.
+    if push.eligible(doc):
+        tasks.spawn(push.deliver(doc), f"push:{doc['_id']}")
 
 
 def dto(n: dict) -> dict:

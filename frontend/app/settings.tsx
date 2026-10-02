@@ -4,7 +4,7 @@
  */
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,6 +14,7 @@ import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
 import { Button, Chip, Icon, Panel, Row, T } from "@/src/components/ui";
 import { fmt, LANGS, localeOf, useI18n } from "@/src/i18n";
+import * as push from "@/src/push/push";
 import { useAuth } from "@/src/state/AuthContext";
 import { tour } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
@@ -29,15 +30,52 @@ export default function SettingsScreen() {
   const { show, showError } = useToast();
   const [erasing, setErasing] = useState(false);
   const [password, setPassword] = useState("");
+  const [pushState, setPushState] = useState<push.PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
   const erase = useDeleteAccount();
   // A Google account has no password of ours to re-type; the sheet itself is the confirmation there.
   const needsPassword = (account?.provider ?? "password") === "password";
 
-  const doLogout = () =>
-    logout().then(() => {
-      show(t("loggedOut"), "success");
-      router.replace("/login");
+  // Reading the current state needs the operating system's answer, which is async; until it arrives the panel is
+  // not drawn rather than drawn wrong.
+  useEffect(() => {
+    let alive = true;
+    push.state().then((state) => {
+      if (alive) setPushState(state);
     });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushState === "on") {
+        await push.disable();
+        setPushState("off");
+        return;
+      }
+      const state = await push.enable(lang);
+      setPushState(state);
+      if (state === "denied") show(t("pushDenied"), "error");
+      if (state === "unavailable") show(t("pushUnavailable"), "error");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const doLogout = () =>
+    // The device stops being this account's: a token left registered would keep delivering their alerts to whoever
+    // signs in next. The player's own on/off choice is left alone.
+    push
+      .disable(true)
+      .catch(() => {})
+      .then(() => logout())
+      .then(() => {
+        show(t("loggedOut"), "success");
+        router.replace("/login");
+      });
   const confirmLogout = () => {
     if (Platform.OS === "web") {
       doLogout();
@@ -114,6 +152,30 @@ export default function SettingsScreen() {
             <Button title={t("logout")} icon="logout" variant="danger" onPress={confirmLogout} testID="settings-logout" />
           </View>
         </Panel>
+
+        {pushState && pushState !== "unavailable" ? (
+          <Panel testID="settings-push">
+            <Row>
+              <Icon name={pushState === "on" ? "bell-ring-outline" : "bell-off-outline"} size={18} color={pushState === "on" ? colors.brandPrimary : colors.muted} />
+              <T v="label">{t("pushTitle")}</T>
+            </Row>
+            <T v="caption" style={{ marginTop: 6 }} testID="settings-push-state">
+              {pushState === "on" ? t("pushOn") : pushState === "denied" ? t("pushDenied") : t("pushOff")}
+            </T>
+            <T v="caption" style={{ marginTop: 4 }}>
+              {t("pushLead")}
+            </T>
+            <Button
+              title={pushState === "on" ? t("pushDisable") : t("pushEnable")}
+              icon={pushState === "on" ? "bell-off-outline" : "bell-ring-outline"}
+              variant="secondary"
+              loading={pushBusy}
+              style={{ marginTop: spacing.sm }}
+              onPress={togglePush}
+              testID="settings-push-toggle"
+            />
+          </Panel>
+        ) : null}
 
         {world?.inactivity ? (
           <Panel testID="settings-inactivity">

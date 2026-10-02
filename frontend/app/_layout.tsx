@@ -14,7 +14,9 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/overlay";
 import { ScreenErrorBoundary } from "@/src/components/screen-error";
 import { I18nProvider } from "@/src/i18n";
+import { PushGate } from "@/src/push/PushGate";
 import { queryClient } from "@/src/query-client";
+import { CrashReporter } from "@/src/telemetry/CrashReporter";
 import { AuthProvider } from "@/src/state/AuthContext";
 import { useTheme } from "@/src/theme";
 
@@ -46,6 +48,8 @@ export default function RootLayout() {
                   <ToastProvider>
                     <CinematicProvider>
                     <StatusBar style="light" />
+                    <CrashReporter />
+                    <PushGate />
                     <Stack unstable_screenErrorBoundary={ScreenErrorBoundary} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface }, animation: "fade" }}>
                       <Stack.Screen name="index" />
                       <Stack.Screen name="login" />

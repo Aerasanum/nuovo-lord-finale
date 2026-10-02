@@ -7,6 +7,7 @@ import { type ChronicleEntry, type MissionCatalogEntry, type MissionDto, type Pr
 import { useCinematic } from "@/src/components/cinematic/Cinematic";
 import { introSpec } from "@/src/components/cinematic/IntroGate";
 import { Crest } from "@/src/components/Crest";
+import { FirstSteps } from "@/src/components/FirstSteps";
 import { hasMissionArt, MissionBanner } from "@/src/components/MissionArt";
 import { Screen } from "@/src/components/overlay";
 import { Button, Chip, Countdown, Empty, Icon, LoadState, Panel, ProgressBar, Row, T, type IconName, useNow } from "@/src/components/ui";
@@ -64,6 +65,8 @@ export default function MissionsScreen() {
     if (!data) return <LoadState query={q} />;
     return (
       <View style={s.content}>
+        {/* First: a new Lord needs the next thing to do before the mission catalogue means anything. */}
+        <FirstSteps />
         <Panel testID="missions-active-panel">
           <Row style={s.kv}>
             <T v="heading">{t("activeMissions")}</T>

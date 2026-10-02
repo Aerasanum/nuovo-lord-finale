@@ -10,10 +10,12 @@
 
 import { useRouter } from "expo-router";
 import type { ErrorBoundaryProps } from "expo-router";
+import { useEffect } from "react";
 import { View } from "react-native";
 
 import { Button, Icon, T } from "@/src/components/ui";
 import { useI18n } from "@/src/i18n";
+import { report } from "@/src/telemetry/crash";
 import { makeStyles, useTheme } from "@/src/theme";
 
 export function ScreenErrorBoundary({ error, retry }: ErrorBoundaryProps) {
@@ -21,6 +23,12 @@ export function ScreenErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors } = useTheme();
   const { t } = useI18n();
   const router = useRouter();
+
+  // The player sees a panel and carries on, so this is the only trace the crash leaves. Reported from an effect
+  // rather than during render: a report is a side effect, and React may render this panel more than once.
+  useEffect(() => {
+    report(error, "screen");
+  }, [error]);
 
   return (
     <View style={styles.container} testID="screen-error">
