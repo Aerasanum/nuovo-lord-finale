@@ -71,6 +71,21 @@ export async function preference(): Promise<boolean> {
   return (await storage.getItem<boolean>(PREF_KEY, true)) ?? true;
 }
 
+/**
+ * What to show the player, read without asking for anything and without registering anything. Separate from
+ * `sync` on purpose: a screen that merely displays the state must not have the side effect of claiming the device.
+ */
+export async function state(): Promise<PushState> {
+  if (!supported()) return "unavailable";
+  if (!(await preference())) return "off";
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === "granted" ? "on" : "denied";
+  } catch {
+    return "unavailable";
+  }
+}
+
 /** Ask for the permission if needed, take a token and hand it to the server. Never throws. */
 export async function enable(lang: string): Promise<PushState> {
   if (!supported()) return "unavailable";
@@ -114,12 +129,9 @@ export async function disable(keepPreference = false): Promise<void> {
  * channel alive. Silent by design: nobody asked, so nothing is reported.
  */
 export async function sync(lang: string): Promise<PushState> {
-  if (!supported()) return "unavailable";
-  configure();
-  if (!(await preference())) return "off";
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== "granted") return "denied";
-  return enable(lang);
+  const current = await state();
+  // Only a device the operating system still agrees with gets re-registered; `enable` does the configuring.
+  return current === "on" ? enable(lang) : current;
 }
 
 /** What the player tapped, if the app was opened by a notification rather than from the launcher. */

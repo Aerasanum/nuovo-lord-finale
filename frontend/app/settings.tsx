@@ -40,18 +40,13 @@ export default function SettingsScreen() {
   // not drawn rather than drawn wrong.
   useEffect(() => {
     let alive = true;
-    (async () => {
-      if (!push.supported()) {
-        if (alive) setPushState("unavailable");
-        return;
-      }
-      const state = (await push.preference()) ? await push.sync(lang) : "off";
+    push.state().then((state) => {
       if (alive) setPushState(state);
-    })();
+    });
     return () => {
       alive = false;
     };
-  }, [lang]);
+  }, []);
 
   const togglePush = async () => {
     setPushBusy(true);
