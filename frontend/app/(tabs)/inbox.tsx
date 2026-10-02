@@ -9,6 +9,7 @@ import { Screen } from "@/src/components/overlay";
 import { Button, Chip, chipRowStyles, Empty, Icon, LoadState, Row, T, type IconName } from "@/src/components/ui";
 import { diplomacyStateLabel } from "@/src/game/alliances";
 import { cargoLine, cargoTotal } from "@/src/game/caravans";
+import { routeFor } from "@/src/game/deepLink";
 import { missionName } from "@/src/game/missions";
 import { fmt, formatNumber, localeOf, type StringKey, tDyn, useI18n } from "@/src/i18n";
 import { missionLabel } from "@/src/map3d/MapLabels";
@@ -178,24 +179,9 @@ export default function InboxScreen() {
 
   const open = (n: InboxItem) => {
     if (!n.read_at) mut.read.mutate(n.notification_id);
-    if ((n.event === "BATTLE_REPORT_READY" || n.event === "BATTLE_RESOLVED") && n.payload?.battle_id) router.push({ pathname: "/battle/[id]", params: { id: n.payload.battle_id } });
-    else if (n.deep_link?.startsWith("battle/")) router.push({ pathname: "/battle/[id]", params: { id: n.deep_link.slice("battle/".length) } });
-    else if (n.deep_link?.startsWith("pyramid")) {
-      const id = n.deep_link.match(/[?&]id=([^&]+)/)?.[1];
-      router.push(id ? { pathname: "/pyramid", params: { id: decodeURIComponent(id) } } : "/pyramid");
-    } else if (n.deep_link?.startsWith("grande-mondo")) router.push("/grande-mondo");
-    else if (n.deep_link?.startsWith("research")) router.push("/research");
-    else if (n.deep_link?.startsWith("caravans")) router.push("/caravans");
-    else if (n.deep_link === "alliance/diplomacy") router.push("/alliance/diplomacy");
-    else if (n.deep_link === "alliance/treasury") router.push("/alliance/treasury");
-    else if (n.deep_link === "alliance/mercenary") router.push("/alliance/mercenary");
-    else if (n.deep_link?.startsWith("alliance")) router.push("/(tabs)/alliance");
-    else if (n.deep_link?.startsWith("map")) router.push("/marches");
-    else if (n.deep_link?.startsWith("army")) router.push("/(tabs)/army");
-    else if (n.deep_link?.startsWith("settlement")) router.push("/(tabs)/settlement");
-    else if (n.deep_link?.startsWith("missions")) router.push("/(tabs)/missions");
-    else if (n.deep_link === "house") router.push("/house");
-    else if (n.deep_link === "settings") router.push("/settings");
+    // Already on the inbox: a deep link that only says "inbox" has nowhere to go from here.
+    const href = routeFor(n);
+    if (href && href !== "/(tabs)/inbox") router.push(href);
   };
 
   return (

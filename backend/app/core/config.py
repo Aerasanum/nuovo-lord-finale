@@ -50,6 +50,16 @@ RC_WEBHOOK_AUTH = os.environ.get("RC_WEBHOOK_AUTH", "")
 STORE_ENVIRONMENT = os.environ.get("STORE_ENVIRONMENT", "SANDBOX").upper()
 STORE_BILLING_LIVE = os.environ.get("STORE_BILLING_LIVE", "false").lower() == "true"
 
+# Push notifications (app/domain/push.py). Expo's push service fans one token out to FCM and APNs; the access token
+# is optional and only needed if the Expo project enables "enhanced security" for push. The aggregation window is
+# what spec.notification_policy.anti_spam allows for noncritical duplicates — 0 disables the collapsing, and
+# PUSH_ENABLED=false turns delivery off entirely (QA, e2e, any environment without devices).
+PUSH_ENABLED = os.environ.get("PUSH_ENABLED", "true").lower() == "true"
+EXPO_PUSH_URL = os.environ.get("EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send")
+EXPO_ACCESS_TOKEN = os.environ.get("EXPO_ACCESS_TOKEN", "")
+PUSH_AGGREGATION_WINDOW_SECONDS = int(os.environ.get("PUSH_AGGREGATION_WINDOW_SECONDS", "300"))
+PUSH_MAX_DEVICES_PER_ACCOUNT = int(os.environ.get("PUSH_MAX_DEVICES_PER_ACCOUNT", "10"))
+
 # Rate limiting (app/core/ratelimit.py). 0 disables the bucket — the QA backend turns registration off because the
 # e2e suite creates hundreds of throwaway accounts from one address.
 RATE_LIMIT_LOGIN_FAILURES = int(os.environ.get("RATE_LIMIT_LOGIN_FAILURES", "10"))

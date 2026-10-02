@@ -31,6 +31,16 @@ def pending() -> int:
     return len(_running)
 
 
+async def drain(timeout: float = 10.0) -> None:
+    """Wait for the spawned work to finish — at shutdown, so a half-written effect is not what the process leaves
+    behind, and in tests, which need the answer the background task produced."""
+    while _running:
+        done, _ = await asyncio.wait(set(_running), timeout=timeout)
+        if not done:  # nothing finished inside the timeout: stop waiting rather than hang the shutdown
+            log.warning("%d background task(s) still running after %.0fs", len(_running), timeout)
+            return
+
+
 def _forget(task: asyncio.Task) -> None:
     _running.discard(task)
     if task.cancelled():

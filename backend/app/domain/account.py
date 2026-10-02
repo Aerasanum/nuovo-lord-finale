@@ -1,8 +1,8 @@
 """Account erasure — Google Play requires that an account a user can create, a user can also delete.
 
 The identity goes, the realm stays coherent:
-  * the account document, every refresh session and every Google session token are removed, so the email, the
-    password hash and the provider link stop existing;
+  * the account document, every refresh session, every Google session token and every registered device are
+    removed, so the email, the password hash, the provider link and the push tokens stop existing;
   * in each realm the Lord retires exactly the way that realm already retires an absent Lord (the inactivity rule it
     declares), then the player row is stripped of its house and re-keyed to a dead account, so battles, chronicles
     and alliance logs keep pointing at something instead of dangling;
@@ -18,7 +18,7 @@ from datetime import datetime
 from app.core import auth, clock
 from app.core.db import db
 from app.core.errors import ApiError, unauthorized
-from app.domain import inactivity
+from app.domain import inactivity, push
 
 log = logging.getLogger("account")
 
@@ -54,14 +54,16 @@ async def delete(account_id: str, password: str | None) -> dict:
 
     revoked = (await db().refresh_sessions.delete_many({"account_id": account_id})).deleted_count
     revoked += (await db().user_sessions.delete_many({"account_id": account_id})).deleted_count
+    # A device token left behind would keep ringing a phone about a realm its owner no longer has an account in.
+    devices = await push.forget_account(account_id)
     purchases = await db().store_purchases.count_documents({"account_id": account_id})
     await db().accounts.delete_one({"_id": account_id})
     # Counts only: a trail that proved the erasure by storing the email would not be an erasure.
     await db().audit.insert_one(
-        {"type": "account_deleted", "account_id": account_id, "realms": realms, "sessions_revoked": revoked, "purchases_retained": purchases, "at": now}
+        {"type": "account_deleted", "account_id": account_id, "realms": realms, "sessions_revoked": revoked, "devices_forgotten": devices, "purchases_retained": purchases, "at": now}
     )
-    log.info("account %s erased (%d realm(s), %d session(s) revoked)", account_id, realms, revoked)
-    return {"deleted": True, "realms": realms, "sessions_revoked": revoked, "purchases_retained": purchases}
+    log.info("account %s erased (%d realm(s), %d session(s) revoked, %d device(s) forgotten)", account_id, realms, revoked, devices)
+    return {"deleted": True, "realms": realms, "sessions_revoked": revoked, "devices_forgotten": devices, "purchases_retained": purchases}
 
 
 async def _dissolve_house(player: dict, now: datetime) -> None:
