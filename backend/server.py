@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api import routes_alliance, routes_auth, routes_game, routes_premium, routes_push, routes_qa, routes_store
+from app.api import routes_alliance, routes_auth, routes_game, routes_premium, routes_push, routes_qa, routes_store, routes_telemetry
 from app.core import clock, config, reqlog, tasks
 from app.core.db import close, ensure_indexes
 from app.core.errors import ApiError
@@ -95,6 +95,7 @@ app.include_router(routes_alliance.router)
 app.include_router(routes_premium.router)
 app.include_router(routes_store.router)
 app.include_router(routes_push.router)
+app.include_router(routes_telemetry.router)
 app.include_router(routes_qa.router)
 
 

@@ -52,7 +52,7 @@ jobs:
           pytest tests/test_runtime.py tests/test_spec_formulas.py
           tests/test_sentinel_geometry.py tests/test_hardening.py
           tests/test_observability.py tests/test_spec_conformance.py
-          tests/test_account_deletion.py tests/test_push.py
+          tests/test_account_deletion.py tests/test_push.py tests/test_telemetry.py
           --cov=app --cov-report=term-missing
       # Printed, not enforced: a threshold picked to match today's number only blocks the next pull request. What
       # the report is for is seeing which domain module a change leaves uncovered.

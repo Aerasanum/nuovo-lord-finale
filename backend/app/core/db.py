@@ -91,6 +91,9 @@ async def ensure_indexes() -> None:
     await d.inbox.create_index([("player_id", ASCENDING), ("read_at", ASCENDING)])
     await d.device_tokens.create_index([("account_id", ASCENDING), ("last_seen_at", DESCENDING)])
     await d.push_window.create_index("expires_at", expireAfterSeconds=0)
+    # crash reports (domain/telemetry.py): grouped by fingerprint, and they expire on their own
+    await d.crash_reports.create_index([("fingerprint", ASCENDING), ("at", DESCENDING)])
+    await d.crash_reports.create_index("expires_at", expireAfterSeconds=0)
 
     await d.territory_tiles.create_index([("world_id", ASCENDING), ("x", ASCENDING), ("y", ASCENDING)], unique=True)
     await d.territory_tiles.create_index([("world_id", ASCENDING), ("owner_player_id", ASCENDING)])
