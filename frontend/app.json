@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Empire Lords Dragon",
-    "slug": "frontend",
+    "slug": "empire-lords-dragon",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,14 +9,15 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.empirelordsdragon.fo04wm"
+      "bundleIdentifier": "com.aerasanum.empirelords"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.emergent.empirelordsdragon.fo04wm"
+      "package": "com.aerasanum.empirelords",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

@@ -86,9 +86,16 @@ export default function WorldsScreen() {
       title={t("chooseWorld")}
       testID="worlds-screen"
       right={
-        <Pressable onPress={() => logout().then(() => router.replace("/login"))} style={s.logout} testID="worlds-logout-button">
-          <Icon name="logout" size={22} color={colors.onSurfaceSecondary} />
-        </Pressable>
+        <Row>
+          {/* Settings is otherwise only reachable from the city tab, which needs a realm. A Lord who registered and
+              never joined one still has to be able to reach the account erasure. */}
+          <Pressable onPress={() => router.push("/settings")} style={s.logout} testID="worlds-settings-button" accessibilityLabel={t("settings")}>
+            <Icon name="cog-outline" size={22} color={colors.onSurfaceSecondary} />
+          </Pressable>
+          <Pressable onPress={() => logout().then(() => router.replace("/login"))} style={s.logout} testID="worlds-logout-button">
+            <Icon name="logout" size={22} color={colors.onSurfaceSecondary} />
+          </Pressable>
+        </Row>
       }
     >
       {worlds.isLoading || worlds.isError ? (

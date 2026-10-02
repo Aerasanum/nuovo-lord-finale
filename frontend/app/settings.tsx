@@ -4,19 +4,20 @@
  */
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Alert, Platform, ScrollView, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Platform, ScrollView, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useDeleteAccount } from "@/src/api/hooks";
 import { Crest } from "@/src/components/Crest";
-import { Screen, useToast } from "@/src/components/overlay";
+import { Screen, Sheet, useToast } from "@/src/components/overlay";
 import { BackButton } from "@/src/components/alliance/common";
 import { Button, Chip, Icon, Panel, Row, T } from "@/src/components/ui";
 import { fmt, LANGS, localeOf, useI18n } from "@/src/i18n";
 import { useAuth } from "@/src/state/AuthContext";
 import { tour } from "@/src/state/tour";
 import { useGame } from "@/src/state/useGame";
-import { spacing, useTheme } from "@/src/theme";
+import { fonts, radius, spacing, useTheme } from "@/src/theme";
 
 export default function SettingsScreen() {
   const { colors } = useTheme();
@@ -25,7 +26,12 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { account, logout } = useAuth();
   const { player, world } = useGame();
-  const { show } = useToast();
+  const { show, showError } = useToast();
+  const [erasing, setErasing] = useState(false);
+  const [password, setPassword] = useState("");
+  const erase = useDeleteAccount();
+  // A Google account has no password of ours to re-type; the sheet itself is the confirmation there.
+  const needsPassword = (account?.provider ?? "password") === "password";
 
   const doLogout = () =>
     logout().then(() => {
@@ -41,6 +47,21 @@ export default function SettingsScreen() {
       { text: t("cancel"), style: "cancel" },
       { text: t("logout"), style: "destructive", onPress: doLogout },
     ]);
+  };
+
+  const doErase = async () => {
+    try {
+      await erase.mutateAsync(needsPassword ? password : undefined);
+    } catch (e) {
+      showError(e);
+      return;
+    }
+    // The account is gone server-side; logout is only here to clear what this device still holds.
+    setErasing(false);
+    setPassword("");
+    await logout();
+    show(t("deleteAccountDone"), "success");
+    router.replace("/login");
   };
 
   return (
@@ -113,10 +134,84 @@ export default function SettingsScreen() {
           </Panel>
         ) : null}
 
+        <Panel testID="settings-privacy">
+          <View style={{ gap: spacing.sm }}>
+            <Button title={t("privacyTitle")} icon="shield-lock-outline" variant="secondary" onPress={() => router.push("/legal/privacy")} testID="settings-privacy-link" />
+            <Button title={t("deleteAccount")} icon="account-remove-outline" variant="danger" onPress={() => setErasing(true)} testID="settings-delete-account" />
+          </View>
+        </Panel>
+
         <T v="caption" style={{ textAlign: "center" }} testID="settings-version">
           Empire Lords Dragon · {t("appVersion")} {Constants.expoConfig?.version ?? "1.0.0"}
         </T>
       </ScrollView>
+
+      <Sheet
+        visible={erasing}
+        onClose={() => {
+          setErasing(false);
+          setPassword("");
+        }}
+        title={t("deleteAccount")}
+        testID="delete-account-sheet"
+        footer={
+          <Row style={{ gap: spacing.sm }}>
+            <Button
+              title={t("cancel")}
+              variant="secondary"
+              style={{ flex: 1 }}
+              onPress={() => {
+                setErasing(false);
+                setPassword("");
+              }}
+              testID="delete-account-cancel"
+            />
+            <Button
+              title={t("deleteAccountCta")}
+              variant="danger"
+              style={{ flex: 1 }}
+              loading={erase.isPending}
+              disabled={needsPassword && password.length < 8}
+              onPress={doErase}
+              testID="delete-account-confirm"
+            />
+          </Row>
+        }
+      >
+        <View style={{ gap: spacing.sm }}>
+          <Row style={{ gap: spacing.sm }}>
+            <Icon name="alert-octagon-outline" size={22} color={colors.error} />
+            <T v="label" style={{ flex: 1, color: colors.error }}>
+              {t("deleteAccountWarning")}
+            </T>
+          </Row>
+          <T v="caption">{t("deleteAccountLead")}</T>
+          {needsPassword ? (
+            <TextInput
+              testID="delete-account-password"
+              style={{ height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surfaceTertiary, color: colors.onSurface, paddingHorizontal: spacing.md, fontFamily: fonts.body, fontSize: 15 }}
+              placeholder={t("password")}
+              placeholderTextColor={colors.muted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+            />
+          ) : null}
+          <Button
+            title={t("deleteAccountHow")}
+            icon="text-box-outline"
+            variant="ghost"
+            onPress={() => {
+              setErasing(false);
+              router.push("/legal/delete-account");
+            }}
+            testID="delete-account-details"
+          />
+        </View>
+      </Sheet>
     </Screen>
   );
 }

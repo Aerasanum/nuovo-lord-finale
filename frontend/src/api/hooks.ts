@@ -858,6 +858,16 @@ export type StoreDto = { rubies: number; billing: { channel: string; status: "LI
 export function useStore(enabled = true) {
   return useQuery<StoreDto>({ queryKey: ["store"], queryFn: () => get("/store"), enabled, refetchInterval: usePolling(20000) });
 }
+
+// ---------------------------------------------------------------------------------------------- account
+export type AccountErasure = { deleted: boolean; realms: number; sessions_revoked: number; purchases_retained: number };
+
+/** Irreversible. The caller is expected to sign out immediately after: the token it used no longer resolves. */
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: (password?: string) => post<AccountErasure>("/auth/account/delete", { password: password || null }),
+  });
+}
 export function useStoreMutations(worldId?: string | null) {
   const qc = useQueryClient();
   const refresh = (d: StoreDto) => {
