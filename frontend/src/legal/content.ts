@@ -3,15 +3,16 @@
  * URL for both (the Console demands a reachable privacy policy, and the User Data policy demands a deletion route
  * a person can follow without installing anything).
  *
- * Two values below are the publisher's and cannot be guessed from the code — fill them before the first upload,
- * because a policy that names nobody is not a policy. Everything else is written against what the server actually
- * stores, so if the data model changes this text has to change with it.
+ * `PUBLISHER` and `CONTACT_EMAIL` are what the policy names as data controller and contact, so they have to match
+ * the developer identity on Play Console and an inbox somebody reads: the erasure notice promises an answer within
+ * 30 days. Everything else is written against what the server actually stores, so if the data model changes this
+ * text has to change with it.
  *
  * The text exists in Italian and English only. Translating a legal document is not the same job as translating a
  * button, and a bad translation of this one is worse than reading it in English.
  */
-export const PUBLISHER = "«NOME O RAGIONE SOCIALE DELL'EDITORE»";
-export const CONTACT_EMAIL = "«INDIRIZZO-EMAIL-DI-CONTATTO»";
+export const PUBLISHER = "Empire Lords Dragon";
+export const CONTACT_EMAIL = "manueltait@hotmail.it";
 
 export type LegalSection = { title: string; body: string[] };
 type LegalDoc = { updated: string; intro: string; sections: LegalSection[] };
